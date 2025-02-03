@@ -23,7 +23,7 @@ jobs:
         id: docker_meta
         uses: docker/metadata-action@v5.6.1
         with:
-          images: ghcr.io/gwmcelfresh/tcrClustR
+          images: ghcr.io/gwmcelfresh/tcrclustr
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -50,5 +50,5 @@ jobs:
             "GH_PAT=${{ secrets.GITHUB_TOKEN }}"
           push: true
           tags: |
-            ghcr.io/gwmcelfresh/tcrClustR:latest
-            ghcr.io/gwmcelfresh/tcrClustR:nightly
+            ghcr.io/gwmcelfresh/tcrclustr:latest
+            ghcr.io/gwmcelfresh/tcrclustr:nightly
