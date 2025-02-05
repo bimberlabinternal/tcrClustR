@@ -28,7 +28,9 @@ RUN apt-get update && apt-get install -y \
     libfreetype6-dev \
     libpng-dev \
     libtiff5-dev \
-    libjpeg-dev && \
+    libjpeg-dev \
+    gcc \
+    g++ && \
     mkdir /TCR_Python && \
     cd /TCR_Python && \
     wget https://github.com/python/cpython/archive/refs/tags/v3.8.10.tar.gz && \
