@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y \
     squashfs-tools \
     libseccomp-dev \
     libsqlite3-dev \
+    libgit2-dev \
     pkg-config \
     git-all \
     wget \
@@ -28,7 +29,10 @@ RUN apt-get update && apt-get install -y \
     libfreetype6-dev \
     libpng-dev \
     libtiff5-dev \
-    libjpeg-dev && \
+    libjpeg-dev \
+    libmbedtls-dev \
+    cargo \
+    libmagick++-dev && \
     mkdir /TCR_Python && \
     cd /TCR_Python && \
     wget https://github.com/python/cpython/archive/refs/tags/v3.8.10.tar.gz && \
@@ -38,7 +42,7 @@ RUN apt-get update && apt-get install -y \
     cd /TCR_Python/cpython-3.8.10 && \
     make && \
     make install && \
-    /TCR_Python/bin/pip3 --no-cache-dir install numpy scipy scikit-learn scikit-misc matplotlib tqdm sympy setuptools pandas pyyaml scanpy && \
+    /TCR_Python/bin/pip3 --no-cache-dir install numpy scipy scikit-learn scikit-misc matplotlib tqdm sympy setuptools pandas pyyaml scanpy rpy2 && \
     /TCR_Python/bin/pip3 --no-cache-dir install git+https://github.com/kmayerb/tcrdist3.git@0.2.2 && \
     # Install conga:
     mkdir /conga  && \
@@ -58,7 +62,7 @@ RUN apt-get update && apt-get install -y r-base r-base-dev && \
         echo 'Setting GH_PAT'; \
         export GITHUB_PAT="${GH_PAT}"; \
     fi && \
-    Rscript -e "install.packages(c('remotes', 'devtools', 'BiocManager', 'pryr', 'rmdformats', 'knitr', 'logger', 'Matrix'), dependencies=TRUE, ask = FALSE, upgrade = 'always')" && \
+    Rscript -e "install.packages(c('remotes', 'devtools', 'BiocManager', 'pryr', 'rmdformats', 'knitr', 'logger', 'Matrix', 'kernlab', 'tidyverse', 'Seurat', 'leidenbase', 'igraph', 'FNN'), dependencies=TRUE, ask = FALSE, upgrade = 'always')" && \
     echo "local({options(repos = BiocManager::repositories())})" >> ~/.Rprofile
 
 
