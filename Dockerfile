@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y \
     squashfs-tools \
     libseccomp-dev \
     libsqlite3-dev \
+    libgit2-dev \
     pkg-config \
     git-all \
     wget \
@@ -29,8 +30,9 @@ RUN apt-get update && apt-get install -y \
     libpng-dev \
     libtiff5-dev \
     libjpeg-dev \
-    gcc \
-    g++ && \
+    libmbedtls-dev \
+    cargo \
+    libmagick++-dev && \
     mkdir /TCR_Python && \
     cd /TCR_Python && \
     wget https://github.com/python/cpython/archive/refs/tags/v3.8.10.tar.gz && \
