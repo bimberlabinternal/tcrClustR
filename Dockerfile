@@ -58,7 +58,7 @@ RUN apt-get update && apt-get install -y r-base r-base-dev && \
         echo 'Setting GH_PAT'; \
         export GITHUB_PAT="${GH_PAT}"; \
     fi && \
-    Rscript -e "install.packages(c('remotes', 'devtools', 'BiocManager', 'pryr', 'rmdformats', 'knitr', 'logger', 'Matrix'), dependencies=TRUE, ask = FALSE, upgrade = 'always')" && \
+    Rscript -e "install.packages(c('remotes', 'devtools', 'BiocManager', 'pryr', 'rmdformats', 'knitr', 'logger', 'Matrix', 'kernlab', 'tidyverse', 'Seurat', 'leidenbase', 'igraph', 'FNN'), dependencies=TRUE, ask = FALSE, upgrade = 'always')" && \
     echo "local({options(repos = BiocManager::repositories())})" >> ~/.Rprofile
 
 
