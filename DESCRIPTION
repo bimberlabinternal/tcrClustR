@@ -7,5 +7,11 @@ Authors@R:
 Description: This package uses network analysis from different TCR distance metrics to group TCRs into hopefully functional families for prioritization in synthesis studies. 
 License: GPL (>= 3)
 Encoding: UTF-8
+Depends:
+    R (>= 4.3.0)
+Imports:
+    Seurat,
+    SeuratObject,
+    Biostrings
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
