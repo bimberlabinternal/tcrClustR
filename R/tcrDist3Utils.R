@@ -1,6 +1,6 @@
 
 utils::globalVariables(
-  names = c('SubjectId', 'TRA_V', 'TRA_J', 'TRB_V', 'TRB_J', 'CloneNames', 'count'),
+  names = c('SubjectId', 'TRA', 'TRA_V', 'TRA_J', 'TRB', 'TRB_V', 'TRB_J', 'CloneNames', 'count'),
   package = 'tcrClustR',
   add = TRUE
 )
@@ -71,7 +71,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
     clone_id = metadata$CloneNames
   )
   # Write the formatted data to the output CSV file
-  write.csv(formatted_data, outputCsv, row.names = FALSE)
+  utils::write.csv(formatted_data, outputCsv, row.names = FALSE)
 }
 
 .reverse_translate_cdr3 <- function(cdr3_aa_seq) {

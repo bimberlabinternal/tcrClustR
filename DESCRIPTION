@@ -12,6 +12,9 @@ Depends:
 Imports:
     Seurat,
     SeuratObject,
-    utils
+    R.utils,
+    dplyr,
+    reticulate,
+    readr
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
