@@ -1,4 +1,10 @@
 
+utils::globalVariables(
+  names = c('SubjectId', 'TRA_V', 'TRA_J', 'TRB_V', 'TRB_J', 'CloneNames', 'count'),
+  package = 'tcrClustR',
+  add = TRUE
+)
+
 #' Format metadata for tcrDist3
 #' @description This function formats a seurat object's metadata (with TCR information appended) for tcrDist3 distance caluclations.
 #'
