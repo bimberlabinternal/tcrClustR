@@ -26,6 +26,8 @@ FormatMetadataForTcrDist3(
 \item{summarizeClones}{Boolean controlling whether to summarize clones by SubjectId, TRA, TRB, TRA_V, TRA_J, TRB_V, and TRB_J.}
 
 \item{imputeCloneNames}{Boolean controlling whether to impute clone names if they are missing.}
+
+\item{minimumClonesPerSubject}{Minimum number of clones per subject to include in the analysis. Default is 2.}
 }
 \description{
 This function formats a seurat object's metadata (with TCR information appended) for tcrDist3 distance caluclations.

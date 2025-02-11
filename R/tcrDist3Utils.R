@@ -14,6 +14,7 @@ utils::globalVariables(
 #' @param summarizeClones Boolean controlling whether to summarize clones by SubjectId, TRA, TRB, TRA_V, TRA_J, TRB_V, and TRB_J.
 #' @param imputeCloneNames Boolean controlling whether to impute clone names if they are missing.
 #' @param outputCsv Path to the output CSV file.
+#' @param minimumClonesPerSubject Minimum number of clones per subject to include in the analysis. Default is 2.
 #' @return NULL
 #' @export
 
