@@ -20,6 +20,8 @@ FormatMetadataForConga(
 
 \item{outputCsv}{Path to the output CSV file.}
 
+\item{organism}{Organism to use for conga's TCR db. Default is 'human'.}
+
 \item{chains}{TCR chains to include in the analysis. TRA/TRB supported and tested, but others likely work}
 
 \item{cleanMetadata}{Boolean controlling whether to clean the metadata by removing rows with NA values or commas in the specified chains.}

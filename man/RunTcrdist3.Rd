@@ -36,6 +36,8 @@ RunTcrdist3(
 
 \item{cleanMetadata}{Pass-through boolean controlling whether to clean the metadata by removing rows with NA values or commas in the specified chains. Default is TRUE.}
 
+\item{spikeInDataframe}{Data frame containing known CDR3s and gene segments to be included in the clustering. Default is NULL.}
+
 \item{summarizeClones}{Pass-through boolean controlling whether to summarize clones into a frequency (by SubjectId, TRA, TRB, TRA_V, and TRB_J). Default is TRUE.}
 
 \item{imputeCloneNames}{Pass-through boolean controlling whether to impute clone names if they are missing. Existing clone names will be inherited. Default is TRUE.}

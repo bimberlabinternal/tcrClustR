@@ -15,6 +15,7 @@ utils::globalVariables(
 #' @param postFormattingMetadataCsvPath Path to the output CSV file from FormatMetadataForTcrDist3. Default is './tcrDist3Input.csv'.
 #' @param chains Vector of TCR chains to include in the analysis. Default is c("TRA", "TRB").
 #' @param cleanMetadata Pass-through boolean controlling whether to clean the metadata by removing rows with NA values or commas in the specified chains. Default is TRUE.
+#' @param spikeInDataframe Data frame containing known CDR3s and gene segments to be included in the clustering. Default is NULL.
 #' @param summarizeClones Pass-through boolean controlling whether to summarize clones into a frequency (by SubjectId, TRA, TRB, TRA_V, and TRB_J). Default is TRUE.
 #' @param imputeCloneNames Pass-through boolean controlling whether to impute clone names if they are missing. Existing clone names will be inherited. Default is TRUE.
 #' @param minimumClonesPerSubject Minimum number of clones per subject to include in the analysis. Default is 2.

@@ -10,6 +10,7 @@ utils::globalVariables(
 #'
 #' @param metadata Data frame containing metadata.
 #' @param outputCsv Path to the output CSV file.
+#' @param organism Organism to use for conga's TCR db. Default is 'human'.
 #' @param chains TCR chains to include in the analysis. TRA/TRB supported and tested, but others likely work
 #' @param cleanMetadata Boolean controlling whether to clean the metadata by removing rows with NA values or commas in the specified chains.
 #' @param minimumClonesPerSubject Minimum number of clones per subject to include in the analysis. Default is 2.
