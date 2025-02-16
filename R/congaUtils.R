@@ -1,6 +1,6 @@
 
 utils::globalVariables(
-  names = c('id', 'unsequencedTCRs', 'TRA_V', 'TRA_J', 'organism', 'TRB_V', 'TRB_J', 'CloneNames', 'count'),
+  names = c('id', 'unsequencedTCRs', 'TRA_V', 'TRA_J', 'organism', 'TRB_V', 'TRB_J', 'TRG_V', 'TRG_J', 'TRD_V', 'TRD_J', 'gene_segments', 'CloneNames', 'count'),
   package = 'tcrClustR',
   add = TRUE
 )
