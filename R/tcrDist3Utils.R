@@ -27,7 +27,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
                                       imputeCloneNames = T,
                                       minimumClonesPerSubject = 100,
                                       writeUnannotatedGeneSegmentsToFile = T
-                                      ) {
+) {
   if (cleanMetadata) {
     for (chain in chains) {
       #filter rows with NA values in the requested chains
@@ -36,7 +36,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
       metadata <- metadata[!grepl(",", metadata[[chain]]), ]
 
       .PullTcrdist3Db(organism = organism,
-                           outputFilePath = './tcrdist3_gene_segments.txt')
+                      outputFilePath = './tcrdist3_gene_segments.txt')
       gene_segments_in_db <- readr::read_csv('./tcrdist3_gene_segments.txt', show_col_types = FALSE) |>
         dplyr::mutate(`gene_segments` = gsub("\\*[0-9]+$", "", `gene_segments`)) |>
         unlist() |>
@@ -44,14 +44,14 @@ FormatMetadataForTcrDist3 <- function(metadata,
       #remove gene segments not found in conga's database
       if (chain == "TRA") {
         if (writeUnannotatedGeneSegmentsToFile) {
-        #store filtered gene segments
-        filtered_genes <- metadata |>
-          dplyr::filter(!(TRA_V %in% gene_segments_in_db)) |>
-          dplyr::filter(!(TRA_J %in% gene_segments_in_db)) |>
-          dplyr::select(TRA_V, TRA_J) |>
-          unique.data.frame()
-        print(paste0("Writing TRA segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath('./filtered_TRA_gene_segments.csv')))
-        write.csv(filtered_genes, file = './filtered_TRA_gene_segments.csv', row.names = FALSE)
+          #store filtered gene segments
+          filtered_genes <- metadata |>
+            dplyr::filter(!(TRA_V %in% gene_segments_in_db)) |>
+            dplyr::filter(!(TRA_J %in% gene_segments_in_db)) |>
+            dplyr::select(TRA_V, TRA_J) |>
+            unique.data.frame()
+          print(paste0("Writing TRA segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath('./filtered_TRA_gene_segments.csv')))
+          utils::write.csv(filtered_genes, file = './filtered_TRA_gene_segments.csv', row.names = FALSE)
         }
 
         metadata <- metadata |>
@@ -66,11 +66,11 @@ FormatMetadataForTcrDist3 <- function(metadata,
             dplyr::select(TRB_V, TRB_J) |>
             unique.data.frame()
           print(paste0("Writing TRB segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath('./filtered_TRB_gene_segments.csv')))
-          write.csv(filtered_genes, file = './filtered_TRB_gene_segments.csv', row.names = FALSE)
+          utils::write.csv(filtered_genes, file = './filtered_TRB_gene_segments.csv', row.names = FALSE)
         }
         metadata <- metadata |>
-        dplyr::filter(TRB_V %in% gene_segments_in_db) |>
-        dplyr::filter(TRB_J %in% gene_segments_in_db)
+          dplyr::filter(TRB_V %in% gene_segments_in_db) |>
+          dplyr::filter(TRB_J %in% gene_segments_in_db)
 
       } else if (chain == "TRG") {
         if (writeUnannotatedGeneSegmentsToFile) {
@@ -81,7 +81,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
             dplyr::select(TRG_V, TRG_J) |>
             unique.data.frame()
           print(paste0("Writing TRG segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath('./filtered_TRG_gene_segments.csv')))
-          write.csv(filtered_genes, file = './filtered_TRG_gene_segments.csv', row.names = FALSE)
+          utils::write.csv(filtered_genes, file = './filtered_TRG_gene_segments.csv', row.names = FALSE)
         }
         metadata <- metadata |>
           dplyr::filter(TRG_V %in% gene_segments_in_db) |>
@@ -95,7 +95,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
             dplyr::select(TRD_V, TRD_J) |>
             unique.data.frame()
           print(paste0("Writing TRD segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath('./filtered_TRD_gene_segments.csv')))
-          write.csv(filtered_genes, file = './filtered_TRD_gene_segments.csv', row.names = FALSE)
+          utils::write.csv(filtered_genes, file = './filtered_TRD_gene_segments.csv', row.names = FALSE)
         }
         metadata <- metadata |>
           dplyr::filter(TRD_V %in% gene_segments_in_db) |>
@@ -182,20 +182,20 @@ FormatMetadataForTcrDist3 <- function(metadata,
 }
 
 .PullTcrdist3Db <- function(organism = 'human',
-                                 outputFilePath = './tcrdist3_gene_segments',
-                                 pythonExecutable = NULL) {
-    if (is.null(pythonExecutable)) {
-      pythonExecutable <- reticulate::py_exe()
-    }
-    outputFilePath <- R.utils::getAbsolutePath(outputFilePath)
-    template <- readr::read_file(system.file("scripts/PullTcrdist3Db.py", package = "tcrClustR"))
-    script <- tempfile()
-    readr::write_file(template, script)
-    #format and write the python function to the end of the script
-    command <- paste0("PullTcrdist3Db(organism = '", organism,
-                      "', outputFilePath = '", outputFilePath,
-                      "')")
-    readr::write_file(command, script, append = TRUE)
-    #execute
-    system2(pythonExecutable, script)
+                            outputFilePath = './tcrdist3_gene_segments',
+                            pythonExecutable = NULL) {
+  if (is.null(pythonExecutable)) {
+    pythonExecutable <- reticulate::py_exe()
   }
+  outputFilePath <- R.utils::getAbsolutePath(outputFilePath)
+  template <- readr::read_file(system.file("scripts/PullTcrdist3Db.py", package = "tcrClustR"))
+  script <- tempfile()
+  readr::write_file(template, script)
+  #format and write the python function to the end of the script
+  command <- paste0("PullTcrdist3Db(organism = '", organism,
+                    "', outputFilePath = '", outputFilePath,
+                    "')")
+  readr::write_file(command, script, append = TRUE)
+  #execute
+  system2(pythonExecutable, script)
+}

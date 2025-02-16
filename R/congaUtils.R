@@ -61,7 +61,7 @@ FormatMetadataForConga <- function(metadata,
             dplyr::filter(!(TRA_J %in% gene_segments_in_db)) |>
             dplyr::select(TRA_V, TRA_J) |>
             unique.data.frame()
-          write.csv(filtered_genes, file = './filtered_TRA_gene_segments.csv', row.names = FALSE)
+          utils::write.csv(filtered_genes, file = './filtered_TRA_gene_segments.csv', row.names = FALSE)
         }
         metadata <- metadata |>
           dplyr::filter(TRA_V %in% gene_segments_in_db) |>
@@ -75,7 +75,7 @@ FormatMetadataForConga <- function(metadata,
             dplyr::select(TRB_V, TRB_J) |>
             unique.data.frame()
           print(paste0("Writing TRB segments present in the data, but missing in conga database to file: ", R.utils::getAbsolutePath('./filtered_TRB_gene_segments.csv')))
-          write.csv(filtered_genes, file = './filtered_TRB_gene_segments.csv', row.names = FALSE)
+          utils::write.csv(filtered_genes, file = './filtered_TRB_gene_segments.csv', row.names = FALSE)
         }
         metadata <- metadata |>
           dplyr::filter(TRA_V %in% gene_segments_in_db) |>
@@ -89,7 +89,7 @@ FormatMetadataForConga <- function(metadata,
             dplyr::select(TRG_V, TRG_J) |>
             unique.data.frame()
           print(paste0("Writing TRG segments present in the data, but missing in conga database to file: ", R.utils::getAbsolutePath('./filtered_TRG_gene_segments.csv')))
-          write.csv(filtered_genes, file = './filtered_TRG_gene_segments.csv', row.names = FALSE)
+          utils::write.csv(filtered_genes, file = './filtered_TRG_gene_segments.csv', row.names = FALSE)
         }
         metadata <- metadata |>
           dplyr::filter(TRG_V %in% gene_segments_in_db) |>
@@ -103,7 +103,7 @@ FormatMetadataForConga <- function(metadata,
             dplyr::select(TRD_V, TRD_J) |>
             unique.data.frame()
           print(paste0("Writing TRD segments present in the data, but missing in conga database to file: ", R.utils::getAbsolutePath('./filtered_TRD_gene_segments.csv')))
-          write.csv(filtered_genes, file = './filtered_TRD_gene_segments.csv', row.names = FALSE)
+          utils::write.csv(filtered_genes, file = './filtered_TRD_gene_segments.csv', row.names = FALSE)
         }
         metadata <- metadata |>
           dplyr::filter(TRD_V %in% gene_segments_in_db) |>
@@ -150,35 +150,35 @@ FormatMetadataForConga <- function(metadata,
   #conga requires a list of tuples to be literally interpreted by python, so that's how we must write the csv
   #the individual chains are written differently than joint chain couplets, so there's a case for each version.
   if (all(chains == "TRA")) {
-    write.csv(file = outputCsv,
-              paste0("[",
-                     paste0("(", "('", metadata$TRA_V, "*01','", metadata$TRA_J, "*01','", metadata$TRA, "'))" , collapse = ","),
-                     "]"), row.names = FALSE, quote = FALSE)
+    utils::write.csv(file = outputCsv,
+                     paste0("[",
+                            paste0("(", "('", metadata$TRA_V, "*01','", metadata$TRA_J, "*01','", metadata$TRA, "'))" , collapse = ","),
+                            "]"), row.names = FALSE, quote = FALSE)
 
   } else if (all(chains == "TRB")) {
-    write.csv(file = outputCsv,
-              paste0("[",
-                     paste0("(", "('", metadata$TRB_V, "*01','", metadata$TRB_J, "*01','", metadata$TRB, "'))" , collapse = ","),
-                     "]"), row.names = FALSE, quote = FALSE)
+    utils::write.csv(file = outputCsv,
+                     paste0("[",
+                            paste0("(", "('", metadata$TRB_V, "*01','", metadata$TRB_J, "*01','", metadata$TRB, "'))" , collapse = ","),
+                            "]"), row.names = FALSE, quote = FALSE)
 
   } else if (all(chains == "TRG")) {
-    write.csv(file = outputCsv,
-              paste0("[",
-                     paste0("(", "('", metadata$TRG_V, "*01','", metadata$TRG_J, "*01','", metadata$TRG, "'))" , collapse = ","),
-                     "]"), row.names = FALSE, quote = FALSE)
+    utils::write.csv(file = outputCsv,
+                     paste0("[",
+                            paste0("(", "('", metadata$TRG_V, "*01','", metadata$TRG_J, "*01','", metadata$TRG, "'))" , collapse = ","),
+                            "]"), row.names = FALSE, quote = FALSE)
   } else if (all(chains == "TRD")) {
-    write.csv(file = outputCsv,
-              paste0("[",
-                     paste0("(", "('", metadata$TRD_V, "*01','", metadata$TRD_J, "*01','", metadata$TRD, "'))" , collapse = ","),
-                     "]"), row.names = FALSE, quote = FALSE)
+    utils::write.csv(file = outputCsv,
+                     paste0("[",
+                            paste0("(", "('", metadata$TRD_V, "*01','", metadata$TRD_J, "*01','", metadata$TRD, "'))" , collapse = ","),
+                            "]"), row.names = FALSE, quote = FALSE)
   } else {
     stop(paste0("Chain ", chains, " is not supported."))
   }
 }
 
 .PullCongaDb <- function(organism = 'human',
-                  outputFilePath = './conga_gene_segments.txt',
-                  pythonExecutable = NULL) {
+                         outputFilePath = './conga_gene_segments.txt',
+                         pythonExecutable = NULL) {
   if (is.null(pythonExecutable)) {
     pythonExecutable <- reticulate::py_exe()
   }
