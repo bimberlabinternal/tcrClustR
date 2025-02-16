@@ -7,7 +7,11 @@ from rpy2.robjects import numpy2ri
 import pandas as pd
 from tcrdist.repertoire import TCRrep
 
-def getTcrDistances(csv_path, organism='human', chainsString="alpha,beta", db_file='alphabeta_gammadelta_db.tsv', debug = True):
+def getTcrDistances(csv_path, 
+                    organism='human', 
+                    chainsString="alpha,beta", 
+                    db_file='alphabeta_gammadelta_db.tsv', 
+                    debug = True):
     #read in the csv file
     df = pd.read_csv(csv_path)
     
@@ -67,7 +71,7 @@ def writeTcrDistances(csv_path,
                     organism='human', 
                     chainsString="alpha,beta", 
                     db_file='alphabeta_gammadelta_db.tsv',
-                    rds_output_path='TCR_distance_matrix.rds', 
+                    rds_output_path='./tcrdist3DistanceMatrices/', 
                     debug = True):
 
     distances = getTcrDistances(csv_path, organism, chainsString, db_file, debug)

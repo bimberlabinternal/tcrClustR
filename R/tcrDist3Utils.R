@@ -13,6 +13,7 @@ utils::globalVariables(
 #' @param cleanMetadata Boolean controlling whether to clean the metadata by removing rows with NA values or commas in the specified chains.
 #' @param summarizeClones Boolean controlling whether to summarize clones by SubjectId, TRA, TRB, TRA_V, TRA_J, TRB_V, and TRB_J.
 #' @param imputeCloneNames Boolean controlling whether to impute clone names if they are missing.
+#' @param writeUnannotatedGeneSegmentsToFile Boolean controlling whether to write unannotated gene segments to a file (filtered_{chain}_gene_segments.csv).
 #' @param outputCsv Path to the output CSV file.
 #' @param minimumClonesPerSubject Minimum number of clones per subject to include in the analysis. Default is 2.
 #' @return NULL
@@ -24,14 +25,84 @@ FormatMetadataForTcrDist3 <- function(metadata,
                                       cleanMetadata = T,
                                       summarizeClones = T,
                                       imputeCloneNames = T,
-                                      minimumClonesPerSubject = 100
+                                      minimumClonesPerSubject = 100,
+                                      writeUnannotatedGeneSegmentsToFile = T
                                       ) {
   if (cleanMetadata) {
     for (chain in chains) {
       #filter rows with NA values in the requested chains
       metadata <- metadata[!is.na(metadata[[chain]]), ]
-      #filter rows with commas (multiple chains detected in a cell) in the requested chains
+      #filter rows with commas (multiple segments detected in a cell) in the requested chains
       metadata <- metadata[!grepl(",", metadata[[chain]]), ]
+
+      .PullTcrdist3Db(organism = organism,
+                           outputFilePath = './tcrdist3_gene_segments.txt')
+      gene_segments_in_db <- readr::read_csv('./tcrdist3_gene_segments.txt', show_col_types = FALSE) |>
+        dplyr::mutate(`gene_segments` = gsub("\\*[0-9]+$", "", `gene_segments`)) |>
+        unlist() |>
+        unique()
+      #remove gene segments not found in conga's database
+      if (chain == "TRA") {
+        if (writeUnannotatedGeneSegmentsToFile) {
+        #store filtered gene segments
+        filtered_genes <- metadata |>
+          dplyr::filter(!(TRA_V %in% gene_segments_in_db)) |>
+          dplyr::filter(!(TRA_J %in% gene_segments_in_db)) |>
+          dplyr::select(TRA_V, TRA_J) |>
+          unique.data.frame()
+        print(paste0("Writing TRA segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath('./filtered_TRA_gene_segments.csv')))
+        write.csv(filtered_genes, file = './filtered_TRA_gene_segments.csv', row.names = FALSE)
+        }
+
+        metadata <- metadata |>
+          dplyr::filter(TRA_V %in% gene_segments_in_db) |>
+          dplyr::filter(TRA_J %in% gene_segments_in_db)
+      } else if (chain == "TRB") {
+        if (writeUnannotatedGeneSegmentsToFile) {
+          #store filtered gene segments
+          filtered_genes <- metadata |>
+            dplyr::filter(!(TRB_V %in% gene_segments_in_db)) |>
+            dplyr::filter(!(TRB_J %in% gene_segments_in_db)) |>
+            dplyr::select(TRB_V, TRB_J) |>
+            unique.data.frame()
+          print(paste0("Writing TRB segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath('./filtered_TRB_gene_segments.csv')))
+          write.csv(filtered_genes, file = './filtered_TRB_gene_segments.csv', row.names = FALSE)
+        }
+        metadata <- metadata |>
+        dplyr::filter(TRB_V %in% gene_segments_in_db) |>
+        dplyr::filter(TRB_J %in% gene_segments_in_db)
+
+      } else if (chain == "TRG") {
+        if (writeUnannotatedGeneSegmentsToFile) {
+          #store filtered gene segments
+          filtered_genes <- metadata |>
+            dplyr::filter(!(TRG_V %in% gene_segments_in_db)) |>
+            dplyr::filter(!(TRG_J %in% gene_segments_in_db)) |>
+            dplyr::select(TRG_V, TRG_J) |>
+            unique.data.frame()
+          print(paste0("Writing TRG segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath('./filtered_TRG_gene_segments.csv')))
+          write.csv(filtered_genes, file = './filtered_TRG_gene_segments.csv', row.names = FALSE)
+        }
+        metadata <- metadata |>
+          dplyr::filter(TRG_V %in% gene_segments_in_db) |>
+          dplyr::filter(TRG_J %in% gene_segments_in_db)
+      } else if (chain == "TRD") {
+        if (writeUnannotatedGeneSegmentsToFile) {
+          #store filtered gene segments
+          filtered_genes <- metadata |>
+            dplyr::filter(!(TRD_V %in% gene_segments_in_db)) |>
+            dplyr::filter(!(TRD_J %in% gene_segments_in_db)) |>
+            dplyr::select(TRD_V, TRD_J) |>
+            unique.data.frame()
+          print(paste0("Writing TRD segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath('./filtered_TRD_gene_segments.csv')))
+          write.csv(filtered_genes, file = './filtered_TRD_gene_segments.csv', row.names = FALSE)
+        }
+        metadata <- metadata |>
+          dplyr::filter(TRD_V %in% gene_segments_in_db) |>
+          dplyr::filter(TRD_J %in% gene_segments_in_db)
+      } else {
+        stop(paste0("Chain ", chain, " is not supported."))
+      }
     }
   }
 
@@ -109,3 +180,22 @@ FormatMetadataForTcrDist3 <- function(metadata,
   #paste the sampled codons together
   return(paste(cdr3_nuc_seq, collapse = ""))
 }
+
+.PullTcrdist3Db <- function(organism = 'human',
+                                 outputFilePath = './tcrdist3_gene_segments',
+                                 pythonExecutable = NULL) {
+    if (is.null(pythonExecutable)) {
+      pythonExecutable <- reticulate::py_exe()
+    }
+    outputFilePath <- R.utils::getAbsolutePath(outputFilePath)
+    template <- readr::read_file(system.file("scripts/PullTcrdist3Db.py", package = "tcrClustR"))
+    script <- tempfile()
+    readr::write_file(template, script)
+    #format and write the python function to the end of the script
+    command <- paste0("PullTcrdist3Db(organism = '", organism,
+                      "', outputFilePath = '", outputFilePath,
+                      "')")
+    readr::write_file(command, script, append = TRUE)
+    #execute
+    system2(pythonExecutable, script)
+  }

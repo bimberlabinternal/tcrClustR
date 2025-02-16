@@ -12,6 +12,7 @@ RunTcrdist3(
   postFormattingMetadataCsvPath = "./tcrDist3Input.csv",
   chains = c("TRA", "TRB"),
   cleanMetadata = T,
+  spikeInDataframe = NULL,
   summarizeClones = T,
   imputeCloneNames = T,
   minimumClonesPerSubject = 2,
@@ -65,7 +66,4 @@ This function runs the tcrdist3 pipeline on a set of CDR3 sequences in a Seurat 
               pythonExecutable = reticulate::py_exe(),
               debugTcrdist3 = "True")
 }
-
-
-
 }

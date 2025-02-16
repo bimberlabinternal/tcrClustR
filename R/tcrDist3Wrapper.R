@@ -1,3 +1,10 @@
+
+utils::globalVariables(
+  names = c('SubjectId', 'TRA_V', 'TRA_J', 'TRB_V', 'TRB_J', 'CloneNames', 'count'),
+  package = 'tcrClustR',
+  add = TRUE
+)
+
 #' @title RunTcrdist3
 #' @description This function runs the tcrdist3 pipeline on a set of CDR3 sequences in a Seurat Object.
 #'
@@ -30,10 +37,10 @@
 #'               pythonExecutable = reticulate::py_exe(),
 #'               debugTcrdist3 = "True")
 #' }
-#'
-#'
-#'
+#'@export
 
+
+#TODO: support spikeInDataframe
 
 RunTcrdist3 <- function(seuratObj = NULL,
                         metadata = NULL,
@@ -42,12 +49,16 @@ RunTcrdist3 <- function(seuratObj = NULL,
                         postFormattingMetadataCsvPath = './tcrDist3Input.csv',
                         chains = c("TRA", "TRB"),
                         cleanMetadata = T,
+                        spikeInDataframe = NULL,
                         summarizeClones = T,
                         imputeCloneNames = T,
                         minimumClonesPerSubject = 2,
                         rdsOutputPath = "./tcrdist3DistanceMatrices/",
                         pythonExecutable = reticulate::py_exe(),
                         debugTcrdist3 = "True") {
+  #TODO: allow for more direct control of all of the files that will be written
+  #FormatMetadata can write several different kinds of files (filtered gene segments, database)
+  #a "metadata directory" is probably the cleanest way to organize those files.
   #identify the metadata dataframe
   if (is.null(seuratObj) & is.null(metadata)) {
     stop("Please provide either a Seurat Object or the Seurat Object's metadata as input.")
