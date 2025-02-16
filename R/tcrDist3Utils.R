@@ -13,7 +13,7 @@ utils::globalVariables(
 #' @param cleanMetadata Boolean controlling whether to clean the metadata by removing rows with NA values or commas in the specified chains.
 #' @param summarizeClones Boolean controlling whether to summarize clones by SubjectId, TRA, TRB, TRA_V, TRA_J, TRB_V, and TRB_J.
 #' @param imputeCloneNames Boolean controlling whether to impute clone names if they are missing.
-#' @param writeUnannotatedGeneSegmentsToFile Boolean controlling whether to write unannotated gene segments to a file (filtered_{chain}_gene_segments.csv).
+#' @param writeUnannotatedGeneSegmentsToFile Boolean controlling whether to write unannotated gene segments to a file (filtered_(chain)_gene_segments.csv).
 #' @param outputCsv Path to the output CSV file.
 #' @param minimumClonesPerSubject Minimum number of clones per subject to include in the analysis. Default is 2.
 #' @return NULL

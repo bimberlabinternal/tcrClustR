@@ -26,7 +26,7 @@ FormatMetadataForConga(
 
 \item{minimumClonesPerSubject}{Minimum number of clones per subject to include in the analysis. Default is 2.}
 
-\item{writeUnannotatedGeneSegmentsToFile}{Boolean controlling whether to write unannotated gene segments to a file (filtered_{chain}_gene_segments.csv).}
+\item{writeUnannotatedGeneSegmentsToFile}{Boolean controlling whether to write unannotated gene segments to a file (filtered_(chain)_gene_segments.csv).}
 
 \item{spikeInDataframe}{Data frame containing spike-in data. Default is NULL.}
 }

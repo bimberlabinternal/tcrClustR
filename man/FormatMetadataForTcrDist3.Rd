@@ -30,7 +30,7 @@ FormatMetadataForTcrDist3(
 
 \item{minimumClonesPerSubject}{Minimum number of clones per subject to include in the analysis. Default is 2.}
 
-\item{writeUnannotatedGeneSegmentsToFile}{Boolean controlling whether to write unannotated gene segments to a file (filtered_{chain}_gene_segments.csv).}
+\item{writeUnannotatedGeneSegmentsToFile}{Boolean controlling whether to write unannotated gene segments to a file (filtered_(chain)_gene_segments.csv).}
 }
 \description{
 This function formats a seurat object's metadata (with TCR information appended) for tcrDist3 distance caluclations.

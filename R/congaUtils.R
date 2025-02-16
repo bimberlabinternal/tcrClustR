@@ -1,3 +1,10 @@
+
+utils::globalVariables(
+  names = c('id', 'unsequencedTCRs', 'TRA_V', 'TRA_J', 'organism', 'TRB_V', 'TRB_J', 'CloneNames', 'count'),
+  package = 'tcrClustR',
+  add = TRUE
+)
+
 #' @title FormatMetadataForConga
 #' @description This function formats metadata for the conga pipeline.
 #'
@@ -6,7 +13,7 @@
 #' @param chains TCR chains to include in the analysis. TRA/TRB supported and tested, but others likely work
 #' @param cleanMetadata Boolean controlling whether to clean the metadata by removing rows with NA values or commas in the specified chains.
 #' @param minimumClonesPerSubject Minimum number of clones per subject to include in the analysis. Default is 2.
-#' @param writeUnannotatedGeneSegmentsToFile Boolean controlling whether to write unannotated gene segments to a file (filtered_{chain}_gene_segments.csv).
+#' @param writeUnannotatedGeneSegmentsToFile Boolean controlling whether to write unannotated gene segments to a file (filtered_(chain)_gene_segments.csv).
 #' @param spikeInDataframe Data frame containing spike-in data. Default is NULL.
 #' @export
 
@@ -127,7 +134,7 @@ FormatMetadataForConga <- function(metadata,
   }
   #isolate necessary columns and de-duplicate the chains
   metadata <- metadata |>
-    dplyr::select(all_of(gene_segments_and_chains)) |>
+    dplyr::select(dplyr::all_of(gene_segments_and_chains)) |>
     dplyr::as_tibble() |>
     unique.data.frame()
 
