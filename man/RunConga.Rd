@@ -15,8 +15,7 @@ RunConga(
   spikeInDataframe = NULL,
   minimumClonesPerSubject = 2,
   rdsOutputPath = "./tcrdist3DistanceMatrices/",
-  pythonExecutable = NULL,
-  debugTcrdist3 = "True"
+  pythonExecutable = NULL
 )
 }
 \arguments{
@@ -41,8 +40,6 @@ RunConga(
 \item{rdsOutputPath}{Path to the output directory for the RDS files containing the distance matrices. Default is "./tcrdist3DistanceMatrices/".}
 
 \item{pythonExecutable}{Path to the python executable. Default is NULL, but imputes to reticulate::py_exe().}
-
-\item{debugTcrdist3}{String (to be passed to python and converted to boolean) controlling whether to run tcrdist3 in debug mode. Default is "True".}
 }
 \description{
 Run Conga's implementation of tcrdist on a Seurat object/metadata
@@ -57,8 +54,8 @@ Run Conga's implementation of tcrdist on a Seurat object/metadata
              cleanMetadata = T,
              minimumClonesPerSubject = 2,
              rdsOutputPath = "./tcrdist3DistanceMatrices/",
-             pythonExecutable = reticulate::py_exe(),
-             debugTcrdist3 = "True")
+             pythonExecutable = reticulate::py_exe()
+             )
 }
 
 }

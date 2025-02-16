@@ -8,6 +8,7 @@ FormatMetadataForTcrDist3(
   metadata,
   outputCsv = "./tcrDist3Input.csv",
   chains = c("TRA", "TRB"),
+  organism = "human",
   cleanMetadata = T,
   summarizeClones = T,
   imputeCloneNames = T,
@@ -20,7 +21,9 @@ FormatMetadataForTcrDist3(
 
 \item{outputCsv}{Path to the output CSV file.}
 
-\item{chains}{TCR chains to include in the analysis. TRA/TRB supported and tested, but others likely work}
+\item{chains}{TCR chains to include in the analysis. TRA/TRB supported and tested, but others likely work.}
+
+\item{organism}{Organism to use for tcrDist3. Default is 'human'.}
 
 \item{cleanMetadata}{Boolean controlling whether to clean the metadata by removing rows with NA values or commas in the specified chains.}
 

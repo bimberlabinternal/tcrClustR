@@ -36,7 +36,7 @@ def getTcrDistances(csv_path,
     if re.search(r'delta', chainsString):
         chains.append('delta')
 
-
+    print("Computing distances for chains: ", chains)
     tr = TCRrep(cell_df = df, 
                 organism = organism, 
                 chains = chains, 

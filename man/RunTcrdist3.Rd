@@ -17,7 +17,7 @@ RunTcrdist3(
   imputeCloneNames = T,
   minimumClonesPerSubject = 2,
   rdsOutputPath = "./tcrdist3DistanceMatrices/",
-  pythonExecutable = reticulate::py_exe(),
+  pythonExecutable = NULL,
   debugTcrdist3 = "True"
 )
 }

@@ -12,7 +12,6 @@
 #' @param minimumClonesPerSubject Minimum number of clones per subject to include in the analysis. Default is 2.
 #' @param rdsOutputPath Path to the output directory for the RDS files containing the distance matrices. Default is "./tcrdist3DistanceMatrices/".
 #' @param pythonExecutable Path to the python executable. Default is NULL, but imputes to reticulate::py_exe().
-#' @param debugTcrdist3 String (to be passed to python and converted to boolean) controlling whether to run tcrdist3 in debug mode. Default is "True".
 #' @param spikeInDataframe Data frame containing known CDR3s and gene segments to be included in the clustering. Default is NULL.
 #'
 #' @examples
@@ -25,8 +24,8 @@
 #'              cleanMetadata = T,
 #'              minimumClonesPerSubject = 2,
 #'              rdsOutputPath = "./tcrdist3DistanceMatrices/",
-#'              pythonExecutable = reticulate::py_exe(),
-#'              debugTcrdist3 = "True")
+#'              pythonExecutable = reticulate::py_exe()
+#'              )
 #' }
 #'
 #' @export
@@ -45,8 +44,8 @@ RunConga <- function(seuratObj = NULL,
                      spikeInDataframe = NULL,
                      minimumClonesPerSubject = 2,
                      rdsOutputPath = "./tcrdist3DistanceMatrices/",
-                     pythonExecutable = NULL,
-                     debugTcrdist3 = "True") {
+                     pythonExecutable = NULL
+                     ) {
   #identify the metadata dataframe
   if (is.null(seuratObj) & is.null(metadata)) {
     stop("Please provide either a Seurat Object or the Seurat Object's metadata as input.")

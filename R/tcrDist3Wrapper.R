@@ -55,7 +55,7 @@ RunTcrdist3 <- function(seuratObj = NULL,
                         imputeCloneNames = T,
                         minimumClonesPerSubject = 2,
                         rdsOutputPath = "./tcrdist3DistanceMatrices/",
-                        pythonExecutable = reticulate::py_exe(),
+                        pythonExecutable = NULL,
                         debugTcrdist3 = "True") {
   #TODO: allow for more direct control of all of the files that will be written
   #FormatMetadata can write several different kinds of files (filtered gene segments, database)
@@ -67,6 +67,9 @@ RunTcrdist3 <- function(seuratObj = NULL,
   #TODO: add a check for the metadata dataframe, or, if it's a csv file, read it.
   if (!is.null(seuratObj)) {
     metadata <- seuratObj@meta.data
+  }
+  if (is.null(pythonExecutable)) {
+    pythonExecutable <- reticulate::py_exe()
   }
 
   #format metadata if necessary (a user may have done this already, so add optional flag)
@@ -113,7 +116,7 @@ RunTcrdist3 <- function(seuratObj = NULL,
   if (!dir.exists(rdsOutputPath)) {
     dir.create(rdsOutputPath)
   }
-
+  print(paste0("Creating tcrdist3 distance matrices in the following directory: ", rdsOutputPath))
   #format and write the python function to the end of the script
   command <- paste0("writeTcrDistances(csv_path = '", postFormattingMetadataCsvPath,
                    "', organism = '", organism,

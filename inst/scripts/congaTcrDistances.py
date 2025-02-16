@@ -20,12 +20,7 @@ def getTcrDistances(tcrFile,
 
   #import the tcrs as a list of dictionaries
   tcrs = ast.literal_eval(str(content[1]))
-  for t1 in tcrs: 
-    print(t1)
-    for t2 in tcrs:
-      print(t2)
-      print(tcrdist.single_chain_distance(t1,t2))
-    break
+
   #compute distances
   D = np.array([tcrdist.single_chain_distance(t1,t2) for t1 in tcrs for t2 in tcrs]).reshape((len(tcrs),len(tcrs)))
   

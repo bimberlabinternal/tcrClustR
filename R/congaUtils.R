@@ -57,19 +57,36 @@ FormatMetadataForConga <- function(metadata,
                    outputFilePath = './conga_gene_segments.txt')
       gene_segments_in_db <- readr::read_csv('./conga_gene_segments.txt', show_col_types = FALSE) |>
         dplyr::mutate(`id` = gsub("\\*[0-9]+$", "", `id`)) |>
+        dplyr::pull(id) |>
         unlist() |>
         unique()
+
       #remove gene segments not found in conga's database
       #TODO: store the gene segments in the data that are not found in the database
       if (chain == "TRA") {
         if (writeUnannotatedGeneSegmentsToFile) {
           #store filtered gene segments
-          filtered_genes <- metadata |>
-            dplyr::filter(!(TRA_V %in% gene_segments_in_db)) |>
-            dplyr::filter(!(TRA_J %in% gene_segments_in_db)) |>
-            dplyr::select(TRA_V, TRA_J) |>
-            unique.data.frame()
-          utils::write.csv(filtered_genes, file = './filtered_TRA_gene_segments.csv', row.names = FALSE)
+          if (any(!(metadata$TRA_V %in% gene_segments_in_db) | any(!metadata$TRA_J %in% gene_segments_in_db))) {
+            message("TRA gene segments present in the data, but not found in conga database!")
+            print(paste0("Writing TRA segments present in the data, but missing in conga database to file: ", R.utils::getAbsolutePath('./filtered_TRA_gene_segments.csv')))
+            filtered_genes <- metadata |>
+              dplyr::filter(!is.na(TRA_V)) |>
+              dplyr::filter(!is.na(TRA_J)) |>
+              dplyr::mutate(
+                VALID_V = dplyr::case_when(TRA_V %in% gene_segments_in_db ~ "valid",
+                                           TRUE ~ "invalid"),
+                VALID_J = dplyr::case_when(TRA_J %in% gene_segments_in_db ~ "valid",
+                                           TRUE ~ "invalid" )) |>
+              #write only the invalid V and J segments, so that the valid ones appear as "valid" in the text file
+              dplyr::mutate(TRA_V = dplyr::case_when(VALID_V == "valid" ~ "valid",
+                                              TRUE ~ TRA_V)) |>
+              dplyr::mutate(TRA_J = dplyr::case_when(VALID_J == "valid" ~ "valid",
+                                              TRUE ~ TRA_J)) |>
+              dplyr::filter(TRA_V != "valid" | TRA_J != "valid") |>
+              dplyr::select(TRA_V, TRA_J) |>
+              unique.data.frame()
+            utils::write.csv(filtered_genes, file = './filtered_TRA_gene_segments.csv', row.names = FALSE)
+          }
         }
         metadata <- metadata |>
           dplyr::filter(TRA_V %in% gene_segments_in_db) |>
@@ -77,13 +94,27 @@ FormatMetadataForConga <- function(metadata,
       } else if (chain == "TRB") {
         if (writeUnannotatedGeneSegmentsToFile) {
           #store filtered gene segments
-          filtered_genes <- metadata |>
-            dplyr::filter(!(TRB_V %in% gene_segments_in_db)) |>
-            dplyr::filter(!(TRB_J %in% gene_segments_in_db)) |>
-            dplyr::select(TRB_V, TRB_J) |>
-            unique.data.frame()
-          print(paste0("Writing TRB segments present in the data, but missing in conga database to file: ", R.utils::getAbsolutePath('./filtered_TRB_gene_segments.csv')))
-          utils::write.csv(filtered_genes, file = './filtered_TRB_gene_segments.csv', row.names = FALSE)
+          if (any(!(metadata$TRB_V %in% gene_segments_in_db) | any(!metadata$TRB_J %in% gene_segments_in_db))) {
+            message("TRB gene segments present in the data, but not found in conga database!")
+            filtered_genes <- metadata |>
+              dplyr::filter(!is.na(TRB_V)) |>
+              dplyr::filter(!is.na(TRB_J)) |>
+              dplyr::mutate(
+                VALID_V = dplyr::case_when(TRB_V %in% gene_segments_in_db ~ "valid",
+                                           TRUE ~ "invalid"),
+                VALID_J = dplyr::case_when(TRB_J %in% gene_segments_in_db ~ "valid",
+                                           TRUE ~ "invalid" )) |>
+              #NA the valid V and J segments, so that the valid ones appear as "valid" in the text file
+              dplyr::mutate(TRB_V = dplyr::case_when(VALID_V == "valid" ~ "valid",
+                                              TRUE ~ TRB_V)) |>
+              dplyr::mutate(TRB_J = dplyr::case_when(VALID_J == "valid" ~ "valid",
+                                              TRUE ~ TRB_J)) |>
+              dplyr::filter(TRB_V != "valid" | TRB_J != "valid") |>
+              dplyr::select(TRB_V, TRB_J) |>
+              unique.data.frame()
+            utils::write.csv(filtered_genes, file = './filtered_TRB_gene_segments.csv', row.names = FALSE)
+            print(paste0("Writing TRB segments present in the data, but missing in conga database to file: ", R.utils::getAbsolutePath('./filtered_TRB_gene_segments.csv')))
+          }
         }
         metadata <- metadata |>
           dplyr::filter(TRA_V %in% gene_segments_in_db) |>
@@ -91,13 +122,27 @@ FormatMetadataForConga <- function(metadata,
       } else if (chain == "TRG") {
         if (writeUnannotatedGeneSegmentsToFile) {
           #store filtered gene segments
-          filtered_genes <- metadata |>
-            dplyr::filter(!(TRG_V %in% gene_segments_in_db)) |>
-            dplyr::filter(!(TRG_J %in% gene_segments_in_db)) |>
-            dplyr::select(TRG_V, TRG_J) |>
-            unique.data.frame()
-          print(paste0("Writing TRG segments present in the data, but missing in conga database to file: ", R.utils::getAbsolutePath('./filtered_TRG_gene_segments.csv')))
-          utils::write.csv(filtered_genes, file = './filtered_TRG_gene_segments.csv', row.names = FALSE)
+          if (any(!(metadata$TRG_V %in% gene_segments_in_db) | any(!metadata$TRG_J %in% gene_segments_in_db))) {
+            message("TRG gene segments present in the data, but not found in conga database!")
+            filtered_genes <- metadata |>
+              dplyr::filter(!is.na(TRG_V)) |>
+              dplyr::filter(!is.na(TRG_J)) |>
+              dplyr::mutate(
+                VALID_V = dplyr::case_when(TRG_V %in% gene_segments_in_db ~ "valid",
+                                           TRUE ~ "invalid"),
+                VALID_J = dplyr::case_when(TRG_J %in% gene_segments_in_db ~ "valid",
+                                           TRUE ~ "invalid" )) |>
+              #NA the valid V and J segments, so that the valid ones appear as "valid" in the text file
+              dplyr::mutate(TRG_V = dplyr::case_when(VALID_V == "valid" ~ "valid",
+                                              TRUE ~ TRG_V)) |>
+              dplyr::mutate(TRG_J = dplyr::case_when(VALID_J == "valid" ~ "valid",
+                                              TRUE ~ TRG_J)) |>
+              dplyr::filter(TRG_V != "valid" | TRG_J != "valid") |>
+              dplyr::select(TRG_V, TRG_J) |>
+              unique.data.frame()
+            print(paste0("Writing TRG segments present in the data, but missing in conga database to file: ", R.utils::getAbsolutePath('./filtered_TRG_gene_segments.csv')))
+            utils::write.csv(filtered_genes, file = './filtered_TRG_gene_segments.csv', row.names = FALSE)
+          }
         }
         metadata <- metadata |>
           dplyr::filter(TRG_V %in% gene_segments_in_db) |>
@@ -105,13 +150,27 @@ FormatMetadataForConga <- function(metadata,
       } else if (chain == "TRD") {
         if (writeUnannotatedGeneSegmentsToFile) {
           #store filtered gene segments
-          filtered_genes <- metadata |>
-            dplyr::filter(!(TRD_V %in% gene_segments_in_db)) |>
-            dplyr::filter(!(TRD_J %in% gene_segments_in_db)) |>
-            dplyr::select(TRD_V, TRD_J) |>
-            unique.data.frame()
-          print(paste0("Writing TRD segments present in the data, but missing in conga database to file: ", R.utils::getAbsolutePath('./filtered_TRD_gene_segments.csv')))
-          utils::write.csv(filtered_genes, file = './filtered_TRD_gene_segments.csv', row.names = FALSE)
+          if (any(!(metadata$TRD_V %in% gene_segments_in_db) | any(!metadata$TRD_J %in% gene_segments_in_db))) {
+            message("TRD gene segments present in the data, but not found in conga database!")
+            filtered_genes <- metadata |>
+              dplyr::filter(!is.na(TRD_V)) |>
+              dplyr::filter(!is.na(TRD_J)) |>
+              dplyr::mutate(
+                VALID_V = dplyr::case_when(TRD_V %in% gene_segments_in_db ~ "valid",
+                                           TRUE ~ "invalid"),
+                VALID_J = dplyr::case_when(TRD_J %in% gene_segments_in_db ~ "valid",
+                                           TRUE ~ "invalid" )) |>
+              #NA the valid V and J segments, so that the valid ones appear as "valid" in the text file
+              dplyr::mutate(TRD_V = dplyr::case_when(VALID_V == "valid" ~ "valid",
+                                              TRUE ~ TRD_V)) |>
+              dplyr::mutate(TRD_J = dplyr::case_when(VALID_J == "valid" ~ "valid",
+                                              TRUE ~ TRD_J)) |>
+              dplyr::filter(TRD_V != "valid" | TRD_J != "valid") |>
+              dplyr::select(TRD_V, TRD_J) |>
+              unique.data.frame()
+            print(paste0("Writing TRD segments present in the data, but missing in conga database to file: ", R.utils::getAbsolutePath('./filtered_TRD_gene_segments.csv')))
+            utils::write.csv(filtered_genes, file = './filtered_TRD_gene_segments.csv', row.names = FALSE)
+          }
         }
         metadata <- metadata |>
           dplyr::filter(TRD_V %in% gene_segments_in_db) |>
@@ -120,15 +179,13 @@ FormatMetadataForConga <- function(metadata,
         stop(paste0("Chain ", chain, " is not supported."))
       }
     }
-
-
   }
   #filter the clones if requested
   if (minimumClonesPerSubject > 1) {
     #filter out unique/rare clones
     metadata <- metadata |>
       dplyr::group_by(dplyr::across(dplyr::all_of(c("SubjectId", gene_segments_and_chains)))) |>
-      dplyr::reframe(count = dplyr::n(), CloneNames) |>
+      dplyr::reframe(count = dplyr::n()) |>
       unique.data.frame()
     metadata <- metadata |>
       dplyr::filter(count >= minimumClonesPerSubject)
