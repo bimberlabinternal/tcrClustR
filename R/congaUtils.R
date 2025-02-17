@@ -15,8 +15,20 @@ utils::globalVariables(
 #' @param cleanMetadata Boolean controlling whether to clean the metadata by removing rows with NA values or commas in the specified chains.
 #' @param minimumClonesPerSubject Minimum number of clones per subject to include in the analysis. Default is 2.
 #' @param writeUnannotatedGeneSegmentsToFile Boolean controlling whether to write unannotated gene segments to a file (filtered_(chain)_gene_segments.csv).
-#' @param spikeInDataframe Data frame containing spike-in data. Default is NULL.
+#' @param spikeInDataframe Data frame containing spike-in data. Default is NULL. See examples for formatting requirements.
 #' @export
+#' @examples
+#' \dontrun{
+#' spikeInDataframe <- data.frame(CloneNames = rep(1:3),
+#'                                  TRA_V = c("TRAV1-2", "TRAV1-2", "TRAV1-2"),
+#'                                  TRA_J = c("TRAJ33", "TRAJ20", "TRAJ33"),
+#'                                  TRA = c("CAVRDSNYQLIW", "CAVSLQDYKLSF", "CAVRDSNYQLIW"),
+#'                                  TRB_V = c("TRBV6-4", "TRBV6-4", "TRBV6-4"),
+#'                                  TRB_J = c("TRBJ1-1", "TRBJ2-1", "TRBJ2-3"),
+#'                                  TRB = c("CASSAAAAAAAAFF", "CASSVVVVVVVVQF", "CASSWWWWWWWWQY")
+#' }
+
+#TODO: flesh out examples demonstrating formatting requirements for spikeInDataframe
 
 FormatMetadataForConga <- function(metadata,
                                    outputCsv = './congaInput.csv',
@@ -41,6 +53,47 @@ FormatMetadataForConga <- function(metadata,
       stop(paste0("Chain ", chain, " is not supported."))
     }
   }
+
+  if (!is.null(spikeInDataframe)) {
+    #check that the spikeInDataframe has columns that match the chains requested
+    if ("TRA" %in% chains) {
+      if (!all(c("TRA_V", "TRA_J", "TRA") %in% colnames(spikeInDataframe))) {
+        stop("The spikeInDataframe must have the columns 'TRA_V', 'TRA_J', and 'CDR3' for TRA chains.")
+      }
+    } else if ("TRB" %in% chains) {
+      if (!all(c("TRB_V", "TRB_J", "TRB") %in% colnames(spikeInDataframe))) {
+        stop("The spikeInDataframe must have the columns 'TRB_V', 'TRB_J', and 'CDR3' for TRB chains.")
+      }
+    } else if ("TRG" %in% chains) {
+      if (!all(c("TRG_V", "TRG_J", "TRG") %in% colnames(spikeInDataframe))) {
+        stop("The spikeInDataframe must have the columns 'TRG_V', 'TRG_J', and 'CDR3' for TRG chains.")
+      }
+    } else if ("TRD" %in% chains) {
+      if (!all(c("TRD_V", "TRD_J", "TRD") %in% colnames(spikeInDataframe))) {
+        stop("The spikeInDataframe must have the columns 'TRD_V', 'TRD_J', and 'CDR3' for TRD chains.")
+      }
+    } else {
+      stop(paste0("Chain ", chain, " is not supported."))
+    }
+    #check that the spikeInDataframe has the columns 'CloneNames' and impute a SubjectId if missing
+    if (!"CloneNames" %in% colnames(spikeInDataframe)) {
+      stop("The spikeInDataframe must have the column 'CloneNames'.")
+    }
+    if (!"SubjectId" %in% colnames(spikeInDataframe)) {
+      spikeInDataframe$SubjectId <- paste0("spikeIn_", seq_len(nrow(spikeInDataframe)))
+    }
+
+    #force spikeInDataframe to exceed the minimum number of clones per subject
+    if (minimumClonesPerSubject > 1) {
+      spikeInDataframe <- do.call("rbind",
+                                  replicate(minimumClonesPerSubject,
+                                            spikeInDataframe,
+                                            simplify = FALSE))
+    }
+    #bind the spikeInDataframe to the metadata
+    metadata <- plyr::rbind.fill(metadata, spikeInDataframe)
+  }
+
   if (cleanMetadata) {
     for (chain in chains) {
       #filter rows with NA values in the requested chains
@@ -196,18 +249,6 @@ FormatMetadataForConga <- function(metadata,
     dplyr::as_tibble() |>
     unique.data.frame()
 
-  if (!is.null(spikeInDataframe)) {
-    #check if the spikeInDataframe is a dataframe
-    if (!is.data.frame(spikeInDataframe)) {
-      stop("The spikeInDataframe must be a dataframe.")
-    }
-    #check if the spikeInDataframe has the same columns as the metadata
-    if (!all(colnames(spikeInDataframe) %in% colnames(metadata))) {
-      stop(paste0("The spikeInDataframe must have the same columns as the metadata. These columns are determined by the requested chains: ",
-                  chains, ". The columns in the spikeInDataframe are: ", colnames(spikeInDataframe), "."))
-    }
-    metadata <- rbind(metadata, unsequencedTCRs)
-  }
   #normalize the path for outputCsv
   outputCsv <- R.utils::getAbsolutePath(outputCsv)
 

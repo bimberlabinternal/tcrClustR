@@ -67,5 +67,14 @@ This function runs the tcrdist3 pipeline on a set of CDR3 sequences in a Seurat 
               rdsOutputPath = "./tcrdist3DistanceMatrices/",
               pythonExecutable = reticulate::py_exe(),
               debugTcrdist3 = "True")
+
+    spikeInDataframe <- data.frame(CloneNames = rep(1:3),
+                                 TRA_V = c("TRAV1-2", "TRAV1-2", "TRAV1-2"),
+                                 TRA_J = c("TRAJ33", "TRAJ20", "TRAJ33"),
+                                 TRA = c("CAVRDSNYQLIW", "CAVSLQDYKLSF", "CAVRDSNYQLIW"),
+                                 TRB_V = c("TRBV6-4", "TRBV6-4", "TRBV6-4"),
+                                 TRB_J = c("TRBJ1-1", "TRBJ2-1", "TRBJ2-3"),
+                                 TRB = c("CASSAAAAAAAAFF", "CASSVVVVVVVVQF", "CASSWWWWWWWWQY")
 }
+
 }

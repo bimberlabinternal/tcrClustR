@@ -56,6 +56,13 @@ Run Conga's implementation of tcrdist on a Seurat object/metadata
              rdsOutputPath = "./tcrdist3DistanceMatrices/",
              pythonExecutable = reticulate::py_exe()
              )
+    spikeInDataframe <- data.frame(CloneNames = rep(1:3),
+                                 TRA_V = c("TRAV1-2", "TRAV1-2", "TRAV1-2"),
+                                 TRA_J = c("TRAJ33", "TRAJ20", "TRAJ33"),
+                                 TRA = c("CAVRDSNYQLIW", "CAVSLQDYKLSF", "CAVRDSNYQLIW"),
+                                 TRB_V = c("TRBV6-4", "TRBV6-4", "TRBV6-4"),
+                                 TRB_J = c("TRBJ1-1", "TRBJ2-1", "TRBJ2-3"),
+                                 TRB = c("CASSAAAAAAAAFF", "CASSVVVVVVVVQF", "CASSWWWWWWWWQY")
 }
 
 }

@@ -30,8 +30,19 @@ FormatMetadataForConga(
 
 \item{writeUnannotatedGeneSegmentsToFile}{Boolean controlling whether to write unannotated gene segments to a file (filtered_(chain)_gene_segments.csv).}
 
-\item{spikeInDataframe}{Data frame containing spike-in data. Default is NULL.}
+\item{spikeInDataframe}{Data frame containing spike-in data. Default is NULL. See examples for formatting requirements.}
 }
 \description{
 This function formats metadata for the conga pipeline.
+}
+\examples{
+\dontrun{
+spikeInDataframe <- data.frame(CloneNames = rep(1:3),
+                                 TRA_V = c("TRAV1-2", "TRAV1-2", "TRAV1-2"),
+                                 TRA_J = c("TRAJ33", "TRAJ20", "TRAJ33"),
+                                 TRA = c("CAVRDSNYQLIW", "CAVSLQDYKLSF", "CAVRDSNYQLIW"),
+                                 TRB_V = c("TRBV6-4", "TRBV6-4", "TRBV6-4"),
+                                 TRB_J = c("TRBJ1-1", "TRBJ2-1", "TRBJ2-3"),
+                                 TRB = c("CASSAAAAAAAAFF", "CASSVVVVVVVVQF", "CASSWWWWWWWWQY")
+}
 }

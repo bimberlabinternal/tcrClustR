@@ -13,7 +13,8 @@ FormatMetadataForTcrDist3(
   summarizeClones = T,
   imputeCloneNames = T,
   minimumClonesPerSubject = 100,
-  writeUnannotatedGeneSegmentsToFile = T
+  writeUnannotatedGeneSegmentsToFile = T,
+  spikeInDataframe = NULL
 )
 }
 \arguments{
@@ -34,7 +35,20 @@ FormatMetadataForTcrDist3(
 \item{minimumClonesPerSubject}{Minimum number of clones per subject to include in the analysis. Default is 2.}
 
 \item{writeUnannotatedGeneSegmentsToFile}{Boolean controlling whether to write unannotated gene segments to a file (filtered_(chain)_gene_segments.csv).}
+
+\item{spikeInDataframe}{Data frame containing spike-in data. Default is NULL. See examples for formatting requirements.}
 }
 \description{
 This function formats a seurat object's metadata (with TCR information appended) for tcrDist3 distance caluclations.
+}
+\examples{
+\dontrun{
+spikeInDataframe <- data.frame(CloneNames = rep(1:3),
+                                 TRA_V = c("TRAV1-2", "TRAV1-2", "TRAV1-2"),
+                                 TRA_J = c("TRAJ33", "TRAJ20", "TRAJ33"),
+                                 TRA = c("CAVRDSNYQLIW", "CAVSLQDYKLSF", "CAVRDSNYQLIW"),
+                                 TRB_V = c("TRBV6-4", "TRBV6-4", "TRBV6-4"),
+                                 TRB_J = c("TRBJ1-1", "TRBJ2-1", "TRBJ2-3"),
+                                 TRB = c("CASSAAAAAAAAFF", "CASSVVVVVVVVQF", "CASSWWWWWWWWQY")
+}
 }
