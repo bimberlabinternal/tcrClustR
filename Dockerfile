@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     libgpgme11-dev \
     squashfs-tools \
     libseccomp-dev \
+    libcurl4-gnutls-dev \
     libsqlite3-dev \
     libgit2-dev \
     pkg-config \
