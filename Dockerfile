@@ -33,6 +33,7 @@ RUN apt-get update && apt-get install -y \
     libmbedtls-dev \
     cargo \
     libmagick++-dev \
+    libudunits2-dev \
     cmake && \
     mkdir /TCR_Python && \
     cd /TCR_Python && \
