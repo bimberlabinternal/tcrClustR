@@ -34,6 +34,7 @@ RUN apt-get update && apt-get install -y \
     cargo \
     libmagick++-dev \
     libudunits2-dev \
+    libgsl-dev \
     cmake && \
     mkdir /TCR_Python && \
     cd /TCR_Python && \
