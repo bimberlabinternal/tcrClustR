@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     libgpgme11-dev \
     squashfs-tools \
     libseccomp-dev \
+    r-cran-devtools \
     libsqlite3-dev \
     libgit2-dev \
     pkg-config \
@@ -32,7 +33,11 @@ RUN apt-get update && apt-get install -y \
     libjpeg-dev \
     libmbedtls-dev \
     cargo \
-    libmagick++-dev && \
+    libmagick++-dev \
+    libudunits2-dev \
+    libgsl-dev \
+    libtbb-dev \
+    cmake && \
     mkdir /TCR_Python && \
     cd /TCR_Python && \
     wget https://github.com/python/cpython/archive/refs/tags/v3.8.10.tar.gz && \
@@ -62,15 +67,19 @@ RUN apt-get update && apt-get install -y r-base r-base-dev && \
         echo 'Setting GH_PAT'; \
         export GITHUB_PAT="${GH_PAT}"; \
     fi && \
-    Rscript -e "install.packages(c('remotes', 'devtools', 'BiocManager', 'pryr', 'rmdformats', 'knitr', 'logger', 'Matrix', 'kernlab', 'tidyverse', 'Seurat', 'leidenbase', 'igraph', 'FNN'), dependencies=TRUE, ask = FALSE, upgrade = 'always')" && \
+    Rscript -e "install.packages(c('remotes', 'devtools', 'BiocManager', 'pryr', 'rmdformats', 'knitr', 'logger', 'Matrix', 'kernlab', 'tidyverse', 'Seurat', 'leidenbase', 'igraph', 'FNN'), lib='/usr/local/lib/R/site-library', dependencies=TRUE, ask = FALSE, upgrade = 'always')" && \
     echo "local({options(repos = BiocManager::repositories())})" >> ~/.Rprofile
 
+RUN Rscript -e ".libPaths()"
 
 #build tcrClustR
+#it's unclear to me why, but devtools doesn't seem to be sticking between the previous command and current command. 
+#for now, I'm forcing an install after R CMD build . 
 RUN cd /tcrClustR && \
     R CMD build . && \
     Rscript -e "BiocManager::install(ask = F, upgrade = 'always');" && \
-    Rscript -e "devtools::install_deps(pkg = '.', dependencies = TRUE, upgrade = 'always');" && \
+    Rscript -e "install.packages('devtools', dependencies=TRUE, lib='/usr/local/lib/R/site-library'); \
+    devtools::install_deps(pkg = '.', dependencies = TRUE, upgrade = 'always');" && \
     R CMD INSTALL --build *.tar.gz && \
     rm -Rf /tmp/downloaded_packages/ /tmp/*.rds
 
