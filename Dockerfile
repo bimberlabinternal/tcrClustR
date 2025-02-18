@@ -32,7 +32,8 @@ RUN apt-get update && apt-get install -y \
     libjpeg-dev \
     libmbedtls-dev \
     cargo \
-    libmagick++-dev && \
+    libmagick++-dev \
+    cmake && \
     mkdir /TCR_Python && \
     cd /TCR_Python && \
     wget https://github.com/python/cpython/archive/refs/tags/v3.8.10.tar.gz && \
