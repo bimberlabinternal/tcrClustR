@@ -72,10 +72,13 @@ RUN apt-get update && apt-get install -y r-base r-base-dev && \
 RUN Rscript -e ".libPaths()"
 
 #build tcrClustR
+#it's unclear to me why, but devtools doesn't seem to be sticking between the previous command and current command. 
+#for now, I'm forcing an install after R CMD build . 
 RUN cd /tcrClustR && \
     R CMD build . && \
     Rscript -e "BiocManager::install(ask = F, upgrade = 'always');" && \
-    Rscript -e "devtools::install_deps(pkg = '.', dependencies = TRUE, upgrade = 'always');" && \
+    Rscript -e "install.packages('devtools', dependencies=TRUE, lib='/usr/local/lib/R/site-library'); \
+    devtools::install_deps(pkg = '.', dependencies = TRUE, upgrade = 'always');" && \
     R CMD INSTALL --build *.tar.gz && \
     rm -Rf /tmp/downloaded_packages/ /tmp/*.rds
 
