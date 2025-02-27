@@ -2,7 +2,8 @@ name: Build Docker
 on:
   workflow_dispatch:
   schedule:
-    - cron:  "0 4 * * *"
+    - cron: '0 17 11 * *'  #11th of the month at 5PM
+    - cron: '0 17 26 * *'  #26th of the month at 5PM
   push:
     branches:
       - main
