@@ -56,41 +56,28 @@ ClusterTcrs <- function(seuratObj = NULL,
     #chains <- c(cdr3_only_chains, remaining_chains)
 
     for (chain in chains) {
-      print(chain)
-      #populate the variables that will be used to group the metadata in the scRNASeq data
-      #if (chain %in% cdr3_only_chains) {
-        if (chain == "TRACDR3") {
-          group_by_variables <- c(group_by_variables, "TRA")
-          names(group_by_variables) <- c(names(group_by_variables)[names(group_by_variables) != ""], "TRA_cdr3")
-          assays_to_access <- c(assays_to_access, "TRA_cdr3")
-        } else if (chain == "TRBCDR3") {
-          group_by_variables <- c(group_by_variables, "TRB")
-          names(group_by_variables) <- c(names(group_by_variables)[names(group_by_variables) != ""], "TRB_cdr3")
-          assays_to_access <- c(assays_to_access, "TRB_cdr3")
-        } else if (chain == "TRGCDR3") {
-          group_by_variables <- c(group_by_variables, "TRG")
-          names(group_by_variables) <- c(names(group_by_variables)[names(group_by_variables) != ""], "TRG_cdr3")
-          assays_to_access <- c(assays_to_access, "TRG_cdr3")
-        } else if (chain == "TRDCDR3") {
-          group_by_variables <- c(group_by_variables, "TRD")
-          names(group_by_variables) <- c(names(group_by_variables)[names(group_by_variables) != ""], "TRD_cdr3")
-          assays_to_access <- c(assays_to_access, "TRD_cdr3")
-        } else if (chain == "TRA") {
-          group_by_variables <- c(group_by_variables, "TRA_V", "TRA_J", "TRA")
-          names(group_by_variables) <- c(names(group_by_variables)[names(group_by_variables) != ""], rep("TRA", 3))
-          assays_to_access <- c(assays_to_access, "TRA")
-        } else if (chain == "TRB") {
-          group_by_variables <- c(group_by_variables, "TRB_V", "TRB_J", "TRB")
-          names(group_by_variables) <- c(names(group_by_variables)[names(group_by_variables) != ""], rep("TRB", 3))
-          assays_to_access <- c(assays_to_access, "TRB")
-        } else if (chain == "TRG") {
-          group_by_variables <- c(group_by_variables, "TRG_V", "TRG_J", "TRG")
-          names(group_by_variables) <- c(names(group_by_variables)[names(group_by_variables) != ""], rep("TRG"), 3)
-          assays_to_access <- c(assays_to_access, "TRG")
-        } else if (chain == "TRD") {
-          group_by_variables <- c(group_by_variables, "TRD_V", "TRD_J", "TRD")
-          names(group_by_variables) <- c(names(group_by_variables)[names(group_by_variables) != ""], rep("TRD"), 3)
-          assays_to_access <- c(assays_to_access, "TRD")
+      for (chain in chains) {
+        # Determine if the chain is CDR3-only and extract type
+        is_cdr3_only <- grepl("CDR3$", chain)
+        type <- sub("CDR3$", "", chain)
+        
+        # Validate chain type (optional)
+        valid_types <- c("TRA", "TRB", "TRG", "TRD")
+        if (!type %in% valid_types) {
+          stop(paste("Invalid chain type:", type))
+        }
+        
+        if (is_cdr3_only) {
+          # CDR3-only chain: group by CDR3 column, access CDR3 assay
+          group_by_variables <- c(group_by_variables, type)
+          names(group_by_variables)[length(group_by_variables)] <- paste0(type, "_cdr3")
+          assays_to_access <- c(assays_to_access, paste0(type, "_cdr3"))
+        } else {
+          # Full chain: group by V/J/CDR3 columns, access main assay
+          vj_columns <- c(paste0(type, "_V"), paste0(type, "_J"), type)
+          group_by_variables <- c(group_by_variables, vj_columns)
+          names(group_by_variables)[length(group_by_variables) - 2:0] <- rep(type, 3)
+          assays_to_access <- c(assays_to_access, type)
         }
       }
     print(paste0("group_variables:", group_by_variables))
@@ -117,7 +104,68 @@ ClusterTcrs <- function(seuratObj = NULL,
         first_chain_variables <- seuratObj_TCR@meta.data[,.TranslateGroupByVariablesToTcrdist3(group_by_variables[names(group_by_variables) == assays_to_access[1]]), drop = FALSE]
         second_chain_variables <- seuratObj_TCR@meta.data[,.TranslateGroupByVariablesToTcrdist3(group_by_variables[names(group_by_variables) == assays_to_access[2]]), drop = FALSE]
 
-
+        #create lookup tables for both chains
+        first_chain_lookup <- .CreateTcrKeyLookup(seuratObj_TCR, assays_to_access[1])
+        second_chain_lookup <- .CreateTcrKeyLookup(seuratObj_TCR, assays_to_access[2])
+        
+        first_chain_type <- gsub("_cdr3$", "", assays_to_access[1])
+        second_chain_type <- gsub("_cdr3$", "", assays_to_access[2])
+        #generate keys for observed pairs
+        observed_pairs_with_keys <- observed_tcr_pairs %>%
+          dplyr::mutate(
+            first_chain_key = if(grepl("_cdr3$", assays_to_access[1])) {
+              .data[[group_by_variables[names(group_by_variables) == assays_to_access[1]]]]
+            } else {
+              paste(
+                .data[[paste0(first_chain_type, "_V")]],
+                .data[[paste0(first_chain_type, "_J")]],
+                .data[[first_chain_type]],
+                sep = "_"
+              )
+            },
+            second_chain_key = if(grepl("_cdr3$", assays_to_access[2])) {
+              .data[[group_by_variables[names(group_by_variables) == assays_to_access[2]]]]
+            } else {
+              paste(
+                .data[[paste0(second_chain_type, "_V")]],
+                .data[[paste0(second_chain_type, "_J")]],
+                .data[[second_chain_type]],
+                sep = "_"
+              )
+            }
+          )
+        
+        #map keys to matrix row names using lookups
+        valid_pairs <- observed_pairs_with_keys %>%
+          dplyr::left_join(first_chain_lookup, by = c("first_chain_key" = "key")) %>%
+          dplyr::left_join(second_chain_lookup, by = c("second_chain_key" = "key")) %>%
+          dplyr::filter(!is.na(matrix_rowname.x) & !is.na(matrix_rowname.y))
+        
+        #define matrix indices for valid pairs
+        first_chain_indices <- match(valid_pairs$matrix_rowname.x, rownames(first_chain_matrix))
+        second_chain_indices <- match(valid_pairs$matrix_rowname.y, rownames(second_chain_matrix))
+        
+        #initialize combined sparse matrix
+        combined_matrix <- Matrix::sparseMatrix(
+          dims = rep(nrow(valid_pairs), 2),
+          x = 0
+        )
+        
+        #populate with summed distances (assuming matrices are distance matrices)
+        for(i in seq_along(first_chain_indices)) {
+          idx1 <- first_chain_indices[i]
+          idx2 <- second_chain_indices[i]
+          
+          #get distances from both matrices
+          dist1 <- first_chain_matrix[idx1, idx1]
+          dist2 <- second_chain_matrix[idx2, idx2]
+          
+          #store summed distance
+          combined_matrix[i, i] <- dist1 + dist2
+        }
+        
+        #preserve row/column names
+        rownames(combined_matrix) <- colnames(combined_matrix) <- valid_pairs$composite_id
     }
     #translate group_by_variables for compatibility with tcrdist3
     group_variables_tcrdist3 <- .TranslateGroupByVariablesToTcrdist3(group_by_variables)
@@ -306,3 +354,47 @@ ClusterTcrs <- function(seuratObj = NULL,
   group_variables_tcrdist3 <- gsub("TRD", "cdr3_d_aa", group_variables_tcrdist3)
   return(group_variables_tcrdist3)
 }
+
+
+#helper function to create key->rowname mappings for each assay
+.CreateTcrKeyLookup <- function(seuratObj_TCR, assay_name) {
+  #get metadata columns for this assay type
+  is_cdr3_assay <- endsWith(assay_name, "_cdr3")
+  chain_type <- gsub("_cdr3", "", assay_name)
+  
+  #get translated column names from metadata
+  required_cols <- if(is_cdr3_assay) {
+    tcrdist3_cols <- .TranslateGroupByVariablesToTcrdist3(chain_type)
+    c(tcrdist3_cols)
+  } else {
+    tcrdist3_cols <- .TranslateGroupByVariablesToTcrdist3(c(
+      paste0(chain_type, "_V"),
+      paste0(chain_type, "_J"),
+      chain_type
+    ))
+    tcrdist3_cols
+  }
+  
+  #extract relevant metadata and create composite keys
+  metadata <- seuratObj_TCR@meta.data[, required_cols, drop = FALSE]
+  
+  keys <- if(is_cdr3_assay) {
+    metadata[[1]] #CDR3 sequence
+  } else {
+    paste(metadata[[1]], metadata[[2]], metadata[[3]], sep = "_")
+  }
+
+  matrix_rownames <- rownames(Seurat::GetAssayData(seuratObj_TCR, assay = assay_name))
+  
+  #create lookup table: key -> matrix row name
+  lookup <- data.frame(
+    key = keys,
+    matrix_rowname = matrix_rownames,
+    stringsAsFactors = FALSE
+  )
+  #distinct in case of duplicates, but should be unnecessary.
+  lookup <- dplyr::distinct(lookup, key, .keep_all = TRUE)
+  
+  return(lookup)
+}
+
