@@ -18,7 +18,7 @@ utils::globalVariables(
 #' @param outputCsv Path to the output CSV file.
 #' @param minimumClonesPerSubject Minimum number of clones per subject to include in the analysis. Default is 2.
 #' @param spikeInDataframe Data frame containing spike-in data. Default is NULL. See examples for formatting requirements.
-#' @return NULL
+#' @return a properly formatted metadata dataframe.
 #' @export
 #' @examples
 #' \dontrun{
@@ -28,7 +28,7 @@ utils::globalVariables(
 #'                                  TRA = c("CAVRDSNYQLIW", "CAVSLQDYKLSF", "CAVRDSNYQLIW"),
 #'                                  TRB_V = c("TRBV6-4", "TRBV6-4", "TRBV6-4"),
 #'                                  TRB_J = c("TRBJ1-1", "TRBJ2-1", "TRBJ2-3"),
-#'                                  TRB = c("CASSAAAAAAAAFF", "CASSVVVVVVVVQF", "CASSWWWWWWWWQY")
+#'                                  TRB = c("CASSAAAAAAAAFF", "CASSVVVVVVVVQF", "CASSWWWWWWWWQY"))
 #' }
 
 #TODO: flesh out examples demonstrating formatting requirements for spikeInDataframe
@@ -227,6 +227,9 @@ FormatMetadataForTcrDist3 <- function(metadata,
                                   yes = paste0(metadata$SubjectId, "_", seq_len(nrow(metadata))),
                                   no = metadata$CloneNames)
   }
+
+  #TODO: this implementation only works for TRA+TRB, need to fix eventually.
+
   if (summarizeClones) {
     #TODO: figure out if we need to index clones jointly (across both chains)
     #or singly (TRAs would have a clone ID and TRBs would have their own clone ID)
@@ -242,6 +245,8 @@ FormatMetadataForTcrDist3 <- function(metadata,
     }
   }
 
+  #unique-ify the metadata prior to formatting, since the random sampling in the reverse translation function can cause duplicates
+  metadata <- metadata |> unique.data.frame()
 
   #reformat data
   formatted_data <- data.frame(
@@ -260,6 +265,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
   )
   # Write the formatted data to the output CSV file
   utils::write.csv(formatted_data, outputCsv, row.names = FALSE)
+  return(formatted_data)
 }
 
 .reverse_translate_cdr3 <- function(cdr3_aa_seq) {

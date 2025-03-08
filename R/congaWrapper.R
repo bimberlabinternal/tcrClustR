@@ -48,7 +48,7 @@ RunConga <- function(seuratObj = NULL,
                      cleanMetadata = T,
                      spikeInDataframe = NULL,
                      minimumClonesPerSubject = 2,
-                     rdsOutputPath = "./tcrdist3DistanceMatrices/",
+                     rdsOutputPath = "./congaDistanceMatrices/",
                      pythonExecutable = NULL
                      ) {
   #identify the metadata dataframe
@@ -102,4 +102,23 @@ RunConga <- function(seuratObj = NULL,
     #execute
     system2(pythonExecutable, script)
   }
+  #return a seurat object, with the distance matrices implemented as assays
+  for (chain in chains) {
+    #read the RDS file
+    rdsFile <- paste0(rdsOutputPath, "/congaTcrDistances_", chain, ".rds")
+    if (!file.exists(rdsFile)) {
+      stop(paste0("RDS file not found: ", rdsFile))
+    }
+    distanceMatrix <- readRDS(rdsFile)
+    colnames(distanceMatrix) <- paste0(chain, "_", seq_along(1:ncol(distanceMatrix)))
+    #add the distance matrix to the seurat object
+    if (is.null(seuratObj_TCR)){
+      seuratObj_TCR <- SeuratObject::CreateSeuratObject(counts = distanceMatrix,
+                                                        assay =  chain)
+    } else {
+      seuratObj_TCR_subsequentChain <- SeuratObject::CreateSeuratObject(counts = distanceMatrix, assay = chain)
+      seuratObj_TCR <- merge(seuratObj_TCR, seuratObj_TCR_subsequentChain)
+    }
+  }
+  return(seuratObj_TCR)
 }

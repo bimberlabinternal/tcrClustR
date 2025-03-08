@@ -44,7 +44,7 @@ utils::globalVariables(
 #'                                  TRA = c("CAVRDSNYQLIW", "CAVSLQDYKLSF", "CAVRDSNYQLIW"),
 #'                                  TRB_V = c("TRBV6-4", "TRBV6-4", "TRBV6-4"),
 #'                                  TRB_J = c("TRBJ1-1", "TRBJ2-1", "TRBJ2-3"),
-#'                                  TRB = c("CASSAAAAAAAAFF", "CASSVVVVVVVVQF", "CASSWWWWWWWWQY")
+#'                                  TRB = c("CASSAAAAAAAAFF", "CASSVVVVVVVVQF", "CASSWWWWWWWWQY"))
 #' }
 #'
 #' @export
@@ -83,7 +83,7 @@ RunTcrdist3 <- function(seuratObj = NULL,
 
   #format metadata if necessary (a user may have done this already, so add optional flag)
   if (formatMetadata) {
-    metadata <- FormatMetadataForTcrDist3(metadata = metadata,
+    formatted_metadata <- FormatMetadataForTcrDist3(metadata = metadata,
                                           outputCsv = postFormattingMetadataCsvPath,
                                           chains = chains,
                                           cleanMetadata = cleanMetadata,
@@ -93,6 +93,9 @@ RunTcrdist3 <- function(seuratObj = NULL,
                                           spikeInDataframe = spikeInDataframe)
 
   }
+
+
+
 
   #convert chains into a string for parsing in python
   chainsString <- ""
@@ -131,13 +134,66 @@ RunTcrdist3 <- function(seuratObj = NULL,
   command <- paste0("writeTcrDistances(csv_path = '", postFormattingMetadataCsvPath,
                    "', organism = '", organism,
                    "', chainsString = '", chainsString,
-                   "', db_file = 'alphabeta_gammadelta_db.tsv", #I don't think we can change the db file, but perhaps we'd want to someday?
+                   "', db_file = 'alphabeta_gammadelta_db.tsv", #TODO: I don't think we can change the db file, but perhaps we'd want to someday?
                    "', rds_output_path = '", rdsOutputPath,
                    "', debug ='", debugTcrdist3,
                    "')")
   readr::write_file(command, script, append = TRUE)
   #execute
   system2(pythonExecutable, script)
+
+  #return a seurat object, with the distance matrices implemented as assays
+  for (chain in chains) {
+    #read the RDS file
+    if (chain == "TRA") {
+      chain_tcrdist3 <- "alpha"
+    } else if (chain == "TRB") {
+      chain_tcrdist3 <- "beta"
+    } else if (chain == "TRG") {
+      chain_tcrdist3 <- "gamma"
+    } else if (chain == "TRD") {
+      chain_tcrdist3 <- "delta"
+    } else {
+      warning(paste0("Chain Type ", chain, " not recognized. Skipping."))
+    }
+    #process the full length TCR distance matrix
+    rdsFile <- paste0(rdsOutputPath, "/pw_", chain_tcrdist3, ".rds")
+    if (!file.exists(rdsFile)) {
+      stop(paste0("Pairwise 'full' tcrdist3 distance matrix RDS file not found: ", rdsFile))
+    }
+    distanceMatrix_full_length <- readRDS(rdsFile)
+    colnames(distanceMatrix_full_length) <- paste0(chain, "_", seq_along(1:ncol(distanceMatrix_full_length)))
+
+    #process the CDR3 only TCR distance matrix
+    #grab the first letter of the chain (distance matrices for the cdr3 are stored as "pw_cdr3_b_aa.rds" for a beta chain)
+    chain_cdr3_id <- tolower(strsplit(chain_tcrdist3, split = "")[[1]][1])
+    rdsFile <- paste0(rdsOutputPath, "/pw_cdr3_", chain_cdr3_id, "_aa.rds")
+    if (!file.exists(rdsFile)) {
+      stop(paste0("Pairwise CDR3 tcrdist3 distance matrix RDS file not found: ", rdsFile))
+    }
+    distanceMatrix_CDR3 <- readRDS(rdsFile)
+    colnames(distanceMatrix_CDR3) <- paste0(chain, "_", seq_along(1:ncol(distanceMatrix_CDR3)), "_cdr3")
+
+    #add the distance matrices to the Seurat object
+    if (is.null(seuratObj_TCR)){
+      seuratObj_TCR <- SeuratObject::CreateSeuratObject(counts = distanceMatrix_full_length,
+                                                        assay =  chain)
+      #TODO: linked TODO with L231 in tcrdistUtils.R, this currently only works for joint TRA+TRBs.
+      seuratObj_TCR <- Seurat::AddMetaData(seuratObj_TCR, metadata = formatted_metadata)
+      seuratObj_TCR_CDR3 <- SeuratObject::CreateSeuratObject(counts = distanceMatrix_CDR3, assay = paste0(chain, "_cdr3"))
+      seuratObj_TCR_CDR3 <- Seurat::AddMetaData(seuratObj_TCR_CDR3, metadata = formatted_metadata)
+      seuratObj_TCR <- merge(seuratObj_TCR, seuratObj_TCR_CDR3)
+    } else {
+      seuratObj_TCR_subsequentChain <- SeuratObject::CreateSeuratObject(counts = distanceMatrix_full_length,
+                                                                        assay =  chain)
+      seuratObj_TCR_subsequentChain <- Seurat::AddMetaData(seuratObj_TCR_subsequentChain, metadata = formatted_metadata)
+      seuratObj_TCR_CDR3_subsequentChain <- SeuratObject::CreateSeuratObject(counts = distanceMatrix_CDR3, assay = paste0(chain, "_cdr3"))
+      seuratObj_TCR_CDR3_subsequentChain <- Seurat::AddMetaData(seuratObj_TCR_CDR3_subsequentChain, metadata = formatted_metadata)
+      seuratObj_TCR_subsequentChain <- merge(seuratObj_TCR_subsequentChain, seuratObj_TCR_CDR3_subsequentChain)
+      seuratObj_TCR <- merge(seuratObj_TCR, seuratObj_TCR_subsequentChain)
+    }
+  }
+  return(seuratObj_TCR)
 }
 
 

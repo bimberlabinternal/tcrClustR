@@ -5,7 +5,7 @@ test_that("conga works", {
 
   #test that the function runs without errors
   testthat::expect_no_error(
-    RunConga(seuratObj = seuratObj,
+   seuratObj_TCR <-  RunConga(seuratObj = seuratObj,
              metadata = NULL,
              formatMetadata = T,
              postFormattingMetadataCsvPath = './congaInput.csv',

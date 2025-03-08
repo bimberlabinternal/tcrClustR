@@ -38,6 +38,9 @@ FormatMetadataForTcrDist3(
 
 \item{spikeInDataframe}{Data frame containing spike-in data. Default is NULL. See examples for formatting requirements.}
 }
+\value{
+a properly formatted metadata dataframe.
+}
 \description{
 This function formats a seurat object's metadata (with TCR information appended) for tcrDist3 distance caluclations.
 }
@@ -49,6 +52,6 @@ spikeInDataframe <- data.frame(CloneNames = rep(1:3),
                                  TRA = c("CAVRDSNYQLIW", "CAVSLQDYKLSF", "CAVRDSNYQLIW"),
                                  TRB_V = c("TRBV6-4", "TRBV6-4", "TRBV6-4"),
                                  TRB_J = c("TRBJ1-1", "TRBJ2-1", "TRBJ2-3"),
-                                 TRB = c("CASSAAAAAAAAFF", "CASSVVVVVVVVQF", "CASSWWWWWWWWQY")
+                                 TRB = c("CASSAAAAAAAAFF", "CASSVVVVVVVVQF", "CASSWWWWWWWWQY"))
 }
 }

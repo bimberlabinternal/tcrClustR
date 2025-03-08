@@ -2,11 +2,11 @@ context("tcrdist3 functionality")
 
 test_that("tcrdist3 works", {
 
-  seuratObj <- readRDS("../testdata/small_RIRA.rds")
+  seuratObj <- readRDS("./testdata/small_RIRA.rds")
 
   #test that the function runs without errors
   testthat::expect_no_error(
-    RunTcrdist3(seuratObj = seuratObj,
+    seuratObj_TCR <- RunTcrdist3(seuratObj = seuratObj,
              metadata = NULL,
              formatMetadata = T,
              postFormattingMetadataCsvPath = './tcrdist3Input.csv',
@@ -40,8 +40,9 @@ test_that("tcrdist3 works", {
   )
 
   #test that spiking in TCRs works:
+  seuratObj_TCR <- NULL
   testthat::expect_no_error(
-    RunTcrdist3(seuratObj = seuratObj,
+    seuratObj_TCR <- RunTcrdist3(seuratObj = seuratObj,
              metadata = NULL,
              formatMetadata = T,
              postFormattingMetadataCsvPath = './tcrdist3Input.csv',
