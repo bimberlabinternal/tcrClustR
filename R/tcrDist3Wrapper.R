@@ -163,6 +163,7 @@ RunTcrdist3 <- function(seuratObj = NULL,
     }
     distanceMatrix_full_length <- readRDS(rdsFile)
     colnames(distanceMatrix_full_length) <- paste0(chain, "_", seq_along(1:ncol(distanceMatrix_full_length)))
+    rownames(distanceMatrix_full_length) <- paste0(chain, "_", seq_along(1:nrow(distanceMatrix_full_length)))
 
     #process the CDR3 only TCR distance matrix
     #grab the first letter of the chain (distance matrices for the cdr3 are stored as "pw_cdr3_b_aa.rds" for a beta chain)
@@ -173,6 +174,7 @@ RunTcrdist3 <- function(seuratObj = NULL,
     }
     distanceMatrix_CDR3 <- readRDS(rdsFile)
     colnames(distanceMatrix_CDR3) <- paste0(chain, "_", seq_along(1:ncol(distanceMatrix_CDR3)), "_cdr3")
+    rownames(distanceMatrix_CDR3) <- paste0(chain, "_", seq_along(1:nrow(distanceMatrix_CDR3)), "_cdr3")
 
     #add the distance matrices to the Seurat object
     if (is.null(seuratObj_TCR)){
