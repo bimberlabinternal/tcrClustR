@@ -1,0 +1,105 @@
+---
+title: "Interim TCR Clustering Vignette"
+output: html_document
+date: "2025-04-21"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+Rdiscvr::SetLabKeyDefaults(baseUrl = 'https://prime-seq.ohsu.edu', defaultFolder = 'Labs/Bimber/Collaborations/Lewinsohn')
+```
+
+# Reading Data
+
+```{r}
+
+#Some of the Lewinsohn's data:
+#Rdiscvr::DownloadOutputFile(536670, outFile = "./combo_24_25_33_34_MR1T.rds", overwrite = F)
+#seuratObj <- readRDS("./combo_24_25_33_34_MR1T.rds")
+
+#Bimber Timecourse Stims
+Rdiscvr::DownloadOutputFile(714312, outFile = "./JS01_BB01.rds")
+
+seuratObj.Stims <- readRDS("./JS01_BB01.rds")
+seuratObj.Stims <- Rdiscvr::DownloadAndAppendTcrClonotypes(seruatObj.Stims)
+```
+
+# Distance Matrix Calculation
+
+```{r }
+seuratObj_TCR <- NULL 
+ seuratObj_TCR <- RunTcrdist3(seuratObj = seuratObj.Stims,
+             metadata = NULL,
+             formatMetadata = T,
+             postFormattingMetadataCsvPath = './tcrdist3Input.csv',
+             chains = c("TRA", "TRB"),
+             cleanMetadata = T,
+             minimumClonesPerSubject = 2, 
+             rdsOutputPath = "./tcrdist3DistanceMatrices/",
+             pythonExecutable = reticulate::py_exe(),
+             debugTcrdist3 = "True")
+```
+
+```{r}
+DefaultAssay(seuratObj_TCR) <- "TRB"
+
+#vector of acceptable partition schemes
+c("CPMVertexPartition", "ModularityVertexPartition", "RBConfigurationVertexPartition", "RBERVertexPartition", "SignificanceVertexPartition", "SurpriseVertexPartition")
+
+partitionType <- "ModularityVertexPartition"
+seuratObjects <- .DistanceMatrixToClusteredGraphs(seuratObj_TCR = seuratObj_TCR,
+                                 kpcaComponents = 40,
+                                 kpcaKernel = "rbfdot",
+                                 partitionType = partitionType,
+                                 proportionOfGraphAsNeighbors = 0.1,
+                                 jaccardIndexThreshold = 0,
+                                 resolutions = c(0.1, 0.2, 0.3, 1), 
+                                 computeMultiChain = F)
+```
+
+
+# EDA Plots
+
+```{r}
+seuratObjects$singleChainSeuratObject@meta.data$TcrClustR_TRB_cdr3_0.1 |> unique()
+
+DimPlot(seuratObjects$singleChainSeuratObject, reduction = "TcrClustR_kpca.TRB.cdr3_umap", dims = 1:2, group.by = "v_b_gene")
+
+DimPlot(seuratObjects$singleChainSeuratObject, reduction = "TcrClustR_kpca.TRB.cdr3_umap", dims = 1:2, group.by = "v_b_gene")
+DimPlot(seuratObjects$singleChainSeuratObject, reduction = "TcrClustR_kpca.TRB.cdr3_umap", dims = 1:2, group.by = "v_a_gene")
+DimPlot(seuratObjects$singleChainSeuratObject, reduction = "TcrClustR_kpca.TRB.cdr3_umap", dims = 1:2, group.by = "j_b_gene")
+DimPlot(seuratObjects$singleChainSeuratObject, reduction = "TcrClustR_kpca.TRB.cdr3_umap", dims = 1:2, group.by = "j_a_gene")
+
+DimPlot(seuratObjects$singleChainSeuratObject, reduction = "TcrClustR_kpca.TRB.cdr3_umap", dims = 1:2, group.by = "subject")
+
+DimPlot(seuratObjects$singleChainSeuratObject, reduction = "TcrClustR_kpca.TRB.cdr3_umap", dims = 1:2, group.by = "TcrClustR_TRB_cdr3_0.1") 
+
+DimPlot(seuratObjects, reduction = "TcrClustR_kpca.TRB.cdr3", dims = 1:2)
+```
+
+# EDA Feature Plots
+
+```{r}
+seuratObjects$singleChainSeuratObject@meta.data$log10count <- log10(seuratObjects$singleChainSeuratObject@meta.data$count)
+
+FeaturePlot(seuratObjects$singleChainSeuratObject, reduction = "TcrClustR_kpca.TRB.cdr3_umap", features =  "log10count") + scale_color_gradientn(colors = c("navy", "dodgerblue2", "gold", "red"))
+```
+
+
+
+```{r}
+Reductions(seuratObjects$singleChainSeuratObject)
+
+DimPlot(seuratObjects$singleChainSeuratObject, reduction = "TcrClustR_kpca.TRB_umap", dims = 1:2, group.by = "TcrClustR_TRB_0.1")
+
+
+DimPlot(seuratObjects$singleChainSeuratObject, reduction = "TcrClustR_kpca.TRB_umap", dims = 1:2, group.by = "TcrClustR_TRB_0.3")
+
+
+DimPlot(seuratObjects$singleChainSeuratObject, reduction = "TcrClustR_kpca.TRB.cdr3", dims = 1:2, group.by = "TcrClustR_TRB_cdr3_0.3")
+```
+
+#TODO: Stim stratification?
+
+
