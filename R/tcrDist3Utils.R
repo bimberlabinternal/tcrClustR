@@ -223,9 +223,11 @@ FormatMetadataForTcrDist3 <- function(metadata,
       metadata$CloneNames <- NA
     }
     #assume that clone names are set by Rdiscvr, but if they're NA (like for the tests, we need to impute them)
-    metadata$CloneNames <- ifelse(is.na(metadata$CloneNames),
-                                  yes = paste0(metadata$SubjectId, "_", seq_len(nrow(metadata))),
-                                  no = metadata$CloneNames)
+    metadata <- metadata |>
+      dplyr::group_by(SubjectId, TRA, TRB, TRA_V, TRA_J, TRB_V, TRB_J) |>
+      dplyr::mutate(CloneNames =
+                      dplyr::case_when( is.na(CloneNames) ~ paste0(SubjectId, "_", dplyr::cur_group_id()),
+                        TRUE ~ CloneNames))
   }
 
   #TODO: this implementation only works for TRA+TRB, need to fix eventually.
