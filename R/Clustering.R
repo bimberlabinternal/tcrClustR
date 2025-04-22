@@ -1,4 +1,11 @@
 
+utils::globalVariables(
+  names = c('matrix_rowname.x', 'matrix_rowname.y', '.data', '.', 'distanceMatrix', 'combined_matrix',
+            'key', 'seed', 'seuratObj', 'spikeInDataframe'),
+  package = 'tcrClustR',
+  add = TRUE
+)
+
 #TODO: summarize data lossy-ness vignette.
 
 ClusterTcrs <- function(seuratObj = NULL,
@@ -123,7 +130,7 @@ ClusterTcrs <- function(seuratObj = NULL,
   }
 
   #create a list of all possible combinations of chains
-  chain_combinations <- combn(names(single_chain_graphs), 2, simplify = FALSE)
+  chain_combinations <- utils::combn(names(single_chain_graphs), 2, simplify = FALSE)
   chain_combinations <- lapply(chain_combinations, function(x) paste(sort(x), collapse = "_"))
   #filter self-chain combinations
   chain_combinations <- chain_combinations[unlist(lapply(chain_combinations, FUN = function(x) {
