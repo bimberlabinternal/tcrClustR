@@ -114,6 +114,9 @@ jobs:
           sessioninfo::session_info(pkgs, include_base = TRUE)
         shell: Rscript {0}
 
+      - name: Set Permissions
+        run: chmod -R 755 .
+        
       - name: Check
         env:
           _R_CHECK_CRAN_INCOMING_: false
