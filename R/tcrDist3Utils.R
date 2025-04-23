@@ -91,8 +91,8 @@ FormatMetadataForTcrDist3 <- function(metadata,
       metadata <- metadata[!grepl(",", metadata[[chain]]), ]
 
       .PullTcrdist3Db(organism = organism,
-                      outputFilePath = './tcrdist3_gene_segments.txt')
-      gene_segments_in_db <- readr::read_csv('./tcrdist3_gene_segments.txt', show_col_types = FALSE) |>
+                      outputFilePath = file.path(dirname(outputCsv), 'tcrdist3_gene_segments.txt'))
+      gene_segments_in_db <- readr::read_csv(file.path(dirname(outputCsv), 'tcrdist3_gene_segments.txt'), show_col_types = FALSE) |>
         dplyr::mutate(`gene_segments` = gsub("\\*[0-9]+$", "", `gene_segments`)) |>
         unlist() |>
         unique()
@@ -119,8 +119,8 @@ FormatMetadataForTcrDist3 <- function(metadata,
               dplyr::filter(TRA_V != "valid" | TRA_J != "valid") |>
               dplyr::select(TRA_V, TRA_J) |>
               unique.data.frame()
-            print(paste0("Writing TRA segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath('./filtered_TRA_gene_segments.csv')))
-            utils::write.csv(filtered_genes, file = './filtered_TRA_gene_segments.csv', row.names = FALSE)
+            print(paste0("Writing TRA segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath(file.path(dirname(outputCsv),'filtered_TRA_gene_segments.csv'))))
+            utils::write.csv(filtered_genes, file = file.path(dirname(outputCsv),'filtered_TRA_gene_segments.csv'), row.names = FALSE)
           }
         }
         metadata <- metadata |>
@@ -147,8 +147,8 @@ FormatMetadataForTcrDist3 <- function(metadata,
               dplyr::filter(TRB_V != "valid" | TRB_J != "valid") |>
               dplyr::select(TRB_V, TRB_J) |>
               unique.data.frame()
-            print(paste0("Writing TRB segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath('./filtered_TRB_gene_segments.csv')))
-            utils::write.csv(filtered_genes, file = './filtered_TRB_gene_segments.csv', row.names = FALSE)
+            print(paste0("Writing TRB segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath(file.path(dirname(outputCsv),'filtered_TRB_gene_segments.csv'))))
+            utils::write.csv(filtered_genes, file = file.path(dirname(outputCsv), 'filtered_TRB_gene_segments.csv'), row.names = FALSE)
           }
         }
         metadata <- metadata |>
@@ -176,8 +176,8 @@ FormatMetadataForTcrDist3 <- function(metadata,
               dplyr::filter(TRG_V != "valid" | TRG_J != "valid") |>
               dplyr::select(TRG_V, TRG_J) |>
               unique.data.frame()
-            print(paste0("Writing TRG segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath('./filtered_TRG_gene_segments.csv')))
-            utils::write.csv(filtered_genes, file = './filtered_TRG_gene_segments.csv', row.names = FALSE)
+            print(paste0("Writing TRG segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath(file.path(dirname(outputCsv),'filtered_TRG_gene_segments.csv'))))
+            utils::write.csv(filtered_genes, file = file.path(dirname(outputCsv),'filtered_TRG_gene_segments.csv'), row.names = FALSE)
           }
         }
         metadata <- metadata |>
@@ -204,8 +204,8 @@ FormatMetadataForTcrDist3 <- function(metadata,
               dplyr::filter(TRD_V != "valid" | TRD_J != "valid") |>
               dplyr::select(TRD_V, TRD_J) |>
               unique.data.frame()
-            print(paste0("Writing TRD segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath('./filtered_TRD_gene_segments.csv')))
-            utils::write.csv(filtered_genes, file = './filtered_TRD_gene_segments.csv', row.names = FALSE)
+            print(paste0("Writing TRD segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath(file.path(dirname(outputCsv),'filtered_TRD_gene_segments.csv'))))
+            utils::write.csv(filtered_genes, file = file.path(dirname(outputCsv),'filtered_TRD_gene_segments.csv'), row.names = FALSE)
           }
         }
         metadata <- metadata |>
