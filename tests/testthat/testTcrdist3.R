@@ -20,7 +20,7 @@ test_that("tcrdist3 works", {
              cleanMetadata = T,
              minimumClonesPerSubject = 2,
              rdsOutputPath = rdsOutputPath,
-             pythonExecutable = "python3",
+             pythonExecutable = system("which python3"),
              debugTcrdist3 = "True")
   )
   print(postFormattingMetadataCsvPath)
@@ -57,7 +57,7 @@ test_that("tcrdist3 works", {
              cleanMetadata = T,
              minimumClonesPerSubject = 2,
              rdsOutputPath = rdsOutputPath,
-             pythonExecutable = "python3",
+             pythonExecutable = system("which python3"),
              debugTcrdist3 = "True",
              spikeInDataframe = spikeInDataframe)
   )
