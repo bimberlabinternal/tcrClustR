@@ -7,7 +7,7 @@ date: "2025-04-21"
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-Rdiscvr::SetLabKeyDefaults(baseUrl = 'https://prime-seq.ohsu.edu', defaultFolder = 'Labs/Bimber/Collaborations/Lewinsohn')
+Rdiscvr::SetLabKeyDefaults(baseUrl = 'https://prime-seq.ohsu.edu', defaultFolder = 'Labs/Bimber/')
 ```
 
 # Reading Data

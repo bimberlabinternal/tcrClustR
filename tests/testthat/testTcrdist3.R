@@ -1,9 +1,9 @@
-context("tcrdist3 functionality")
+library(testthat)
 
 test_that("tcrdist3 works", {
 
-  seuratObj <- readRDS("./testdata/small_RIRA.rds")
-
+  seuratObj <- readRDS("../testdata/small_RIRA.rds")
+  seuratObj <- subset(seuratObj, cells = WhichCells(seuratObj, which(as.numeric(seuratObj$cDNA_ID) > 1 )))
   #test that the function runs without errors
   testthat::expect_no_error(
     seuratObj_TCR <- RunTcrdist3(seuratObj = seuratObj,

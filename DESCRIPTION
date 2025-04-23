@@ -2,7 +2,7 @@ Package: tcrClustR
 Title: Define TCR "Families" via similarity metrics
 Version: 0.0.0.9000
 Authors@R: 
-    person("GW", "McElfresh", , "mcelfreg@ohsu.edu", role = c("aut", "cre"),
+    person("GW", "McElfresh", "mcelfreg@ohsu.edu", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-1948-7571"))
 Description: This package uses network analysis from different TCR distance metrics to group TCRs into hopefully functional families for prioritization in synthesis studies. 
 License: GPL (>= 3)
@@ -15,10 +15,14 @@ Imports:
     R.utils,
     dplyr,
     reticulate,
-    readr, 
-    plyr, 
-    leidenbase, 
-    igraph
+    readr,
+    plyr,
+    leidenbase,
+    igraph,
+    kernlab,
+    FNN,
+    Matrix,
+    magrittr
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
 Suggests: 
