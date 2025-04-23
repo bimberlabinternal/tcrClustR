@@ -14,7 +14,7 @@ test_that("tcrdist3 works", {
              cleanMetadata = T,
              minimumClonesPerSubject = 2,
              rdsOutputPath = "./tcrdist3DistanceMatrices/",
-             pythonExecutable = reticulate::py_exe(),
+             pythonExecutable = "python3",
              debugTcrdist3 = "True")
   )
 
@@ -50,7 +50,7 @@ test_that("tcrdist3 works", {
              cleanMetadata = T,
              minimumClonesPerSubject = 2,
              rdsOutputPath = "./tcrdist3DistanceMatrices/",
-             pythonExecutable = reticulate::py_exe(),
+             pythonExecutable = "python3",
              debugTcrdist3 = "True",
              spikeInDataframe = spikeInDataframe)
   )

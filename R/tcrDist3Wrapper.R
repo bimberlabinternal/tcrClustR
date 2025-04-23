@@ -177,7 +177,7 @@ RunTcrdist3 <- function(seuratObj = NULL,
     rownames(distanceMatrix_CDR3) <- paste0(chain, "_", seq_along(1:nrow(distanceMatrix_CDR3)), "_cdr3")
 
     #add the distance matrices to the Seurat object
-    if (is.null(seuratObj_TCR)){
+    if (!exists("seuratObj_TCR")){
       seuratObj_TCR <- SeuratObject::CreateSeuratObject(counts = distanceMatrix_full_length,
                                                         assay =  chain)
       #TODO: linked TODO with L231 in tcrdistUtils.R, this currently only works for joint TRA+TRBs.

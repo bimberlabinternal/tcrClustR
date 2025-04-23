@@ -220,7 +220,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
   if (imputeCloneNames) {
     if (!"CloneNames" %in% colnames(metadata)) {
       #initialize the CloneNames metadata column
-      metadata$CloneNames <- NA
+      metadata$CloneNames <- "undefined_clone"
     }
     #assume that clone names are set by Rdiscvr, but if they're NA (like for the tests, we need to impute them)
 
@@ -231,14 +231,14 @@ FormatMetadataForTcrDist3 <- function(metadata,
 
     metadata <- metadata |>
       #if a user submits a spike-in dataframe, the clones will be missing a subject Id
-      dplyr::mutate(SubjectId = dplyr::case_when(!is.na(CloneNames) & !is.na(SubjectId) ~ "SpikeIn",
+      dplyr::mutate(SubjectId = dplyr::case_when(is.na(CloneNames) & is.na(SubjectId) ~ "SpikeIn",
                                      TRUE ~ as.character(SubjectId)),
                     ) |>
       dplyr::group_by(SubjectId, TRA, TRB, TRA_V, TRA_J, TRB_V, TRB_J) |>
 
       dplyr::mutate(CloneNames =
                       dplyr::case_when( is.na(CloneNames) ~ paste0(SubjectId, "_", dplyr::cur_group_id()),
-                        TRUE ~ CloneNames))
+                        TRUE ~ as.character(CloneNames)))
   }
 
   #TODO: this implementation only works for TRA+TRB, need to fix eventually.
