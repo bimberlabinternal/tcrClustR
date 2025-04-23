@@ -115,7 +115,7 @@ jobs:
         shell: Rscript {0}
 
       - name: Set Permissions
-        run: chmod -R 755 .
+        run: chmod -R 755 /home/runner/work/tcrClustR/tcrClustR/check/tcrClustR.Rcheck/tests/
         
       - name: Check
         env:
