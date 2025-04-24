@@ -2,14 +2,14 @@ library(testthat)
 
 test_that("tcrdist3 works", {
   #define paths using a temporary directory
-  tmp <- tempdir()
-  print(tmp)
+  temp_dir <- tempdir()
+  print(temp_dir)
 
-  paste0('file.exists: ', file.exists(tmp))
-  paste0('dir.exists: ', dir.exists(tmp))
+  paste0('file.exists: ', file.exists(temp_dir))
+  paste0('dir.exists: ', dir.exists(temp_dir))
 
 
-  outFile <- tempfile(tmpdir = tmp)
+  outFile <- tempfile(tmpdir =  temp_dir)
   print(paste0('outfile: ', outFile))
   paste0('file.exists: ', file.exists(outFile))
   print('creating')
