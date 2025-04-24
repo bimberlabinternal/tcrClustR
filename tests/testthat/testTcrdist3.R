@@ -3,6 +3,7 @@ library(testthat)
 test_that("tcrdist3 works", {
   #define paths using a temporary directory
   temp_dir <- tempdir()
+  print(temp_dir)
   system(paste0("sudo chmod -R 777 ", temp_dir))
   postFormattingMetadataCsvPath <- file.path(temp_dir, "tcrdist3Input.csv")
   rdsOutputPath <- file.path(temp_dir, "tcrdist3DistanceMatrices")
