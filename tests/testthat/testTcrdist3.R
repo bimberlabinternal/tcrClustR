@@ -2,8 +2,19 @@ library(testthat)
 
 test_that("tcrdist3 works", {
   #define paths using a temporary directory
-  temp_dir <- paste0("/home/runner/custom_tmp")
-  print(temp_dir)
+  tmp <- tempdir()
+  print(tmp)
+
+  paste0('file.exists: ', file.exists(tmp))
+  paste0('dir.exists: ', dir.exists(tmp))
+
+
+  outFile <- tempfile(tmpdir = outDir)
+  print(paste0('outfile: ', outFile))
+  paste0('file.exists: ', file.exists(outFile))
+  print('creating')
+  print(file.create(outFile))
+  paste0('file.exists after create: ', file.exists(outFile))
   system(paste0("sudo chmod -R 777 ", temp_dir))
   postFormattingMetadataCsvPath <- file.path(temp_dir, "tcrdist3Input.csv")
   rdsOutputPath <- file.path(temp_dir, "tcrdist3DistanceMatrices")
