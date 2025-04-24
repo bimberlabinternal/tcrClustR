@@ -9,7 +9,7 @@ test_that("tcrdist3 works", {
   paste0('dir.exists: ', dir.exists(tmp))
 
 
-  outFile <- tempfile(tmpdir = outDir)
+  outFile <- tempfile(tmpdir = tmp)
   print(paste0('outfile: ', outFile))
   paste0('file.exists: ', file.exists(outFile))
   print('creating')
