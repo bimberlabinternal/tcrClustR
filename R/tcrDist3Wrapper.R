@@ -117,7 +117,7 @@ RunTcrdist3 <- function(seuratObj = NULL,
 
   #read the python script template from tcrClustR and write them to a tempfile
   template <- readr::read_file(system.file("scripts/tcrdist3TcrDistances.py", package = "tcrClustR"))
-  script <- tempfile()
+  script <- tempfile(fileext = ".py")
   readr::write_file(template, script)
 
   #convert paths to absolute paths
