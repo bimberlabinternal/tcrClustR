@@ -326,11 +326,16 @@ FormatMetadataForTcrDist3 <- function(metadata,
   template <- readr::read_file(system.file("scripts/PullTcrdist3Db.py", package = "tcrClustR"))
   script <- tempfile()
   readr::write_file(template, script)
-  #format and write the python function to the end of the script
+  #format and write the Python function call to the script
   command <- paste0("PullTcrdist3Db(organism = '", organism,
                     "', outputFilePath = '", outputFilePath,
                     "')")
   readr::write_file(command, script, append = TRUE)
   #execute
-  system2(pythonExecutable, script)
+  result <- system2(pythonExecutable, script, stdout = TRUE, stderr = TRUE)
+  cat(result) #debugging
+  #check that the gene segments file is created
+  if (!file.exists(outputFilePath)) {
+    stop("tcrdist3_gene_segments.txt generation failed. Check Python script execution.")
+  }
 }
