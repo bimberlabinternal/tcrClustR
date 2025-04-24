@@ -324,7 +324,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
   }
   outputFilePath <- R.utils::getAbsolutePath(outputFilePath)
   template <- readr::read_file(system.file("scripts/PullTcrdist3Db.py", package = "tcrClustR"))
-  script <- tempfile()
+  script <- tempfile(fileext = ".py")
   readr::write_file(template, script)
   #format and write the Python function call to the script
   command <- paste0("PullTcrdist3Db(organism = '", organism,
