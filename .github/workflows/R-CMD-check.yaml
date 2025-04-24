@@ -1,7 +1,7 @@
 on:
   workflow_dispatch:
   push:
-    branches: [ main, dev ]
+    branches: [ main, dev, clustering ]
   pull_request:
 
 name: R Build and Checks
@@ -16,7 +16,6 @@ jobs:
       fail-fast: false
       matrix:
         config:
-#          - {os: 22.04, r: 'next', bioc: 'devel'}
           - {os: 22.04, r: '4.4', bioc: '3.20', pkgdown: "true"}
           - {os: 22.04, r: '4.3', bioc: '3.18'}
 
@@ -25,6 +24,17 @@ jobs:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
+      - name: Set permissions for /tmp
+        run: sudo chmod -R 777 /tmp
+
+      - name: Create custom temp directory
+        run: mkdir -p $HOME/custom_tmp && chmod -R 777 $HOME/custom_tmp
+        env:
+          TMPDIR: $HOME/custom_tmp
+
+      - name: Reset file ownership
+        run: sudo chown -R $USER:$USER $GITHUB_WORKSPACE
+
       - uses: actions/checkout@v4
 
       - uses: r-lib/actions/setup-r@v2
@@ -35,20 +45,18 @@ jobs:
 
       - uses: r-lib/actions/setup-pandoc@v2
 
-      - name: Install packages and dependencies
+      - name: Install packages
         if: runner.os != 'Windows'
         run: |
-          sudo apt-get update &&
-          sudo apt-get install -y devscripts=2.22.1 &&
-          sudo apt-get install -yq python3-pip
+          sudo apt-get update && sudo apt-get install -yq python3-pip
           python3 -m pip install --upgrade pip
           python3 -m pip install --user wheel setuptools
-          python3 -m pip install --upgrade pip setuptools
           python3 -m pip --no-cache-dir install numpy scipy scikit-learn scikit-misc matplotlib tqdm sympy setuptools pandas pyyaml scanpy rpy2
           python3 -m pip --no-cache-dir install git+https://github.com/kmayerb/tcrdist3.git@0.2.2
-          sudo chmod -R 777 /tmp
 
-      # Note: the environment variable R_BIOC_VERSION is set to force remotes::install_bioc to follow the proper version
+      - name: Debug environment variables
+        run: env
+
       - name: Setup Bioconductor
         run: |
           install.packages('devtools')
@@ -117,7 +125,7 @@ jobs:
           sessioninfo::session_info(pkgs, include_base = TRUE)
         shell: Rscript {0}
 
-      - name: Check
+      - name: Run R CMD check
         env:
           _R_CHECK_CRAN_INCOMING_: false
         run: rcmdcheck::rcmdcheck(args = c("--no-manual"), error_on = "warning", check_dir = "check")

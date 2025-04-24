@@ -48,6 +48,7 @@ DefaultAssay(seuratObj_TCR) <- "TRB"
 c("CPMVertexPartition", "ModularityVertexPartition", "RBConfigurationVertexPartition", "RBERVertexPartition", "SignificanceVertexPartition", "SurpriseVertexPartition")
 
 partitionType <- "ModularityVertexPartition"
+seed <- 1234
 seuratObjects <- .DistanceMatrixToClusteredGraphs(seuratObj_TCR = seuratObj_TCR,
                                  kpcaComponents = 40,
                                  kpcaKernel = "rbfdot",
