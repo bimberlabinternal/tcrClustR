@@ -42,7 +42,8 @@ FormatMetadataForTcrDist3 <- function(metadata,
                                       imputeCloneNames = T,
                                       minimumClonesPerSubject = 100,
                                       writeUnannotatedGeneSegmentsToFile = T,
-                                      spikeInDataframe = NULL
+                                      spikeInDataframe = NULL, 
+                                      pythonExecutable = NULL
 ) {
   #check spikeInDataframe's formatting
   if (!is.null(spikeInDataframe)) {
@@ -321,6 +322,10 @@ FormatMetadataForTcrDist3 <- function(metadata,
                             pythonExecutable = NULL) {
   if (is.null(pythonExecutable)) {
     pythonExecutable <- reticulate::py_exe()
+    #fallback if reticulate fails
+    if (is.null(pythonExecutable) || pythonExecutable == "") {
+      pythonExecutable <- Sys.which("python3")
+    }
   }
   outputFilePath <- R.utils::getAbsolutePath(outputFilePath)
   template <- readr::read_file(system.file("scripts/PullTcrdist3Db.py", package = "tcrClustR"))

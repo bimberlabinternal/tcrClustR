@@ -90,7 +90,8 @@ RunTcrdist3 <- function(seuratObj = NULL,
                                           summarizeClones = summarizeClones,
                                           imputeCloneNames = imputeCloneNames,
                                           minimumClonesPerSubject = minimumClonesPerSubject,
-                                          spikeInDataframe = spikeInDataframe)
+                                          spikeInDataframe = spikeInDataframe, 
+                                          pythonExecutable = pythonExecutable)
 
   }
 

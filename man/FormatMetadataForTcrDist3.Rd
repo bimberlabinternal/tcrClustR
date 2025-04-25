@@ -14,7 +14,8 @@ FormatMetadataForTcrDist3(
   imputeCloneNames = T,
   minimumClonesPerSubject = 100,
   writeUnannotatedGeneSegmentsToFile = T,
-  spikeInDataframe = NULL
+  spikeInDataframe = NULL,
+  pythonExecutable = NULL
 )
 }
 \arguments{

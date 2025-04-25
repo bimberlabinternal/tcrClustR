@@ -70,7 +70,7 @@ test_that("tcrdist3 works", {
              cleanMetadata = T,
              minimumClonesPerSubject = 2,
              rdsOutputPath = rdsOutputPath,
-             pythonExecutable = system("which python3"),
+             pythonExecutable = Sys.which("python3"),
              debugTcrdist3 = "True",
              spikeInDataframe = spikeInDataframe)
   )
