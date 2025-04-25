@@ -331,8 +331,9 @@ FormatMetadataForTcrDist3 <- function(metadata,
                     "', outputFilePath = '", outputFilePath,
                     "')")
   readr::write_file(command, script, append = TRUE)
-  #add execution permissions
+  #add execution permissions to script and parent directory
   Sys.chmod(script, mode = "755")
+  system(paste("chmod 755", dirname(script)))
   #execute
   result <- system2(pythonExecutable, script, stdout = TRUE, stderr = TRUE)
   cat(result) #debugging
