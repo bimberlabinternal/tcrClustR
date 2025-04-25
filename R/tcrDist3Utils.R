@@ -331,6 +331,8 @@ FormatMetadataForTcrDist3 <- function(metadata,
                     "', outputFilePath = '", outputFilePath,
                     "')")
   readr::write_file(command, script, append = TRUE)
+  #chmod the temporary directory
+  system(paste0("chmod -R 777 ", dirname(outputFilePath)))
   #execute
   result <- system2(pythonExecutable, script, stdout = TRUE, stderr = TRUE)
   cat(result) #debugging
