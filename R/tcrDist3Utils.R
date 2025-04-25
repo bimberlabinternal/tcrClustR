@@ -331,6 +331,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
                     "', outputFilePath = '", outputFilePath,
                     "')")
   readr::write_file(command, script, append = TRUE)
+  Sys.chmod(script, mode = "644")
   #execute
   result <- system2(pythonExecutable, script, stdout = TRUE, stderr = TRUE)
   cat(result) #debugging
