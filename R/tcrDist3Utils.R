@@ -18,6 +18,7 @@ utils::globalVariables(
 #' @param outputCsv Path to the output CSV file.
 #' @param minimumClonesPerSubject Minimum number of clones per subject to include in the analysis. Default is 2.
 #' @param spikeInDataframe Data frame containing spike-in data. Default is NULL. See examples for formatting requirements.
+#' @param pythonExecutable Path to the python executable. Default is NULL, but imputes to reticulate::py_exe().
 #' @return a properly formatted metadata dataframe.
 #' @export
 #' @examples

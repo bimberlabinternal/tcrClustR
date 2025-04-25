@@ -38,6 +38,8 @@ FormatMetadataForTcrDist3(
 \item{writeUnannotatedGeneSegmentsToFile}{Boolean controlling whether to write unannotated gene segments to a file (filtered_(chain)_gene_segments.csv).}
 
 \item{spikeInDataframe}{Data frame containing spike-in data. Default is NULL. See examples for formatting requirements.}
+
+\item{pythonExecutable}{Path to the python executable. Default is NULL, but imputes to reticulate::py_exe().}
 }
 \value{
 a properly formatted metadata dataframe.

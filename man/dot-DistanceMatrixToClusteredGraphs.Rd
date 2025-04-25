@@ -15,9 +15,26 @@
   computeMultiChain = T
 )
 }
+\arguments{
+\item{seuratObj_TCR}{Seurat object containing TCR distance matrices.}
+
+\item{kpcaComponents}{Number of components for kernel PCA. Default is 50.}
+
+\item{kpcaKernel}{Kernel type for kernel PCA. Default is "rbfdot".}
+
+\item{partitionType}{Type of partitioning algorithm to use. Default is "CPMVertexPartition".}
+
+\item{proportionOfGraphAsNeighbors}{Proportion of the graph to consider as neighbors. Default is 0.1.}
+
+\item{jaccardIndexThreshold}{Jaccard index threshold for pruning edges. Default is 0.1.}
+
+\item{resolutions}{Vector of resolution parameters for clustering. Default is c(0.1, 0.2, 0.3).}
+
+\item{computeMultiChain}{Boolean indicating whether to compute multi-chain graphs. Default is TRUE.}
+}
 \value{
 Single Chain and multi-chain Seurat objects
 }
 \description{
-.DistanceMatrixToClusteredGraphs
+This function takes a Seurat object with TCR distance matrices and computes clustered graphs for each chain.
 }

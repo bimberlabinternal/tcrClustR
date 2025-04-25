@@ -66,6 +66,16 @@ ClusterTcrs <- function(seuratObj = NULL,
 
 
 #' @title .DistanceMatrixToClusteredGraphs
+#' @description
+#' This function takes a Seurat object with TCR distance matrices and computes clustered graphs for each chain.
+#' @param seuratObj_TCR Seurat object containing TCR distance matrices.
+#' @param kpcaComponents Number of components for kernel PCA. Default is 50.
+#' @param kpcaKernel Kernel type for kernel PCA. Default is "rbfdot".
+#' @param partitionType Type of partitioning algorithm to use. Default is "CPMVertexPartition".
+#' @param proportionOfGraphAsNeighbors Proportion of the graph to consider as neighbors. Default is 0.1.
+#' @param jaccardIndexThreshold Jaccard index threshold for pruning edges. Default is 0.1.
+#' @param resolutions Vector of resolution parameters for clustering. Default is c(0.1, 0.2, 0.3).
+#' @param computeMultiChain Boolean indicating whether to compute multi-chain graphs. Default is TRUE.
 #' @return Single Chain and multi-chain Seurat objects
 
 .DistanceMatrixToClusteredGraphs <- function(seuratObj_TCR = NULL,
