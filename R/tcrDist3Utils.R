@@ -335,6 +335,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
   Sys.chmod(script, mode = "755")
   system(paste("chmod 755", dirname(script)))
   #execute
+  print(paste("Python executable:", pythonExecutable))  # Debug
   result <- system2(pythonExecutable, script, stdout = TRUE, stderr = TRUE)
   cat(result) #debugging
   #check that the gene segments file is created

@@ -15,7 +15,7 @@ test_that("tcrdist3 works", {
   print('creating')
   print(file.create(outFile))
   print(paste0('file.exists after create: ', file.exists(outFile)))
-  system(paste0("sudo chmod -R 777 ", temp_dir))
+
   postFormattingMetadataCsvPath <- file.path(temp_dir, "tcrdist3Input.csv")
   rdsOutputPath <- file.path(temp_dir, "tcrdist3DistanceMatrices")
   filteredGeneSegmentsPath <- file.path(temp_dir, "filtered_TRB_gene_segments.csv")
