@@ -74,7 +74,7 @@ This function runs the tcrdist3 pipeline on a set of CDR3 sequences in a Seurat 
                                  TRA = c("CAVRDSNYQLIW", "CAVSLQDYKLSF", "CAVRDSNYQLIW"),
                                  TRB_V = c("TRBV6-4", "TRBV6-4", "TRBV6-4"),
                                  TRB_J = c("TRBJ1-1", "TRBJ2-1", "TRBJ2-3"),
-                                 TRB = c("CASSAAAAAAAAFF", "CASSVVVVVVVVQF", "CASSWWWWWWWWQY")
+                                 TRB = c("CASSAAAAAAAAFF", "CASSVVVVVVVVQF", "CASSWWWWWWWWQY"))
 }
 
 }

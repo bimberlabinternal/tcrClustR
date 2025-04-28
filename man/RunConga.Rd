@@ -14,7 +14,7 @@ RunConga(
   cleanMetadata = T,
   spikeInDataframe = NULL,
   minimumClonesPerSubject = 2,
-  rdsOutputPath = "./tcrdist3DistanceMatrices/",
+  rdsOutputPath = "./congaDistanceMatrices/",
   pythonExecutable = NULL
 )
 }

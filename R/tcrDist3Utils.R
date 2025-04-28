@@ -18,7 +18,8 @@ utils::globalVariables(
 #' @param outputCsv Path to the output CSV file.
 #' @param minimumClonesPerSubject Minimum number of clones per subject to include in the analysis. Default is 2.
 #' @param spikeInDataframe Data frame containing spike-in data. Default is NULL. See examples for formatting requirements.
-#' @return NULL
+#' @param pythonExecutable Path to the python executable. Default is NULL, but imputes to reticulate::py_exe().
+#' @return a properly formatted metadata dataframe.
 #' @export
 #' @examples
 #' \dontrun{
@@ -28,7 +29,7 @@ utils::globalVariables(
 #'                                  TRA = c("CAVRDSNYQLIW", "CAVSLQDYKLSF", "CAVRDSNYQLIW"),
 #'                                  TRB_V = c("TRBV6-4", "TRBV6-4", "TRBV6-4"),
 #'                                  TRB_J = c("TRBJ1-1", "TRBJ2-1", "TRBJ2-3"),
-#'                                  TRB = c("CASSAAAAAAAAFF", "CASSVVVVVVVVQF", "CASSWWWWWWWWQY")
+#'                                  TRB = c("CASSAAAAAAAAFF", "CASSVVVVVVVVQF", "CASSWWWWWWWWQY"))
 #' }
 
 #TODO: flesh out examples demonstrating formatting requirements for spikeInDataframe
@@ -42,7 +43,8 @@ FormatMetadataForTcrDist3 <- function(metadata,
                                       imputeCloneNames = T,
                                       minimumClonesPerSubject = 100,
                                       writeUnannotatedGeneSegmentsToFile = T,
-                                      spikeInDataframe = NULL
+                                      spikeInDataframe = NULL, 
+                                      pythonExecutable = NULL
 ) {
   #check spikeInDataframe's formatting
   if (!is.null(spikeInDataframe)) {
@@ -91,8 +93,8 @@ FormatMetadataForTcrDist3 <- function(metadata,
       metadata <- metadata[!grepl(",", metadata[[chain]]), ]
 
       .PullTcrdist3Db(organism = organism,
-                      outputFilePath = './tcrdist3_gene_segments.txt')
-      gene_segments_in_db <- readr::read_csv('./tcrdist3_gene_segments.txt', show_col_types = FALSE) |>
+                      outputFilePath = file.path(dirname(outputCsv), 'tcrdist3_gene_segments.txt'))
+      gene_segments_in_db <- readr::read_csv(file.path(dirname(outputCsv), 'tcrdist3_gene_segments.txt'), show_col_types = FALSE) |>
         dplyr::mutate(`gene_segments` = gsub("\\*[0-9]+$", "", `gene_segments`)) |>
         unlist() |>
         unique()
@@ -119,8 +121,8 @@ FormatMetadataForTcrDist3 <- function(metadata,
               dplyr::filter(TRA_V != "valid" | TRA_J != "valid") |>
               dplyr::select(TRA_V, TRA_J) |>
               unique.data.frame()
-            print(paste0("Writing TRA segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath('./filtered_TRA_gene_segments.csv')))
-            utils::write.csv(filtered_genes, file = './filtered_TRA_gene_segments.csv', row.names = FALSE)
+            print(paste0("Writing TRA segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath(file.path(dirname(outputCsv),'filtered_TRA_gene_segments.csv'))))
+            utils::write.csv(filtered_genes, file = file.path(dirname(outputCsv),'filtered_TRA_gene_segments.csv'), row.names = FALSE)
           }
         }
         metadata <- metadata |>
@@ -147,8 +149,8 @@ FormatMetadataForTcrDist3 <- function(metadata,
               dplyr::filter(TRB_V != "valid" | TRB_J != "valid") |>
               dplyr::select(TRB_V, TRB_J) |>
               unique.data.frame()
-            print(paste0("Writing TRB segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath('./filtered_TRB_gene_segments.csv')))
-            utils::write.csv(filtered_genes, file = './filtered_TRB_gene_segments.csv', row.names = FALSE)
+            print(paste0("Writing TRB segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath(file.path(dirname(outputCsv),'filtered_TRB_gene_segments.csv'))))
+            utils::write.csv(filtered_genes, file = file.path(dirname(outputCsv), 'filtered_TRB_gene_segments.csv'), row.names = FALSE)
           }
         }
         metadata <- metadata |>
@@ -176,8 +178,8 @@ FormatMetadataForTcrDist3 <- function(metadata,
               dplyr::filter(TRG_V != "valid" | TRG_J != "valid") |>
               dplyr::select(TRG_V, TRG_J) |>
               unique.data.frame()
-            print(paste0("Writing TRG segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath('./filtered_TRG_gene_segments.csv')))
-            utils::write.csv(filtered_genes, file = './filtered_TRG_gene_segments.csv', row.names = FALSE)
+            print(paste0("Writing TRG segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath(file.path(dirname(outputCsv),'filtered_TRG_gene_segments.csv'))))
+            utils::write.csv(filtered_genes, file = file.path(dirname(outputCsv),'filtered_TRG_gene_segments.csv'), row.names = FALSE)
           }
         }
         metadata <- metadata |>
@@ -204,8 +206,8 @@ FormatMetadataForTcrDist3 <- function(metadata,
               dplyr::filter(TRD_V != "valid" | TRD_J != "valid") |>
               dplyr::select(TRD_V, TRD_J) |>
               unique.data.frame()
-            print(paste0("Writing TRD segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath('./filtered_TRD_gene_segments.csv')))
-            utils::write.csv(filtered_genes, file = './filtered_TRD_gene_segments.csv', row.names = FALSE)
+            print(paste0("Writing TRD segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath(file.path(dirname(outputCsv),'filtered_TRD_gene_segments.csv'))))
+            utils::write.csv(filtered_genes, file = file.path(dirname(outputCsv),'filtered_TRD_gene_segments.csv'), row.names = FALSE)
           }
         }
         metadata <- metadata |>
@@ -220,13 +222,29 @@ FormatMetadataForTcrDist3 <- function(metadata,
   if (imputeCloneNames) {
     if (!"CloneNames" %in% colnames(metadata)) {
       #initialize the CloneNames metadata column
-      metadata$CloneNames <- NA
+      metadata$CloneNames <- "undefined_clone"
     }
     #assume that clone names are set by Rdiscvr, but if they're NA (like for the tests, we need to impute them)
-    metadata$CloneNames <- ifelse(is.na(metadata$CloneNames),
-                                  yes = paste0(metadata$SubjectId, "_", seq_len(nrow(metadata))),
-                                  no = metadata$CloneNames)
+
+    if (!is.null(spikeInDataframe)){
+      #if a user submits a spike-in dataframe, the subject IDs will need to be converted to a character column to merge with SubjectId == "SpikeIn"
+      metadata$SubjectId <- as.character(metadata$SubjectId)
+    }
+
+    metadata <- metadata |>
+      #if a user submits a spike-in dataframe, the clones will be missing a subject Id
+      dplyr::mutate(SubjectId = dplyr::case_when(is.na(CloneNames) & is.na(SubjectId) ~ "SpikeIn",
+                                     TRUE ~ as.character(SubjectId)),
+                    ) |>
+      dplyr::group_by(SubjectId, TRA, TRB, TRA_V, TRA_J, TRB_V, TRB_J) |>
+
+      dplyr::mutate(CloneNames =
+                      dplyr::case_when( is.na(CloneNames) ~ paste0(SubjectId, "_", dplyr::cur_group_id()),
+                        TRUE ~ as.character(CloneNames)))
   }
+
+  #TODO: this implementation only works for TRA+TRB, need to fix eventually.
+
   if (summarizeClones) {
     #TODO: figure out if we need to index clones jointly (across both chains)
     #or singly (TRAs would have a clone ID and TRBs would have their own clone ID)
@@ -242,6 +260,8 @@ FormatMetadataForTcrDist3 <- function(metadata,
     }
   }
 
+  #unique-ify the metadata prior to formatting, since the random sampling in the reverse translation function can cause duplicates
+  metadata <- metadata |> unique.data.frame()
 
   #reformat data
   formatted_data <- data.frame(
@@ -260,6 +280,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
   )
   # Write the formatted data to the output CSV file
   utils::write.csv(formatted_data, outputCsv, row.names = FALSE)
+  return(formatted_data)
 }
 
 .reverse_translate_cdr3 <- function(cdr3_aa_seq) {
@@ -302,16 +323,29 @@ FormatMetadataForTcrDist3 <- function(metadata,
                             pythonExecutable = NULL) {
   if (is.null(pythonExecutable)) {
     pythonExecutable <- reticulate::py_exe()
+    #fallback if reticulate fails
+    if (is.null(pythonExecutable) || pythonExecutable == "") {
+      pythonExecutable <- Sys.which("python3")
+    }
   }
   outputFilePath <- R.utils::getAbsolutePath(outputFilePath)
   template <- readr::read_file(system.file("scripts/PullTcrdist3Db.py", package = "tcrClustR"))
-  script <- tempfile()
+  script <- tempfile(fileext = ".py")
   readr::write_file(template, script)
-  #format and write the python function to the end of the script
+  #format and write the Python function call to the script
   command <- paste0("PullTcrdist3Db(organism = '", organism,
                     "', outputFilePath = '", outputFilePath,
                     "')")
   readr::write_file(command, script, append = TRUE)
+  #add execution permissions to script and parent directory
+  Sys.chmod(script, mode = "755")
+  system(paste("chmod 755", dirname(script)))
   #execute
-  system2(pythonExecutable, script)
+  print(paste("Python executable:", pythonExecutable))  # Debug
+  result <- system2(pythonExecutable, script, stdout = TRUE, stderr = TRUE)
+  cat(result) #debugging
+  #check that the gene segments file is created
+  if (!file.exists(outputFilePath)) {
+    stop("tcrdist3_gene_segments.txt generation failed. Check Python script execution.")
+  }
 }

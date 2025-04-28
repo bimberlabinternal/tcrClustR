@@ -14,7 +14,8 @@ FormatMetadataForTcrDist3(
   imputeCloneNames = T,
   minimumClonesPerSubject = 100,
   writeUnannotatedGeneSegmentsToFile = T,
-  spikeInDataframe = NULL
+  spikeInDataframe = NULL,
+  pythonExecutable = NULL
 )
 }
 \arguments{
@@ -37,6 +38,11 @@ FormatMetadataForTcrDist3(
 \item{writeUnannotatedGeneSegmentsToFile}{Boolean controlling whether to write unannotated gene segments to a file (filtered_(chain)_gene_segments.csv).}
 
 \item{spikeInDataframe}{Data frame containing spike-in data. Default is NULL. See examples for formatting requirements.}
+
+\item{pythonExecutable}{Path to the python executable. Default is NULL, but imputes to reticulate::py_exe().}
+}
+\value{
+a properly formatted metadata dataframe.
 }
 \description{
 This function formats a seurat object's metadata (with TCR information appended) for tcrDist3 distance caluclations.
@@ -49,6 +55,6 @@ spikeInDataframe <- data.frame(CloneNames = rep(1:3),
                                  TRA = c("CAVRDSNYQLIW", "CAVSLQDYKLSF", "CAVRDSNYQLIW"),
                                  TRB_V = c("TRBV6-4", "TRBV6-4", "TRBV6-4"),
                                  TRB_J = c("TRBJ1-1", "TRBJ2-1", "TRBJ2-3"),
-                                 TRB = c("CASSAAAAAAAAFF", "CASSVVVVVVVVQF", "CASSWWWWWWWWQY")
+                                 TRB = c("CASSAAAAAAAAFF", "CASSVVVVVVVVQF", "CASSWWWWWWWWQY"))
 }
 }
