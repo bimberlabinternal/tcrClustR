@@ -356,49 +356,69 @@ FormatMetadataForTcrDist3 <- function(metadata,
 #' @param assay Character string specifying the assay name to plot.
 #' @param cluster_info Factor vector of cluster assignments for each cell in the assay.
 #' @param cluster_colors Named character vector of colors corresponding to cluster levels.
+#' @param annotate_clusters Boolean specifying whether to display clustering information.
 #' @return A ComplexHeatmap object ready for drawing.
 #' @importFrom ComplexHeatmap Heatmap draw HeatmapAnnotation rowAnnotation
 #' @keywords internal
-.TCRDistanceHeatmap <- function(seuratObj_TCR, assay, cluster_info, cluster_colors) {
+.TCRDistanceHeatmap <- function(
+    seuratObj_TCR,
+    assay,
+    cluster_info,
+    cluster_colors,
+    annotate_clusters = TRUE
+) {
   m <- as.matrix(Seurat::GetAssayData(seuratObj_TCR, assay = assay, layer = "counts"))
   cluster_info <- factor(cluster_info)
-  colnames(m) <- as.character(cluster_info)
-  rownames(m) <- as.character(cluster_info)
   
-  col_annotation <- HeatmapAnnotation(
-    cluster = cluster_info,
-    col = list(cluster = cluster_colors),
-    show_annotation_name = FALSE,
-    annotation_name_side = "left",
-    which = "column",
-    show_legend = TRUE
-  )
-  
-  row_annotation <- rowAnnotation(
-    cluster = cluster_info,
-    col     = list(cluster = cluster_colors),
-    show_annotation_name = FALSE,
-    show_legend          = FALSE
-  )
-  
-  Heatmap(
-    m,
-    name               = assay,
-    column_title       = assay,
-    border_gp          = gpar(col = "black", lty = 2),
-    row_names_gp       = grid::gpar(fontsize = 8),
-    column_names_gp    = grid::gpar(fontsize = 8),
-    top_annotation     = col_annotation,
-    left_annotation    = row_annotation,
-    use_raster         = TRUE,
-    cluster_columns    = TRUE,
-    cluster_rows       = TRUE,
-    row_dend_side      = "left",
-    column_dend_side   = "top",
-    column_split       = cluster_info,
-    row_split          = cluster_info,
-    show_heatmap_legend = TRUE
-  )
+  if (annotate_clusters) {
+    col_annotation <- HeatmapAnnotation(
+      cluster = cluster_info,
+      col = list(cluster = cluster_colors),
+      show_annotation_name = FALSE,
+      annotation_name_side = "left",
+      which = "column",
+      show_legend = TRUE
+    )
+    
+    row_annotation <- rowAnnotation(
+      cluster = cluster_info,
+      col     = list(cluster = cluster_colors),
+      show_annotation_name = FALSE,
+      show_legend          = FALSE
+    )
+    
+    Heatmap(
+      m,
+      name               = assay,
+      column_title       = assay,
+      border_gp          = gpar(col = "black", lty = 2),
+      top_annotation     = col_annotation,
+      left_annotation    = row_annotation,
+      use_raster         = TRUE,
+      cluster_columns    = TRUE,
+      cluster_rows       = TRUE,
+      row_dend_side      = "left",
+      column_dend_side   = "top",
+      column_split       = cluster_info,
+      row_split          = cluster_info,
+      show_heatmap_legend = TRUE,
+      show_column_names    = FALSE,
+      show_row_names       = FALSE
+    )
+  } else {
+    Heatmap(
+      m,
+      name               = assay,
+      column_title       = assay,
+      border_gp          = gpar(col = "black", lty = 2),
+      use_raster         = TRUE,
+      cluster_columns    = FALSE,
+      cluster_rows       = FALSE,
+      show_heatmap_legend = TRUE,
+      show_column_names    = FALSE,
+      show_row_names       = FALSE
+    ) 
+  }
 }
 
 #' Generate and display heatmaps of TCR similarity for each assay
@@ -406,20 +426,22 @@ FormatMetadataForTcrDist3 <- function(metadata,
 #' @param seuratObj_TCR A Seurat object containing one or more TCR distance assays.
 #' @param assayList Optional character vector of assay names to include. Defaults to all assays.
 #' @param resolution Numeric clustering resolution parameter matching metadata column suffix.
+#' @param annotate_clusters Boolean specifying whether to display clustering information.
 #' @return Invisibly returns NULL after printing the combined heatmap plot.
 #' @export
 #' @examples
 #' \dontrun{
 #' TCRDistanceHeatmaps(seuratObj_TCR = seuratObj_TCR, resolution = 0.1)
 #' }
-TCRDistanceHeatmaps <- function(seuratObj_TCR = NULL, assayList = NULL, resolution = 0.1) {
+TCRDistanceHeatmaps <- function(
+    seuratObj_TCR = NULL,
+    assayList = NULL,
+    resolution = 0.1,
+    annotate_clusters = TRUE
+) {
   if (is.null(seuratObj_TCR)) {
     stop("Please provide a Seurat Object with TCR distance assays.")
   }
-  
-  # Define color scheme
-  max_clusters <- 12
-  base_palette <- RColorBrewer::brewer.pal(min(max_clusters, 8), "Set2")
   
   assays_to_use <- if (is.null(assayList)) {
     SeuratObject::Assays(seuratObj_TCR)
@@ -453,10 +475,19 @@ TCRDistanceHeatmaps <- function(seuratObj_TCR = NULL, assayList = NULL, resoluti
     cluster_info <- full_cluster_info[assay_start_index:assay_end_index]
     cluster_info <- as.factor(cluster_info)
     cluster_levels <- levels(cluster_info)
-    cluster_colors <- setNames(rep(base_palette, length.out = length(cluster_levels)), cluster_levels)
+    cluster_colors <- setNames(
+      if (length(cluster_levels) <= 8) {
+        RColorBrewer::brewer.pal(length(cluster_levels), "Set2")
+      } else if (length(cluster_levels) <= 12) {
+        RColorBrewer::brewer.pal(length(cluster_levels), "Set3")
+      } else {
+        grDevices::colorRampPalette(RColorBrewer::brewer.pal(8, "Set3"))(length(cluster_levels))
+      },
+      cluster_levels
+    )
     
     # Get a ComplexHeatmap
-    heatmap_obj <- .TCRDistanceHeatmap(seuratObj_TCR, assay, cluster_info, cluster_colors)
+    heatmap_obj <- .TCRDistanceHeatmap(seuratObj_TCR, assay, cluster_info, cluster_colors, annotate_clusters)
     drawn_heatmap <- draw(heatmap_obj, merge_legend = FALSE, heatmap_legend_side = "right", annotation_legend_side = "right", newpage = FALSE)
     
     if (!is.null(drawn_heatmap)) {
