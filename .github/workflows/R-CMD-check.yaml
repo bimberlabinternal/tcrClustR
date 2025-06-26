@@ -3,6 +3,8 @@ on:
   push:
     branches: [ main, dev ]
   pull_request:
+  schedule:
+    - cron: "0 6 10 * *"
 
 name: R Build and Checks
 
@@ -16,8 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - {os: 22.04, r: '4.4', bioc: '3.20', pkgdown: "true"}
-          - {os: 22.04, r: '4.3', bioc: '3.18'}
+          - { os: 24.04, r: '4.4', bioc: '3.20', pkgdown: "true" }
 
     env:
       R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
@@ -26,15 +27,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: r-lib/actions/setup-r@v2
+      - uses: bimberlabinternal/DevOps/githubActions/r-gh-setup@master
         with:
-          r-version: ${{ matrix.config.r }}
-          http-user-agent: ${{ matrix.config.http-user-agent }}
-          use-public-rspm: true
+          r_version: ${{ matrix.config.r }}
+          bioc_version: ${{ matrix.config.bioc }}
+          cache_version: ${{ secrets.CACHE_VERSION }}
+        env:
+          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: r-lib/actions/setup-pandoc@v2
+      - uses: r-lib/actions/check-r-package@v2
+        with:
+          args: 'c("--no-manual")'
+        env:
+          _R_CHECK_CRAN_INCOMING_: false
 
-      - name: Install packages
+
+       - name: Install pypi python packages
         if: runner.os != 'Windows'
         run: |
           sudo apt-get update && sudo apt-get install -yq python3-pip
@@ -46,48 +54,6 @@ jobs:
           python3 -m pip --no-cache-dir install scikit-learn scikit-misc tqdm sympy setuptools pandas pyyaml scanpy rpy2
           python3 -m pip --no-cache-dir install git+https://github.com/kmayerb/tcrdist3.git@0.2.2
 
-      - name: Setup Bioconductor
-        run: |
-          install.packages('devtools')
-          if (!requireNamespace("BiocManager", quietly=TRUE))  install.packages("BiocManager");
-          BiocManager::install(version = "${{ matrix.config.bioc }}", ask = FALSE);
-          cat(append = TRUE, file = "~/.Rprofile", "options(repos = BiocManager::repositories());")
-          cat(append = TRUE, file = "~/.Rprofile", "Sys.setenv(R_BIOC_VERSION=as.character(BiocManager::version()));");
-        shell: Rscript {0}
-
-      - name: Query dependencies
-        run: |
-          install.packages('remotes')
-          print(paste0("R_BIOC_VERSION: ", Sys.getenv("R_BIOC_VERSION")));
-          saveRDS(remotes::dev_package_deps(dependencies = TRUE), ".github/depends.Rds", version = 2)
-          writeLines(sprintf("R-%i.%i", getRversion()$major, getRversion()$minor), ".github/R-version")
-        shell: Rscript {0}
-
-      - name: Cache R packages
-        if: runner.os != 'Windows'
-        uses: actions/cache@v3
-        with:
-          path: ${{ env.R_LIBS_USER }}
-          key: ${{ runner.os }}-${{ hashFiles('.github/R-version') }}-${{ matrix.config.bioc }}-${{ secrets.CACHE_VERSION || 1 }}-${{ hashFiles('.github/depends.Rds') }}
-          restore-keys: ${{ runner.os }}-${{ hashFiles('.github/R-version') }}-${{ matrix.config.bioc }}-${{ secrets.CACHE_VERSION || 1 }}-
-
-      # The install_github() on remotes is to ensure system_requirements() supports 22.04
-      - name: Install r-lib/remotes
-        run: |
-          remotes::install_github("r-lib/remotes", force = TRUE)
-          print(paste0("Remotes version: ", packageVersion("remotes")))
-        shell: Rscript {0}
-
-      - name: Install system dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libharfbuzz-dev libfribidi-dev libfreetype-dev
-          while read -r cmd
-          do
-            eval sudo $cmd
-          done < <(Rscript -e 'writeLines(remotes::system_requirements("ubuntu", "${{ matrix.config.os }}"))')
-
       - name: Setup CoNGA
         run: |
           cd ../
@@ -96,41 +62,6 @@ jobs:
           make
           cd ../../
           pip3 install -e conga
-
-      - name: Install dependencies
-        run: |
-          getOption('repos');
-          print(paste0("R_BIOC_VERSION: ", Sys.getenv("R_BIOC_VERSION")));
-          remotes::install_deps(dependencies = TRUE, upgrade = "always")
-          install.packages("pkgdown")
-          remotes::install_cran("rcmdcheck")
-          install.packages(c('kernlab', 'tidyverse', 'Seurat', 'leidenbase', 'igraph', 'FNN'))
-        shell: Rscript {0}
-
-      - name: Session info
-        run: |
-          options(width = 100)
-          pkgs <- installed.packages()[, "Package"]
-          sessioninfo::session_info(pkgs, include_base = TRUE)
-        shell: Rscript {0}
-
-      - name: Run R CMD check
-        env:
-          _R_CHECK_CRAN_INCOMING_: false
-        run: rcmdcheck::rcmdcheck(args = c("--no-manual"), error_on = "warning", check_dir = "check")
-        shell: Rscript {0}
-
-      - name: Show testthat output
-        if: always()
-        run: find check -name 'testthat.Rout*' -exec cat '{}' \; || true
-        shell: bash
-
-      - name: Upload check results
-        if: failure()
-        uses: actions/upload-artifact@main
-        with:
-          name: ${{ runner.os }}-r${{ matrix.config.r }}-results
-          path: check
 
       - name: Install package
         if: github.ref == 'refs/heads/main' && matrix.config.pkgdown == 'true'
