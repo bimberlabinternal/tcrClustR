@@ -35,33 +35,17 @@ jobs:
         env:
           GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
 
+
+       - name: Install pypi python packages
+        if: runner.os != 'Windows'
+        run: |
+          python3 -m pip --no-cache-dir install scikit-learn scikit-misc tqdm sympy setuptools pandas pyyaml scanpy rpy2
+
       - uses: r-lib/actions/check-r-package@v2
         with:
           args: 'c("--no-manual")'
         env:
           _R_CHECK_CRAN_INCOMING_: false
-
-
-       - name: Install pypi python packages
-        if: runner.os != 'Windows'
-        run: |
-          sudo apt-get update && sudo apt-get install -yq python3-pip
-          python3 -m pip install --upgrade pip
-          python3 -m pip install --user wheel setuptools
-          mkdir -p ~/.config/matplotlib
-          echo "backend: Agg" > ~/.config/matplotlib/matplotlibrc
-          python3 -m pip install --no-cache-dir numpy scipy matplotlib
-          python3 -m pip --no-cache-dir install scikit-learn scikit-misc tqdm sympy setuptools pandas pyyaml scanpy rpy2
-          python3 -m pip --no-cache-dir install git+https://github.com/kmayerb/tcrdist3.git@0.2.2
-
-      - name: Setup CoNGA
-        run: |
-          cd ../
-          git clone https://github.com/phbradley/conga.git conga
-          cd conga/tcrdist_cpp
-          make
-          cd ../../
-          pip3 install -e conga
 
       - name: Install package
         if: github.ref == 'refs/heads/main' && matrix.config.pkgdown == 'true'
