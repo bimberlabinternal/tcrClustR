@@ -36,7 +36,7 @@ jobs:
           GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
 
 
-       - name: Install pypi python packages
+      - name: Install pypi python packages
         if: runner.os != 'Windows'
         run: |
           python3 -m pip --no-cache-dir install scikit-learn scikit-misc tqdm sympy setuptools pandas pyyaml scanpy rpy2
