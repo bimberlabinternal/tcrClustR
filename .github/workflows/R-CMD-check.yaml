@@ -35,11 +35,11 @@ jobs:
         env:
           GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
 
-
-      - name: Install pypi python packages
+      - name: Install package-specific Python dependencies
         if: runner.os != 'Windows'
         run: |
-          python3 -m pip --no-cache-dir install scikit-learn scikit-misc tqdm sympy setuptools pandas pyyaml scanpy rpy2
+          python3 -m pip install --upgrade pip
+          python3 -m pip install --user scikit-learn scikit-misc tqdm sympy pyyaml rpy2
 
       - uses: r-lib/actions/check-r-package@v2
         with:

@@ -3,26 +3,24 @@ library(testthat)
 test_that("tcrdist3 works", {
   #define paths using a temporary directory
   temp_dir <- tempdir()
-  print(temp_dir)
 
+  print(temp_dir)
+  #debug statements
   paste0('file.exists: ', file.exists(temp_dir))
   paste0('dir.exists: ', dir.exists(temp_dir))
-
-
   outFile <- tempfile(tmpdir =  temp_dir)
   print(paste0('outfile: ', outFile))
   paste0('file.exists: ', file.exists(outFile))
   print('creating')
   print(file.create(outFile))
   print(paste0('file.exists after create: ', file.exists(outFile)))
-
-  #print python executable
   print(paste0('python executable: ', Sys.which("python3")))
 
   postFormattingMetadataCsvPath <- file.path(temp_dir, "tcrdist3Input.csv")
   rdsOutputPath <- file.path(temp_dir, "tcrdist3DistanceMatrices")
   filteredGeneSegmentsPath <- file.path(temp_dir, "filtered_TRB_gene_segments.csv")
 
+  #read in a small Seurat object with TCR data
   seuratObj <- readRDS("../testdata/small_RIRA.rds")
   seuratObj <- subset(seuratObj, cells = SeuratObject::WhichCells(seuratObj, which(as.numeric(seuratObj$cDNA_ID) > 1 )))
 
