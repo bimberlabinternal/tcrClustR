@@ -16,6 +16,9 @@ test_that("tcrdist3 works", {
   print(file.create(outFile))
   print(paste0('file.exists after create: ', file.exists(outFile)))
 
+  #print python executable
+  print(paste0('python executable: ', Sys.which("python3")))
+
   postFormattingMetadataCsvPath <- file.path(temp_dir, "tcrdist3Input.csv")
   rdsOutputPath <- file.path(temp_dir, "tcrdist3DistanceMatrices")
   filteredGeneSegmentsPath <- file.path(temp_dir, "filtered_TRB_gene_segments.csv")
