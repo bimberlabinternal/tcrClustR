@@ -4,7 +4,8 @@ on:
     branches: [ main, dev ]
   pull_request:
   schedule:
-    - cron: "0 6 10 * *"
+    - cron: '0 17 11 * *'  #11th of the month at 5PM
+    - cron: '0 17 26 * *'  #26th of the month at 5PM
 
 name: R Build and Checks
 
@@ -38,9 +39,18 @@ jobs:
       - name: Install package-specific Python dependencies
         if: runner.os != 'Windows'
         run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install --user scikit-learn scikit-misc tqdm sympy pyyaml rpy2
+          python3 -m pip install --user scikit-learn tqdm sympy pyyaml rpy2
 
+      - name: Debug Python environment
+        if: runner.os != 'Windows'
+        run: |
+          python3 --version
+          python3 -m pip --version
+          python3 -m pip list
+          python3 -c "import pandas; print(pandas.__version__)"
+        shell: bash
+
+        
       - uses: r-lib/actions/check-r-package@v2
         with:
           args: 'c("--no-manual")'
