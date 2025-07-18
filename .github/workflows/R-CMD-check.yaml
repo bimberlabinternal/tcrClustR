@@ -48,6 +48,7 @@ jobs:
           python3 -m pip --version
           python3 -m pip list
           python3 -c "import pandas; print(pandas.__version__)"
+          python3 -c "import tcrdist3; print(tcrdist3.__path__)"
           python3 -c "import tcrdist; print(tcrdist.__path__)"
           python3 -c "import tcrdist;import os;import sys;os.path.abspath(sys.modules[TCRrep.__module__].__file__)"
           python3 -c "import tcrdist; print(tcrdist.__dict__)"
