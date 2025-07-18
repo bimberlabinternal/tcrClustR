@@ -52,7 +52,7 @@ jobs:
           python3 -c "import tcrdist;os.path.abspath(sys.modules[TCRrep.__module__].__file__)"
         shell: bash
 
-       - name: Test Python script standalone
+      - name: Test Python script standalone
         if: runner.os != 'Windows'
         run: |
           python3 inst/scripts/PullTcrdist3Db.py
