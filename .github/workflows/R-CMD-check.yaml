@@ -48,9 +48,15 @@ jobs:
           python3 -m pip --version
           python3 -m pip list
           python3 -c "import pandas; print(pandas.__version__)"
+          python3 -c "import tcrdist; print(tcrdist.__version__)"
+          python3 -c "import tcrdist;os.path.abspath(sys.modules[TCRrep.__module__].__file__)"
         shell: bash
 
-        
+       - name: Test Python script standalone
+        if: runner.os != 'Windows'
+        run: |
+          python3 inst/scripts/PullTcrdist3Db.py
+
       - uses: r-lib/actions/check-r-package@v2
         with:
           args: 'c("--no-manual")'
