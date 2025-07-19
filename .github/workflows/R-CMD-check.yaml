@@ -46,6 +46,11 @@ jobs:
         run: |
           python3 inst/scripts/PullTcrdist3Db.py
 
+      - name: Debug Python ctypes
+        run: |
+          python -c "import ctypes"
+          python -c "from _ctypes import Union, Structure, Array"
+
       - uses: r-lib/actions/check-r-package@v2
         with:
           args: 'c("--no-manual")'
