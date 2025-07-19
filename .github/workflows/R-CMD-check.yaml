@@ -41,22 +41,6 @@ jobs:
         run: |
           python3 -m pip install --user scikit-learn tqdm sympy pyyaml rpy2
 
-      - name: Debug Python environment
-        if: runner.os != 'Windows'
-        run: |
-          which python3
-          python3 -c "import sys; print('\n'.join(sys.path))"
-          python3 -m site
-          find /opt/hostedtoolcache/Python -name '*tcrdist*'
-          python3 --version
-          python3 -m pip --version
-          python3 -m pip list
-          python3 -c "import pandas; print(pandas.__version__)"
-          python3 -c "import tcrdist; print(tcrdist.__path__)"
-          python3 -c "import tcrdist;import os;import sys;os.path.abspath(sys.modules[TCRrep.__module__].__file__)"
-          python3 -c "import tcrdist; print(tcrdist.__dict__)"
-        shell: bash
-
       - name: Test Python script standalone
         if: runner.os != 'Windows'
         run: |
