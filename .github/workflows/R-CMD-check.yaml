@@ -36,14 +36,23 @@ jobs:
         env:
           GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install Python 3.12 headers
-        run: sudo apt-get update && sudo apt-get install -y python3.12-dev
+      - name: Override with Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
 
-      - name: Install package-specific Python dependencies
-        if: runner.os != 'Windows'
+      - name: Install Python 3.11 headers
+        run: sudo apt-get update && sudo apt-get install -y python3.11-dev
+
+      - name: Add ~/.local/bin to PATH
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Reinstall Python packages requiring C extensions
         run: |
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-          python3 -m pip install --user scikit-learn tqdm sympy pyyaml rpy2
+          python3 -m pip install --upgrade pip
+          python3 -m pip install --user scikit-learn tqdm sympy pyyaml rpy2 setuptools wheel pandas>=2.2.3 tcrdist3
+
 
       - name: Test Python script standalone
         if: runner.os != 'Windows'
