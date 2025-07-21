@@ -39,6 +39,7 @@ jobs:
       - name: Install package-specific Python dependencies
         if: runner.os != 'Windows'
         run: |
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
           python3 -m pip install --user scikit-learn tqdm sympy pyyaml rpy2
 
       - name: Test Python script standalone
