@@ -24,7 +24,7 @@ jobs:
         id: docker_meta
         uses: docker/metadata-action@v5.6.1
         with:
-          images: ghcr.io/gwmcelfresh/tcrclustr
+          images: ghcr.io/bimberlabinternal/tcrclustr
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -42,14 +42,20 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build and push
+        id: docker_build
         uses: docker/build-push-action@v6.10.0
         with:
           context: .
           file: ./Dockerfile
-          build-args: |
-            "GH_PAT=${{ secrets.GITHUB_TOKEN }}"
-          push: true
-          tags: |
-            ghcr.io/gwmcelfresh/tcrclustr:latest
-            ghcr.io/gwmcelfresh/tcrclustr:nightly
+          pull: true
+          push: ${{github.ref == 'refs/heads/master'}}
+          tags: ghcr.io/bimberlabinternal/tcrclustr:latest
+          secrets: |
+            GIT_AUTH_TOKEN=${{ secrets.PAT }}
+            GITHUB_PAT=${{ secrets.PAT }}
+          labels: |
+            ${{ steps.docker_meta.outputs.labels }}
+            org.opencontainers.image.title=tcrclustr
+            org.opencontainers.image.description=This in an R package that clusters TCR data in 10x scRNASeq, developed by the Bimber lab at OHSU/ONPRC.
