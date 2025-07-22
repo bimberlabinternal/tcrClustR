@@ -19,8 +19,9 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - { os: 22.04, r: '4.4', bioc: '3.20', pkgdown: "true" }
-
+        #note: the jammy OS is required to dodge issues relating to importing ctypes: "undefined symbol: _PyErr_SetLocaleString
+        #seems to be associated with GH action's specific python binary, but eventually this should get sorted out and we can bump to noble. 
+          - { os: 22.04, r: '4.4', bioc: '3.20', pkgdown: "true" } 
     env:
       R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -36,7 +37,7 @@ jobs:
         env:
           GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Reinstall Python packages requiring C extensions
+      - name: Install tcrClustR specific python packages
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip install --user scikit-learn tqdm sympy pyyaml rpy2 pandas>=2.2.3 tcrdist3
