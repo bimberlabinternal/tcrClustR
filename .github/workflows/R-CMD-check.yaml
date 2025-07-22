@@ -19,7 +19,7 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - { os: 22.04, r: '4.4', bioc: '3.20', pkgdown: "true" }
+          - { os: 24.04, r: '4.4', bioc: '3.20', pkgdown: "true" }
 
     env:
       R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
@@ -36,27 +36,10 @@ jobs:
         env:
           GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install Python 3.12 headers
-        run: sudo apt-get update && sudo apt-get install -y python3-dev
-
-      - name: Add ~/.local/bin to PATH
-        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
-
       - name: Reinstall Python packages requiring C extensions
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip install --user scikit-learn tqdm sympy pyyaml rpy2 pandas>=2.2.3 tcrdist3
-
-
-      - name: Test Python script standalone
-        if: runner.os != 'Windows'
-        run: |
-          python3 inst/scripts/PullTcrdist3Db.py
-
-      - name: Debug Python ctypes
-        run: |
-          python -c "import ctypes"
-          python -c "from _ctypes import Union, Structure, Array"
 
       - uses: r-lib/actions/check-r-package@v2
         with:

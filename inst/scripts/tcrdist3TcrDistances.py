@@ -84,19 +84,13 @@ def writeTcrDistances(csv_path,
 
     #compute distances
     distances = getTcrDistances(csv_path, organism, chainsString, db_file, debug)
-    print("Distance keys:", distances.keys())
 
     base = importr('base')
     #context manager to handle numpy <-> R conversion
     with localconverter(default_converter + numpy2ri.converter):
         base.saveRDS(distances['pw_alpha'], os.path.join(rds_output_path, 'pw_alpha.rds'))
-        print("Saved pw_alpha.rds?", os.path.exists(os.path.join(rds_output_path, 'pw_alpha.rds')))
-
         base.saveRDS(distances['pw_beta'], os.path.join(rds_output_path, 'pw_beta.rds'))
-
-        base.saveRDS(distances['pw_cdr3_a_aa'], os.path.join(rds_output_path, 'pw_cdr3_a_aa.rds'))
-        print("Saved pw_cdr3_a_aa.rds?", os.path.exists(os.path.join(rds_output_path, 'pw_cdr3_a_aa.rds')))
-
+        base.saveRDS(distances['pw_cdr3_a_aa'], os.path.join(rds_output_path, 'pw_cdr3_a_aa.rds')
         base.saveRDS(distances['pw_cdr3_b_aa'], os.path.join(rds_output_path, 'pw_cdr3_b_aa.rds'))
    
 #this file serves as a template. tcrDist3Wrapper.R will copy this function, add a string with arguments to the end, and then call the whole file. 
