@@ -75,15 +75,20 @@ def writeTcrDistances(csv_path,
                     debug = True):
 
     distances = getTcrDistances(csv_path, organism, chainsString, db_file, debug)
+    
+    print("Distance keys:", distances.keys())
+    
     # Import the base R package
     numpy2ri.activate()
     base = importr('base')
 
     #save distance matrices as RDS files
     base.saveRDS(distances['pw_alpha'], rds_output_path + '/pw_alpha.rds')
+     print("Saved pw_alpha.rds?", os.path.exists(rds_output_path + '/pw_alpha.rds'))
     base.saveRDS(distances['pw_beta'], rds_output_path + '/pw_beta.rds')
     base.saveRDS(distances['pw_cdr3_a_aa'], rds_output_path + '/pw_cdr3_a_aa.rds')
+     print("Saved pw_alpha_cdr3.rds?", os.path.exists(rds_output_path + '/pw_cdr3_a_aa.rds'))
     base.saveRDS(distances['pw_cdr3_b_aa'], rds_output_path + '/pw_cdr3_b_aa.rds')
-
+   
 #this file serves as a template. tcrDist3Wrapper.R will copy this function, add a string with arguments to the end, and then call the whole file. 
 
