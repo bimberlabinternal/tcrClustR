@@ -352,21 +352,47 @@ FormatMetadataForTcrDist3 <- function(metadata,
 
 #' Create a ComplexHeatmap for a single TCR distance assay
 #'
+#' @description
+#' Internal utility to generate a ComplexHeatmap for a single TCR distance assay.
+#'
 #' @param seuratObj_TCR A Seurat object containing TCR distance assays.
 #' @param assay Character string specifying the assay name to plot.
 #' @param cluster_info Factor vector of cluster assignments for each cell in the assay.
 #' @param cluster_colors Named character vector of colors corresponding to cluster levels.
 #' @param annotate_clusters Boolean specifying whether to display clustering information.
+#'
 #' @return A ComplexHeatmap object ready for drawing.
 #' @importFrom ComplexHeatmap Heatmap draw HeatmapAnnotation rowAnnotation
 #' @keywords internal
+#' @examples
+#' \dontrun{
+#' .TCRDistanceHeatmap(
+#'   seuratObj_TCR = seuratObj,
+#'   assay = "TCRAssay",
+#'   cluster_info = info_df,
+#'   cluster_colors = color_list,
+#'   annotate_clusters = TRUE
+#' )
+#' }
 .TCRDistanceHeatmap <- function(
-    seuratObj_TCR,
-    assay,
-    cluster_info,
-    cluster_colors,
+    seuratObj_TCR = NULL,
+    assay = NULL,
+    cluster_info = NULL,
+    cluster_colors = NULL,
     annotate_clusters = TRUE
 ) {
+  if (is.null(seuratObj_TCR)) {
+    stop("seuratObj_TCR must not be NULL.")
+  }
+  if (is.null(assay)) {
+    stop("assay must not be NULL.")
+  }
+  if (is.null(cluster_info)) {
+    stop("cluster_info must not be NULL.")
+  }
+  if (is.null(cluster_colors)) {
+    stop("cluster_colors must not be NULL.")
+  }
   m <- as.matrix(Seurat::GetAssayData(seuratObj_TCR, assay = assay, layer = "counts"))
   cluster_info <- factor(cluster_info)
   
@@ -423,15 +449,24 @@ FormatMetadataForTcrDist3 <- function(metadata,
 
 #' Generate and display heatmaps of TCR similarity for each assay
 #'
+#' @description
+#' Generates and displays ComplexHeatmaps of TCR similarity for each assay in a Seurat object.
+#'
 #' @param seuratObj_TCR A Seurat object containing one or more TCR distance assays.
-#' @param assayList Optional character vector of assay names to include. Defaults to all assays.
+#' @param assayList Character vector of assay names to include. Default is NULL (all assays).
 #' @param resolution Numeric clustering resolution parameter matching metadata column suffix.
 #' @param annotate_clusters Boolean specifying whether to display clustering information.
+#'
 #' @return Invisibly returns NULL after printing the combined heatmap plot.
 #' @export
 #' @examples
 #' \dontrun{
-#' TCRDistanceHeatmaps(seuratObj_TCR = seuratObj_TCR, resolution = 0.1)
+#' TCRDistanceHeatmaps(
+#'   seuratObj_TCR = seuratObj,
+#'   assayList = NULL,
+#'   resolution = 0.1,
+#'   annotate_clusters = TRUE
+#' )
 #' }
 TCRDistanceHeatmaps <- function(
     seuratObj_TCR = NULL,
@@ -506,17 +541,25 @@ TCRDistanceHeatmaps <- function(
 
 #' Plot histograms of summed TCR distances by cluster for each assay
 #'
+#' @description
+#' Plots histograms of summed TCR distances by cluster for each assay in a Seurat object.
+#'
 #' @param seuratObj_TCR A Seurat object with TCR distance assay data.
-#' @param assayList Optional character vector of assays to plot. Defaults to all assays.
+#' @param assayList Character vector of assays to plot. Default is NULL (all assays).
 #' @param resolution Numeric clustering resolution matching metadata column suffix.
+#'
 #' @return Invisibly returns NULL after printing the histogram panels.
 #' @export
 #' @examples
 #' \dontrun{
-#' TCRDistanceHistograms(seuratObj_TCR = seuratObj)
+#' TCRDistanceHistograms(
+#'   seuratObj_TCR = seuratObj,
+#'   assayList = NULL,
+#'   resolution = 0.1
+#' )
 #' }
 TCRDistanceHistograms <- function(
-    seuratObj_TCR,
+    seuratObj_TCR = NULL,
     assayList  = NULL,
     resolution = 0.1
 ) {
