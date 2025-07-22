@@ -1,11 +1,14 @@
 import sys
 import ast
 import re
+import os
 import numpy as np
-from rpy2.robjects.packages import importr
-from rpy2.robjects import numpy2ri
 import pandas as pd
 from tcrdist.repertoire import TCRrep
+from rpy2.robjects import default_converter
+from rpy2.robjects.conversion import localconverter
+from rpy2.robjects import numpy2ri
+from rpy2.robjects.packages import importr
 
 def getTcrDistances(csv_path, 
                     organism='human', 
@@ -68,27 +71,33 @@ def getTcrDistances(csv_path,
     }
 
 def writeTcrDistances(csv_path, 
-                    organism='human', 
-                    chainsString="alpha,beta", 
-                    db_file='alphabeta_gammadelta_db.tsv',
-                    rds_output_path='./tcrdist3DistanceMatrices/', 
-                    debug = True):
+                      organism='human', 
+                      chainsString="alpha,beta", 
+                      db_file='alphabeta_gammadelta_db.tsv',
+                      rds_output_path='./tcrdist3DistanceMatrices/', 
+                      debug=True):
+    """
+    Compute TCR distance matrices using tcrdist3 and save them as RDS files for use in R.
+    """
+    #instantiate output directory if it doesn't exist.
+    os.makedirs(rds_output_path, exist_ok=True)
 
+    #compute distances
     distances = getTcrDistances(csv_path, organism, chainsString, db_file, debug)
-    
     print("Distance keys:", distances.keys())
-    
-    # Import the base R package
-    numpy2ri.activate()
-    base = importr('base')
 
-    #save distance matrices as RDS files
-    base.saveRDS(distances['pw_alpha'], rds_output_path + '/pw_alpha.rds')
-    print("Saved pw_alpha.rds?", os.path.exists(rds_output_path + '/pw_alpha.rds'))
-    base.saveRDS(distances['pw_beta'], rds_output_path + '/pw_beta.rds')
-    base.saveRDS(distances['pw_cdr3_a_aa'], rds_output_path + '/pw_cdr3_a_aa.rds')
-    print("Saved pw_alpha_cdr3.rds?", os.path.exists(rds_output_path + '/pw_cdr3_a_aa.rds'))
-    base.saveRDS(distances['pw_cdr3_b_aa'], rds_output_path + '/pw_cdr3_b_aa.rds')
+    base = importr('base')
+    #context manager to handle numpy <-> R conversion
+    with localconverter(default_converter + numpy2ri.converter):
+        base.saveRDS(distances['pw_alpha'], os.path.join(rds_output_path, 'pw_alpha.rds'))
+        print("Saved pw_alpha.rds?", os.path.exists(os.path.join(rds_output_path, 'pw_alpha.rds')))
+
+        base.saveRDS(distances['pw_beta'], os.path.join(rds_output_path, 'pw_beta.rds'))
+
+        base.saveRDS(distances['pw_cdr3_a_aa'], os.path.join(rds_output_path, 'pw_cdr3_a_aa.rds'))
+        print("Saved pw_cdr3_a_aa.rds?", os.path.exists(os.path.join(rds_output_path, 'pw_cdr3_a_aa.rds')))
+
+        base.saveRDS(distances['pw_cdr3_b_aa'], os.path.join(rds_output_path, 'pw_cdr3_b_aa.rds'))
    
 #this file serves as a template. tcrDist3Wrapper.R will copy this function, add a string with arguments to the end, and then call the whole file. 
 
