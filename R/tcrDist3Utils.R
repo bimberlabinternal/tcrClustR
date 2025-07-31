@@ -457,7 +457,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
 #' @param resolution Numeric clustering resolution parameter matching metadata column suffix.
 #' @param annotate_clusters Boolean specifying whether to display clustering information.
 #'
-#' @return Invisibly returns NULL after printing the combined heatmap plot.
+#' @return Returns the patchwork object containing ComplexHeatmaps of the TCR distance data.
 #' @export
 #' @examples
 #' \dontrun{
@@ -537,6 +537,8 @@ TCRDistanceHeatmaps <- function(
     plot_annotation(title = "TCR Similarity", theme = theme(plot.title = element_text(size = 16, face = "bold", hjust = 0.5)))
   
   print(final_plot)
+  
+  return(final_plot)
 }
 
 #' Plot histograms of summed TCR distances by cluster for each assay
@@ -548,7 +550,7 @@ TCRDistanceHeatmaps <- function(
 #' @param assayList Character vector of assays to plot. Default is NULL (all assays).
 #' @param resolution Numeric clustering resolution matching metadata column suffix.
 #'
-#' @return Invisibly returns NULL after printing the histogram panels.
+#' @return Returns the patchwork object containing the TCR distance histograms.
 #' @export
 #' @examples
 #' \dontrun{
@@ -640,4 +642,6 @@ TCRDistanceHistograms <- function(
   
   combined <- wrap_plots(plots, ncol = 1)
   print(combined)
+  
+  return(combined)
 }
