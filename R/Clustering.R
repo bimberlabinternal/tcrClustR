@@ -129,7 +129,8 @@ ClusterTcrs <- function(seuratObj = NULL,
     seuratObj_TCR <- .AddDimensionalityReductions(seuratObj_TCR,
                                                   kpca_result,
                                                   reductionName = reductionName,
-                                                  assayName = assay
+                                                  assayName = assay,
+                                                  distanceMatrix = distanceMatrix
     )
   }
 
@@ -249,7 +250,8 @@ ClusterTcrs <- function(seuratObj = NULL,
         seuratObj_TCR_composite <- .AddDimensionalityReductions(seuratObj_TCR_composite,
                                                                 kpca_result,
                                                                 reductionName,
-                                                                assayName = joint_graph
+                                                                assayName = joint_graph,
+                                                                distanceMatrix = distanceMatrix
         )
 
         for (resolution in resolutions) {
@@ -475,7 +477,8 @@ ClusterTcrs <- function(seuratObj = NULL,
                                          kpcaComponents = 50,
                                          kpcaKernel = 'rbfdot',
                                          proportionOfGraphAsNeighbors = 0.1,
-                                         jaccardIndexThreshold = 0.1) {
+                                         jaccardIndexThreshold = 0.1,
+                                         distanceMatrix = NULL) {
   #add KPCA components and make UMAP
   embeddings <- kpca_result@rotated
 
@@ -485,8 +488,9 @@ ClusterTcrs <- function(seuratObj = NULL,
                                                               key = paste0(reductionName, "_"))
   #take 10% of the graph as nearest neighbors, in the style of conga by default
   k.param <-  round(proportionOfGraphAsNeighbors * ncol(distanceMatrix))
+
   #TODO: compute a cutoff for the number of components used, but I'm not sure what these distributions look like yet.
-  n_components = min(c(kpcaComponents, nrow(combined_matrix), ncol(kpca_result@rotated)))
+  n_components = min(c(kpcaComponents, nrow(embeddings), ncol(kpca_result@rotated)))
   seuratObj <- Seurat::FindNeighbors(seuratObj,
                                      reduction = reductionName,
                                      dims = 1:n_components,
