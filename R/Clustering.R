@@ -1,31 +1,50 @@
 
 utils::globalVariables(
   names = c('matrix_rowname.x', 'matrix_rowname.y', '.data', '.', 'distanceMatrix', 'combined_matrix',
-            'key', 'seed', 'seuratObj', 'spikeInDataframe'),
+            'key', 'seed', 'seuratObj'),
   package = 'tcrClustR',
   add = TRUE
 )
 
 #TODO: summarize data lossy-ness vignette.
 
+#' @title Cluster TCRs using TcrClustR
+#' @description This function clusters TCRs in a Seurat object using TcrClustR.
+#' It performs PCA or kernel PCA, computes distance matrices, and applies clustering algorithms.
+#' @param seuratObj Seurat object containing TCR data.
+#' @param seuratObj_TCR Seurat object with TCR distance matrices.
+#' @param metadata Metadata dataframe for TCR data.
+#' @param resolutionParameter Resolution parameter for clustering. Default is 0.1.
+#' @param pcaComponents Number of components for PCA or kernel PCA. Default is 50.
+#' @param kpcaKernel Kernel type for kernel PCA. Default is "rbfdot". Ignored if usePCA is TRUE.
+#' @param usePCA Boolean indicating whether to use standard PCA instead of kernel PCA. Default is TRUE.
+#' @param proportionOfGraphAsNeighbors Proportion of the graph to consider as neighbors. Default is 0.1.
+#' @param jaccardIndexThreshold Jaccard index threshold for pruning edges. Default is 0.1.
+#' @param seed Random seed for reproducibility. Default is 1234.
+#' @param computeMultiChain Boolean indicating whether to compute multi-chain graphs. Default is TRUE.
+#' @return A list containing single-chain and multi-chain Seurat objects with clustering results.
+
+
 ClusterTcrs <- function(seuratObj = NULL,
                         seuratObj_TCR = NULL,
                         metadata = NULL,
                         resolutionParameter = 0.1,
-                        kpcaComponents = 50,
+                        pcaComponents = 50,
                         kpcaKernel = "rbfdot",
+                        usePCA = TRUE,
                         proportionOfGraphAsNeighbors = 0.1,
                         jaccardIndexThreshold = 0.1,
                         seed = 1234,
-                        spikeInDataframe =  NULL,
                         computeMultiChain = T) {
 
   #perform leiden clustering on the single chain distance matrices, create the multichain distance matrices, and cluster them.
   clusteredSeuratObjects <- .DistanceMatrixToClusteredGraphs(seuratObj_TCR = seuratObj_TCR,
-                                                             kpcaComponents = kpcaComponents,
+                                                             pcaComponents = pcaComponents,
                                                              kpcaKernel = kpcaKernel,
+                                                             usePCA = usePCA,
                                                              proportionOfGraphAsNeighbors = proportionOfGraphAsNeighbors,
-                                                             jaccardIndexThreshold = jaccardIndexThreshold)
+                                                             jaccardIndexThreshold = jaccardIndexThreshold,
+                                                             seed = seed)
   #Parse the single chain and multi-chain seurat objects, iterate through the assays, and assign cells in the original seuratObj to various clusters
   for (tcr_object in clusteredSeuratObjects) {
     for (assay in SeuratObject::Assays(tcr_object)) {
@@ -69,22 +88,26 @@ ClusterTcrs <- function(seuratObj = NULL,
 #' @description
 #' This function takes a Seurat object with TCR distance matrices and computes clustered graphs for each chain.
 #' @param seuratObj_TCR Seurat object containing TCR distance matrices.
-#' @param kpcaComponents Number of components for kernel PCA. Default is 50.
-#' @param kpcaKernel Kernel type for kernel PCA. Default is "rbfdot".
+#' @param pcaComponents Number of components for PCA or kernel PCA. Default is 50.
+#' @param kpcaKernel Kernel type for kernel PCA. Default is "rbfdot". Ignored if usePCA is TRUE.
+#' @param usePCA Boolean indicating whether to use standard PCA instead of kernel PCA. Default is TRUE.
 #' @param partitionType Type of partitioning algorithm to use. Default is "CPMVertexPartition".
 #' @param proportionOfGraphAsNeighbors Proportion of the graph to consider as neighbors. Default is 0.1.
 #' @param jaccardIndexThreshold Jaccard index threshold for pruning edges. Default is 0.1.
 #' @param resolutions Vector of resolution parameters for clustering. Default is c(0.1, 0.2, 0.3).
+#' @param seed Random seed for reproducibility. Default is 1234.
 #' @param computeMultiChain Boolean indicating whether to compute multi-chain graphs. Default is TRUE.
 #' @return Single Chain and multi-chain Seurat objects
 
 .DistanceMatrixToClusteredGraphs <- function(seuratObj_TCR = NULL,
-                                             kpcaComponents = 50,
+                                             pcaComponents = 50,
                                              kpcaKernel = "rbfdot",
+                                             usePCA = TRUE,
                                              partitionType = "CPMVertexPartition",
                                              proportionOfGraphAsNeighbors = 0.1,
                                              jaccardIndexThreshold = 0.1,
                                              resolutions = c(0.1, 0.2, 0.3),
+                                             seed = 1234,
                                              computeMultiChain = T) {
 
   #check the Assays in the Seurat Object and compute graphs
@@ -97,12 +120,13 @@ ClusterTcrs <- function(seuratObj = NULL,
     print(assay)
     #get the distance matrix
     distanceMatrix <- as.matrix(Seurat::GetAssayData(seuratObj_TCR, assay = assay, layer = "counts"))
-    graph_and_kpca_results <- .KpcaAndClustering(distanceMatrix = distanceMatrix,
-                                                 kpcaComponents = kpcaComponents,
-                                                 kpcaKernel = kpcaKernel,
-                                                 proportionOfGraphAsNeighbors = proportionOfGraphAsNeighbors,
-                                                 jaccardIndexThreshold = jaccardIndexThreshold)
-    pruned_graph <- graph_and_kpca_results$graph
+    graph_and_pca_results <- .PcaAndClustering(distanceMatrix = distanceMatrix,
+                                               pcaComponents = pcaComponents,
+                                               kpcaKernel = kpcaKernel,
+                                               usePCA = usePCA,
+                                               proportionOfGraphAsNeighbors = proportionOfGraphAsNeighbors,
+                                               jaccardIndexThreshold = jaccardIndexThreshold)
+    pruned_graph <- graph_and_pca_results$graph
     print(assay)
     single_chain_graphs[[assay]] <- pruned_graph
     for (resolution in resolutions) {
@@ -123,11 +147,11 @@ ClusterTcrs <- function(seuratObj = NULL,
                                            partition_metadata,
                                            col.name = paste0("TcrClustR_", assay, "_", resolution))
     }
-    #add single-chain KPCA reductions and UMAPs
-    reductionName <- paste0("TcrClustR_kpca.", gsub("_",".", assay))
-    kpca_result <- graph_and_kpca_results$kpca_result
+    #add single-chain PCA/KPCA reductions and UMAPs
+    reductionName <- paste0("TcrClustR_pca.", gsub("_",".", assay))
+    pca_result <- graph_and_pca_results$pca_result
     seuratObj_TCR <- .AddDimensionalityReductions(seuratObj_TCR,
-                                                  kpca_result,
+                                                  pca_result,
                                                   reductionName = reductionName,
                                                   assayName = assay,
                                                   distanceMatrix = distanceMatrix
@@ -201,11 +225,10 @@ ClusterTcrs <- function(seuratObj = NULL,
         assays_to_access <- c(assays_to_access, type)
       }
       print(paste0("group_variables:", group_by_variables))
-      #iterate through the 10X data, merge with the spike-in dataframes and index the metadata by the:
-      # 1. observed TRA+TRB combinations in the 10X data
-      # 2. provided TRA+TRB combinations in the spikeInData
-      # TODO: make this work with a metadata dataframe instead of only with a seurat object
-      metadata <- plyr::rbind.fill(seuratObj@meta.data, spikeInDataframe)
+      #iterate through the 10X data and index the metadata by observed TRA+TRB combinations
+      # The clustering functions work with pre-computed distance matrices.
+      # Spike-in data should be incorporated during distance matrix generation.
+      metadata <- seuratObj@meta.data
 
       #if there are multiple chains, figure out how to combine them
       if (length(assays_to_access) > 1) {
@@ -215,12 +238,13 @@ ClusterTcrs <- function(seuratObj = NULL,
                                                           assays_to_access = assays_to_access,
                                                           metadata = metadata)
 
-        graph_and_kpca_results <- .KpcaAndClustering(distanceMatrix = as.matrix(combined_matrix),
-                                                     kpcaComponents = kpcaComponents,
-                                                     kpcaKernel = kpcaKernel,
-                                                     proportionOfGraphAsNeighbors = proportionOfGraphAsNeighbors,
-                                                     jaccardIndexThreshold = jaccardIndexThreshold)
-        combined_graph <- graph_and_kpca_results$graph
+        graph_and_pca_results <- .PcaAndClustering(distanceMatrix = as.matrix(combined_matrix),
+                                                   pcaComponents = pcaComponents,
+                                                   kpcaKernel = kpcaKernel,
+                                                   usePCA = usePCA,
+                                                   proportionOfGraphAsNeighbors = proportionOfGraphAsNeighbors,
+                                                   jaccardIndexThreshold = jaccardIndexThreshold)
+        combined_graph <- graph_and_pca_results$graph
 
         multi_chain_graphs[[joint_graph]] <- combined_graph
 
@@ -235,20 +259,28 @@ ClusterTcrs <- function(seuratObj = NULL,
                                                                                              assay = joint_graph)
           seuratObj_TCR_composite_subsequent_chain_combination$orig.ident <- joint_graph
           seuratObj_TCR_composite_subsequent_chain_combination <- Seurat::AddMetaData(seuratObj_TCR_composite_subsequent_chain_combination, rownames(combined_matrix), col.name = "composite_id")
-          embeddings <- kpca_result@rotated
-          colnames(embeddings) <- paste0("TcrClustR_kpca.", gsub("_",".", joint_graph), "-", seq_len(ncol(embeddings)))
-          seuratObj_TCR_composite[[paste0("TcrClustR_kpca.", gsub("_",".", joint_graph))]] <-  Seurat::CreateDimReducObject(embeddings = embeddings,
-                                                                                                                            assay = joint_graph,
-                                                                                                                            key = "KPCA_")
+
+          #get the PCA result for creating embeddings
+          pca_result <- graph_and_pca_results$pca_result
+          #handle both PCA and kernel PCA results
+          if (inherits(pca_result, "pca_result")) {
+            embeddings <- pca_result$rotated
+          } else {
+            embeddings <- pca_result@rotated
+          }
+          colnames(embeddings) <- paste0("TcrClustR_pca.", gsub("_",".", joint_graph), "-", seq_len(ncol(embeddings)))
+          seuratObj_TCR_composite[[paste0("TcrClustR_pca.", gsub("_",".", joint_graph))]] <-  Seurat::CreateDimReducObject(embeddings = embeddings,
+                                                                                                                           assay = joint_graph,
+                                                                                                                           key = "PCA_")
           seuratObj_TCR_composite <- merge(seuratObj_TCR_composite, seuratObj_TCR_composite_subsequent_chain_combination)
         }
 
-        #add multi-chain KPCA reductions and UMAPs
-        reductionName <- paste0("TcrClustR_kpca.", gsub("_",".", joint_graph))
-        kpca_result <- graph_and_kpca_results$kpca_result
+        #add multi-chain PCA/KPCA reductions and UMAPs
+        reductionName <- paste0("TcrClustR_pca.", gsub("_",".", joint_graph))
+        pca_result <- graph_and_pca_results$pca_result
         assayName <- joint_graph
         seuratObj_TCR_composite <- .AddDimensionalityReductions(seuratObj_TCR_composite,
-                                                                kpca_result,
+                                                                pca_result,
                                                                 reductionName,
                                                                 assayName = joint_graph,
                                                                 distanceMatrix = distanceMatrix
@@ -289,24 +321,49 @@ ClusterTcrs <- function(seuratObj = NULL,
   return(list(singleChainSeuratObject = seuratObj_TCR, multiChainSeuratObject = seuratObj_TCR_composite))
 }
 
-.KpcaAndClustering <- function(distanceMatrix = distanceMatrix,
-                               kpcaComponents = kpcaComponents,
-                               kpcaKernel = kpcaKernel,
-                               proportionOfGraphAsNeighbors = proportionOfGraphAsNeighbors,
-                               jaccardIndexThreshold = jaccardIndexThreshold){
-  #perform kernel PCA in the same way that conga does
-  kpca_result <- kernlab::kpca(x = distanceMatrix, kernel = kpcaKernel)
+.PcaAndClustering <- function(distanceMatrix = distanceMatrix,
+                              pcaComponents = pcaComponents,
+                              kpcaKernel = kpcaKernel,
+                              usePCA = TRUE,
+                              proportionOfGraphAsNeighbors = proportionOfGraphAsNeighbors,
+                              jaccardIndexThreshold = jaccardIndexThreshold){
+
+  if (usePCA) {
+    #use standard pca for dimensional reduction
+    pca_result <- stats::prcomp(distanceMatrix, center = TRUE, scale. = TRUE)
+
+    #create a compatible object structure similar to kernlab::kpca, so downstream parsing can be identical
+    pca_result_obj <- list(
+      rotated = pca_result$x,
+      sdev = pca_result$sdev
+    )
+    class(pca_result_obj) <- "pca_result"
+
+    #add methods for compatibility
+    attr(pca_result_obj, "rotated") <- pca_result$x
+
+  } else {
+    #otherwise, kernel PCA.
+    pca_result_obj <- kernlab::kpca(x = distanceMatrix, kernel = kpcaKernel)
+  }
+
+  #get the rotated data from the kernlab compatible object
+  if (usePCA) {
+    rotated_data <- pca_result_obj$rotated
+  } else {
+    rotated_data <- kernlab::rotated(pca_result_obj)
+  }
 
   #reduce the data to the first n_components
-  n_components <- min( c(kpcaComponents, nrow(distanceMatrix), ncol(kernlab::rotated(kpca_result))))
-  reduced_data <- kernlab::rotated(kpca_result)[, 1:n_components]
+  n_components <- min(c(pcaComponents, nrow(distanceMatrix), ncol(rotated_data)))
+  reduced_data <- rotated_data[, 1:n_components]
 
   #take 10% of the graph as nearest neighbors, in the style of conga by default
   k <-  round(proportionOfGraphAsNeighbors * ncol(distanceMatrix))
   knn_result <- FNN::get.knn(reduced_data, k = round(k))
 
   #make graph
-  edges <- cbind(rep(1:nrow(distanceMatrix), each = k), c(knn_result$nn.index))
+  edges <- cbind(rep(seq_len(nrow(distanceMatrix)), each = k), c(knn_result$nn.index))
   g <- igraph::graph_from_edgelist(edges, directed = FALSE)
   #remove loops
   g <- igraph::simplify(g)
@@ -318,7 +375,7 @@ ClusterTcrs <- function(seuratObj = NULL,
 
   #TODO: evaluate some of these parameters in different contexts ('barnyard' experiment on TCRs?)
   pruned_graph <- igraph::graph_from_adjacency_matrix(adj_matrix, mode = 'undirected')
-  return(list(graph = pruned_graph, kpca_result = kpca_result))
+  return(list(graph = pruned_graph, pca_result = pca_result_obj))
 }
 
 .ComputeMultiTCRDistanceMatrix <- function(seuratObj_TCR = NULL,
@@ -471,16 +528,21 @@ ClusterTcrs <- function(seuratObj = NULL,
 }
 
 .AddDimensionalityReductions <- function(seuratObj,
-                                         kpca_result = NULL,
+                                         pca_result = NULL,
                                          reductionName = NULL,
                                          assayName = NULL,
-                                         kpcaComponents = 50,
+                                         pcaComponents = 50,
                                          kpcaKernel = 'rbfdot',
                                          proportionOfGraphAsNeighbors = 0.1,
                                          jaccardIndexThreshold = 0.1,
                                          distanceMatrix = NULL) {
-  #add KPCA components and make UMAP
-  embeddings <- kpca_result@rotated
+  #add PCA/KPCA components and make UMAP
+  # Handle both PCA and kernel PCA results
+  if (inherits(pca_result, "pca_result")) {
+    embeddings <- pca_result$rotated
+  } else {
+    embeddings <- pca_result@rotated
+  }
 
   rownames(embeddings) <- paste0(colnames(seuratObj[[assayName]]))
   seuratObj[[reductionName]] <-  Seurat::CreateDimReducObject(embeddings = embeddings,
@@ -490,7 +552,12 @@ ClusterTcrs <- function(seuratObj = NULL,
   k.param <-  round(proportionOfGraphAsNeighbors * ncol(distanceMatrix))
 
   #TODO: compute a cutoff for the number of components used, but I'm not sure what these distributions look like yet.
-  n_components = min(c(kpcaComponents, nrow(embeddings), ncol(kpca_result@rotated)))
+  # Handle both PCA and kernel PCA for getting number of components
+  if (inherits(pca_result, "pca_result")) {
+    n_components = min(c(pcaComponents, nrow(embeddings), ncol(pca_result$rotated)))
+  } else {
+    n_components = min(c(pcaComponents, nrow(embeddings), ncol(pca_result@rotated)))
+  }
   seuratObj <- Seurat::FindNeighbors(seuratObj,
                                      reduction = reductionName,
                                      dims = 1:n_components,

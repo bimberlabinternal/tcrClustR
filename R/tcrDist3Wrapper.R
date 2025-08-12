@@ -82,7 +82,7 @@ RunTcrdist3 <- function(seuratObj = NULL,
   #FormatMetadata can write several different kinds of files (filtered gene segments, database)
   #a "metadata directory" is probably the cleanest way to organize those files.
   #identify the metadata dataframe
-  if (is.null(seuratObj) & is.null(metadata)) {
+  if (is.null(seuratObj) && is.null(metadata)) {
     stop("Please provide either a Seurat Object or the Seurat Object's metadata as input.")
   }
   #TODO: add a check for the metadata dataframe, or, if it's a csv file, read it.
@@ -91,6 +91,34 @@ RunTcrdist3 <- function(seuratObj = NULL,
   }
   if (is.null(pythonExecutable)) {
     pythonExecutable <- reticulate::py_exe()
+    
+    #if reticulate doesn't provide a valid executable, try system default
+    if (is.null(pythonExecutable) || pythonExecutable == "" || !file.exists(pythonExecutable)) {
+      pythonExecutable <- Sys.which("python3")
+      if (pythonExecutable == "") {
+        pythonExecutable <- Sys.which("python")
+      }
+    }
+    
+    if (pythonExecutable == "" || !file.exists(pythonExecutable)) {
+      stop("No valid Python executable found. Please specify pythonExecutable parameter or ensure Python is in PATH.")
+    }
+  }
+  
+  #validate Python environment and required packages
+  print(paste("Using Python executable:", pythonExecutable))
+  
+  #test if required packages are available
+  testCmd <- paste0(pythonExecutable, " -c \"import tcrdist3; import rpy2; print('Python environment OK')\"")
+  testResult <- tryCatch({
+    system(testCmd, intern = TRUE)
+  }, error = function(e) {
+    warning(paste("Python environment test failed:", e$message))
+    return(NULL)
+  })
+  
+  if (is.null(testResult)) {
+    warning("Python environment may not have required packages (tcrdist3, rpy2). This may cause failures.")
   }
 
   #format metadata if necessary (a user may have done this already, so add optional flag)
@@ -121,7 +149,7 @@ RunTcrdist3 <- function(seuratObj = NULL,
       } else if (chain == "TRG") {
         chainsString <- paste0(chainsString, "gamma")
       } else if (chain == "TRD") {
-        chainString <- paste0(chainsString, "delta")
+        chainsString <- paste0(chainsString, "delta")
       } else {
         warning(paste0("Chain Type ", chain, " not recognized. Skipping."))
       }
