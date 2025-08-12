@@ -1,23 +1,21 @@
 library(testthat)
 
 test_that("PCA and Clustering functions work correctly", {
-  # Define paths using a temporary directory
   temp_dir <- tempdir()
-
+  #debug
   print(temp_dir)
-  # Debug statements
   paste0('file.exists: ', file.exists(temp_dir))
   paste0('dir.exists: ', dir.exists(temp_dir))
 
-  # Read in a small Seurat object with TCR data
+  #read in data
   seuratObj <- readRDS("../testdata/small_RIRA.rds")
   seuratObj <- subset(seuratObj, cells = SeuratObject::WhichCells(seuratObj, which(as.numeric(seuratObj$cDNA_ID) > 1)))
 
-  # First, create distance matrices using tcrdist3 for testing
+  #create distance matrices using tcrdist3 for testing
   postFormattingMetadataCsvPath <- file.path(temp_dir, "tcrdist3Input.csv")
   rdsOutputPath <- file.path(temp_dir, "tcrdist3DistanceMatrices")
 
-  # Generate distance matrices for testing
+  #generate distance matrices
   seuratObj_TCR <- RunTcrdist3(seuratObj = seuratObj,
                               metadata = NULL,
                               formatMetadata = TRUE,
@@ -29,26 +27,25 @@ test_that("PCA and Clustering functions work correctly", {
                               pythonExecutable = Sys.which("python3"),
                               debugTcrdist3 = "True")
 
-  # Test that we have the necessary distance matrices
+  #test that distance matrix calculations worked
   testthat::expect_true(class(seuratObj_TCR)[1] == "Seurat")
   testthat::expect_gt(length(Seurat::Assays(seuratObj_TCR)), 0)
 
-  # Test 1: ClusterTcrs with standard PCA (default)
+  #test that ClusterTcrs with standard PCA
   testthat::expect_no_error({
     clustered_results_pca <- ClusterTcrs(
-      seuratObj = seuratObj,
+      seuratObj = NULL,
       seuratObj_TCR = seuratObj_TCR,
-      pcaComponents = 10,  # Use fewer components for faster testing
+      pcaComponents = 10,
       usePCA = TRUE,       # Test standard PCA
       proportionOfGraphAsNeighbors = 0.2,
       jaccardIndexThreshold = 0.05,
       seed = 1234,
-      computeMultiChain = FALSE # Disable for faster testing
-
+      computeMultiChain = FALSE
     )
   })
 
-  # Test 2: ClusterTcrs with kernel PCA
+  #test that ClusterTcrs works with kernel PCA
   testthat::expect_no_error({
     clustered_results_kpca <- ClusterTcrs(
       seuratObj = seuratObj,
@@ -63,19 +60,20 @@ test_that("PCA and Clustering functions work correctly", {
     )
   })
 
-  # Test that results contain expected objects
+  #test that results contain expected objects
   testthat::expect_true(is.list(clustered_results_pca))
   testthat::expect_true("singleChainSeuratObject" %in% names(clustered_results_pca))
   testthat::expect_true(is.list(clustered_results_kpca))
   testthat::expect_true("singleChainSeuratObject" %in% names(clustered_results_kpca))
 })
 
+#test internals
 test_that(".DistanceMatrixToClusteredGraphs works with different PCA types", {
-  # Read test data
+  #read test data
   seuratObj <- readRDS("../testdata/small_RIRA.rds")
   seuratObj <- subset(seuratObj, cells = SeuratObject::WhichCells(seuratObj, which(as.numeric(seuratObj$cDNA_ID) > 1)))
 
-  # Generate distance matrices
+  #generate distance matrices
   temp_dir <- tempdir()
   postFormattingMetadataCsvPath <- file.path(temp_dir, "tcrdist3Input.csv")
   rdsOutputPath <- file.path(temp_dir, "tcrdist3DistanceMatrices")
@@ -88,7 +86,7 @@ test_that(".DistanceMatrixToClusteredGraphs works with different PCA types", {
                               rdsOutputPath = rdsOutputPath,
                               pythonExecutable = Sys.which("python3"))
 
-  # Test with standard PCA
+  #test internal .DistanceMatrixToClusteredGraphs works with standard PCA
   testthat::expect_no_error({
     result_pca <- .DistanceMatrixToClusteredGraphs(
       seuratObj_TCR = seuratObj_TCR,
@@ -102,7 +100,7 @@ test_that(".DistanceMatrixToClusteredGraphs works with different PCA types", {
     )
   })
 
-  # Test with kernel PCA
+  #test internal .DistanceMatrixToClusteredGraphs works with kernel PCA
   testthat::expect_no_error({
     result_kpca <- .DistanceMatrixToClusteredGraphs(
       seuratObj_TCR = seuratObj_TCR,
@@ -117,7 +115,7 @@ test_that(".DistanceMatrixToClusteredGraphs works with different PCA types", {
     )
   })
 
-  # Test that results are properly structured
+  #test that results are properly structured
   testthat::expect_true(is.list(result_pca))
   testthat::expect_true(is.list(result_kpca))
   testthat::expect_true("singleChainSeuratObject" %in% names(result_pca))
@@ -125,15 +123,15 @@ test_that(".DistanceMatrixToClusteredGraphs works with different PCA types", {
 })
 
 test_that(".PcaAndClustering works with both PCA types", {
-  # Create a simple test distance matrix
+  #create a simple test distance matrix
   set.seed(1234)
   n_samples <- 20
   distance_matrix <- matrix(runif(n_samples^2, 0, 100), nrow = n_samples, ncol = n_samples)
-  # Make it symmetric
+  #symmetry
   distance_matrix <- (distance_matrix + t(distance_matrix)) / 2
   diag(distance_matrix) <- 0
 
-  # Test with standard PCA
+  #test with standard PCA
   testthat::expect_no_error({
     result_pca <- .PcaAndClustering(
       distanceMatrix = distance_matrix,
@@ -144,7 +142,7 @@ test_that(".PcaAndClustering works with both PCA types", {
     )
   })
 
-  # Test with kernel PCA
+  #test with kernel PCA
   testthat::expect_no_error({
     result_kpca <- .PcaAndClustering(
       distanceMatrix = distance_matrix,
@@ -156,7 +154,7 @@ test_that(".PcaAndClustering works with both PCA types", {
     )
   })
 
-  # Test that results contain expected components
+  #test that results contain expected components
   testthat::expect_true(is.list(result_pca))
   testthat::expect_true(is.list(result_kpca))
   testthat::expect_true("graph" %in% names(result_pca))
@@ -164,17 +162,17 @@ test_that(".PcaAndClustering works with both PCA types", {
   testthat::expect_true("graph" %in% names(result_kpca))
   testthat::expect_true("pca_result" %in% names(result_kpca))
 
-  # Test that PCA result has correct class
+  #test that PCA result has correct class
   testthat::expect_true(inherits(result_pca$pca_result, "pca_result"))
   testthat::expect_true(inherits(result_kpca$pca_result, "kpca"))
 
-  # Test that graphs are igraph objects
+  #test that graphs writing worked
   testthat::expect_true(igraph::is_igraph(result_pca$graph))
   testthat::expect_true(igraph::is_igraph(result_kpca$graph))
 })
 
 test_that(".TranslateGroupByVariablesToTcrdist3 works correctly", {
-  # Test basic translations
+  #test basic translations
   test_variables <- c("TRA_V", "TRA_J", "TRA", "TRB_V", "TRB_J", "TRB")
   expected_output <- c("v_a_gene", "j_a_gene", "cdr3_a_aa", "v_b_gene", "j_b_gene", "cdr3_b_aa")
 
@@ -184,19 +182,19 @@ test_that(".TranslateGroupByVariablesToTcrdist3 works correctly", {
 
   testthat::expect_equal(result, expected_output)
 
-  # Test gamma and delta chains
+  #test gamma and delta chains
   test_variables_gd <- c("TRG_V", "TRG_J", "TRG", "TRD_V", "TRD_J", "TRD")
   expected_output_gd <- c("v_g_gene", "j_g_gene", "cdr3_g_aa", "v_d_gene", "j_d_gene", "cdr3_d_aa")
 
   result_gd <- .TranslateGroupByVariablesToTcrdist3(test_variables_gd)
   testthat::expect_equal(result_gd, expected_output_gd)
 
-  # Test empty input
+  #test empty input
   testthat::expect_equal(.TranslateGroupByVariablesToTcrdist3(character(0)), character(0))
 })
 
 test_that(".CreateTcrKeyLookup works correctly", {
-  # Read test data and create distance matrices
+  #read test data and create distance matrices
   seuratObj <- readRDS("../testdata/small_RIRA.rds")
   seuratObj <- subset(seuratObj, cells = SeuratObject::WhichCells(seuratObj, which(as.numeric(seuratObj$cDNA_ID) > 1)))
 

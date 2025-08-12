@@ -59,7 +59,7 @@ ClusterTcrs <- function(seuratObj = NULL,
           assayname <- gsub("CDR3", "", assay)
           group_by_variables <- c(paste0(assayname, "_V"), paste0(assayname, "_J"), assayname)
         }
-        print(paste0("single chain assay:", assay))
+
         print(group_by_variables)
         singleChainMetadata <- tcr_object@meta.data
       } else {
@@ -74,7 +74,7 @@ ClusterTcrs <- function(seuratObj = NULL,
             group_by_variables <- c(group_by_variables, paste0(chain_name, "_V"), paste0(chain_name, "_J"), gsub("CDR3", "", chain_name))
           }
         }
-        print(paste0("multichain assay:", chains))
+
         print(group_by_variables)
       }
     }
@@ -119,7 +119,29 @@ ClusterTcrs <- function(seuratObj = NULL,
   for (assay in assays){
     print(assay)
     #get the distance matrix
-    distanceMatrix <- as.matrix(Seurat::GetAssayData(seuratObj_TCR, assay = assay, layer = "counts"))
+    #handle Seurat v5 layer system - join layers if necessary
+    tryCatch({
+      #try to join layers to avoid v5 compatibility issues
+      if (methods::is(seuratObj_TCR[[assay]], "Assay5")) {
+        seuratObj_TCR <- Seurat::JoinLayers(seuratObj_TCR, assay = assay)
+      }
+    }, error = function(e) {
+      #if JoinLayers fails or doesn't exist, continue without it
+      warning(paste("Could not join layers for assay", assay, ":", e$message))
+    })
+    
+    #try to get data without specifying layer first, then with layer if needed
+    distanceMatrix <- tryCatch({
+      as.matrix(Seurat::GetAssayData(seuratObj_TCR, assay = assay))
+    }, error = function(e) {
+      #if that fails, try with layer specification
+      tryCatch({
+        as.matrix(Seurat::GetAssayData(seuratObj_TCR, assay = assay, layer = "counts"))
+      }, error = function(e2) {
+        #if both fail, try data slot
+        as.matrix(Seurat::GetAssayData(seuratObj_TCR, assay = assay, slot = "data"))
+      })
+    })
     graph_and_pca_results <- .PcaAndClustering(distanceMatrix = distanceMatrix,
                                                pcaComponents = pcaComponents,
                                                kpcaKernel = kpcaKernel,
@@ -224,7 +246,7 @@ ClusterTcrs <- function(seuratObj = NULL,
         names(group_by_variables)[length(group_by_variables) - 2:0] <- c(paste0(type, "_V"), paste0(type, "_J"), type)
         assays_to_access <- c(assays_to_access, type)
       }
-      print(paste0("group_variables:", group_by_variables))
+
       #iterate through the 10X data and index the metadata by observed TRA+TRB combinations
       # The clustering functions work with pre-computed distance matrices.
       # Spike-in data should be incorporated during distance matrix generation.
@@ -329,7 +351,7 @@ ClusterTcrs <- function(seuratObj = NULL,
                               jaccardIndexThreshold = jaccardIndexThreshold){
 
   if (usePCA) {
-    #use standard pca for dimensional reduction
+    #use standard PCA
     pca_result <- stats::prcomp(distanceMatrix, center = TRUE, scale. = TRUE)
 
     #create a compatible object structure similar to kernlab::kpca, so downstream parsing can be identical
@@ -389,8 +411,37 @@ ClusterTcrs <- function(seuratObj = NULL,
     dplyr::filter_all(dplyr::all_vars(!grepl(",",.))) |>
     dplyr::distinct()
 
-  first_chain_matrix <- Seurat::GetAssayData(seuratObj_TCR, assay = assays_to_access[1], layer = "counts")
-  second_chain_matrix <- Seurat::GetAssayData(seuratObj_TCR, assay = assays_to_access[2], layer = "counts")
+  # Handle Seurat v5 layer system for both assays
+  for (assay in assays_to_access) {
+    tryCatch({
+      if (methods::is(seuratObj_TCR[[assay]], "Assay5")) {
+        seuratObj_TCR <- Seurat::JoinLayers(seuratObj_TCR, assay = assay)
+      }
+    }, error = function(e) {
+      warning(paste("Could not join layers for assay", assay, ":", e$message))
+    })
+  }
+  
+  # Get matrices with fallback for Seurat v5 compatibility
+  first_chain_matrix <- tryCatch({
+    Seurat::GetAssayData(seuratObj_TCR, assay = assays_to_access[1])
+  }, error = function(e) {
+    tryCatch({
+      Seurat::GetAssayData(seuratObj_TCR, assay = assays_to_access[1], layer = "counts")
+    }, error = function(e2) {
+      Seurat::GetAssayData(seuratObj_TCR, assay = assays_to_access[1], slot = "data")
+    })
+  })
+  
+  second_chain_matrix <- tryCatch({
+    Seurat::GetAssayData(seuratObj_TCR, assay = assays_to_access[2])
+  }, error = function(e) {
+    tryCatch({
+      Seurat::GetAssayData(seuratObj_TCR, assay = assays_to_access[2], layer = "counts")
+    }, error = function(e2) {
+      Seurat::GetAssayData(seuratObj_TCR, assay = assays_to_access[2], slot = "data")
+    })
+  })
 
   #populate all possible combinations of metadata features
   first_chain_variables <- seuratObj_TCR@meta.data[,.TranslateGroupByVariablesToTcrdist3(group_by_variables[names(group_by_variables) == assays_to_access[1]]), drop = FALSE]
@@ -513,7 +564,15 @@ ClusterTcrs <- function(seuratObj = NULL,
   #TODO: support alleles? unsure how to do this in the current compute environment though.
   keys <- gsub("\\*01", "", keys)
 
-  matrix_rownames <- rownames(Seurat::GetAssayData(seuratObj_TCR, assay = assay_name, layer = 'counts'))
+  matrix_rownames <- tryCatch({
+    rownames(Seurat::GetAssayData(seuratObj_TCR, assay = assay_name))
+  }, error = function(e) {
+    tryCatch({
+      rownames(Seurat::GetAssayData(seuratObj_TCR, assay = assay_name, layer = 'counts'))
+    }, error = function(e2) {
+      rownames(Seurat::GetAssayData(seuratObj_TCR, assay = assay_name, slot = 'data'))
+    })
+  })
 
   #create lookup table: key -> matrix row name
   lookup <- data.frame(

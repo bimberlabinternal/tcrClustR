@@ -48,7 +48,3 @@ A list containing single-chain and multi-chain Seurat objects with clustering re
 This function clusters TCRs in a Seurat object using TcrClustR.
 It performs PCA or kernel PCA, computes distance matrices, and applies clustering algorithms.
 }
-\note{
-Spike-in data should be incorporated during distance matrix generation (e.g., via RunTcrDist3),
-not during clustering. The clustering functions work with pre-computed distance matrices.
-}
