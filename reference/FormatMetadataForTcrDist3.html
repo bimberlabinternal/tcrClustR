@@ -55,7 +55,8 @@
 <span>  minimumClonesPerSubject <span class="op">=</span> <span class="fl">100</span>,</span>
 <span>  writeUnannotatedGeneSegmentsToFile <span class="op">=</span> <span class="cn">T</span>,</span>
 <span>  spikeInDataframe <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  pythonExecutable <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  pythonExecutable <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  verbose <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -105,6 +106,10 @@
 
 <dt id="arg-pythonexecutable">pythonExecutable<a class="anchor" aria-label="anchor" href="#arg-pythonexecutable"></a></dt>
 <dd><p>Path to the python executable. Default is NULL, but imputes to reticulate::py_exe().</p></dd>
+
+
+<dt id="arg-verbose">verbose<a class="anchor" aria-label="anchor" href="#arg-verbose"></a></dt>
+<dd><p>Boolean controlling whether to display processing steps. Default is FALSE.</p></dd>
 
 </dl></div>
     <div id="value">

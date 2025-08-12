@@ -7,7 +7,10 @@
 <url><loc>/reference/FormatMetadataForTcrDist3.html</loc></url>
 <url><loc>/reference/RunConga.html</loc></url>
 <url><loc>/reference/RunTcrdist3.html</loc></url>
+<url><loc>/reference/TCRDistanceHeatmaps.html</loc></url>
+<url><loc>/reference/TCRDistanceHistograms.html</loc></url>
 <url><loc>/reference/dot-DistanceMatrixToClusteredGraphs.html</loc></url>
+<url><loc>/reference/dot-TCRDistanceHeatmap.html</loc></url>
 <url><loc>/reference/index.html</loc></url>
 <url><loc>/reference/pipe.html</loc></url>
 </urlset>
