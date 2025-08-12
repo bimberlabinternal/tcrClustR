@@ -18,7 +18,8 @@ RunTcrdist3(
   minimumClonesPerSubject = 2,
   rdsOutputPath = "./tcrdist3DistanceMatrices/",
   pythonExecutable = NULL,
-  debugTcrdist3 = "True"
+  debugTcrdist3 = "True",
+  verbose = FALSE
 )
 }
 \arguments{
@@ -49,6 +50,8 @@ RunTcrdist3(
 \item{pythonExecutable}{Path to the python executable. Default is reticulate::py_exe().}
 
 \item{debugTcrdist3}{String (to be passed to python and converted to boolean) controlling whether to run tcrdist3 in debug mode. Default is "True".}
+
+\item{verbose}{Boolean controlling whether to display processing steps. Default is FALSE.}
 }
 \description{
 This function runs the tcrdist3 pipeline on a set of CDR3 sequences in a Seurat Object.
@@ -66,7 +69,8 @@ This function runs the tcrdist3 pipeline on a set of CDR3 sequences in a Seurat 
               minimumClonesPerSubject = 2,
               rdsOutputPath = "./tcrdist3DistanceMatrices/",
               pythonExecutable = reticulate::py_exe(),
-              debugTcrdist3 = "True")
+              debugTcrdist3 = "True",
+              verbose = FALSE)
 
     spikeInDataframe <- data.frame(CloneNames = rep(1:3),
                                  TRA_V = c("TRAV1-2", "TRAV1-2", "TRAV1-2"),
