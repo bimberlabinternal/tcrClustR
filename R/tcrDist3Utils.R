@@ -19,6 +19,7 @@ utils::globalVariables(
 #' @param minimumClonesPerSubject Minimum number of clones per subject to include in the analysis. Default is 2.
 #' @param spikeInDataframe Data frame containing spike-in data. Default is NULL. See examples for formatting requirements.
 #' @param pythonExecutable Path to the python executable. Default is NULL, but imputes to reticulate::py_exe().
+#' @param verbose Boolean controlling whether to display processing steps. Default is FALSE.
 #' @return a properly formatted metadata dataframe.
 #' @export
 #' @examples
@@ -43,9 +44,14 @@ FormatMetadataForTcrDist3 <- function(metadata,
                                       imputeCloneNames = T,
                                       minimumClonesPerSubject = 100,
                                       writeUnannotatedGeneSegmentsToFile = T,
-                                      spikeInDataframe = NULL, 
-                                      pythonExecutable = NULL
+                                      spikeInDataframe = NULL,
+                                      pythonExecutable = NULL,
+                                      verbose = FALSE
 ) {
+  if (verbose) {
+    message("Initial metadata dimensions: ", nrow(metadata), " rows, ", ncol(metadata), " columns")
+    message("Requested chains: ", paste(chains, collapse = ", "))
+  }
   #check spikeInDataframe's formatting
   if (!is.null(spikeInDataframe)) {
     #check that the spikeInDataframe has columns that match the chains requested
@@ -86,18 +92,43 @@ FormatMetadataForTcrDist3 <- function(metadata,
     metadata <- plyr::rbind.fill(metadata, spikeInDataframe)
   }
   if (cleanMetadata) {
+    if (verbose) message("Starting metadata cleaning with ", nrow(metadata), " rows")
     for (chain in chains) {
+      if (verbose) message("Processing chain: ", chain)
+
+      #check if chain column exists
+      if (!chain %in% colnames(metadata)) {
+        if (verbose) {
+          message("WARNING - Chain column ", chain, " not found in metadata!")
+          message("Available columns: ", paste(colnames(metadata), collapse = ", "))
+        }
+        next
+      }
+
+      initial_rows <- nrow(metadata)
+
       #filter rows with NA values in the requested chains
       metadata <- metadata[!is.na(metadata[[chain]]), ]
+      after_na_filter <- nrow(metadata)
+      if (verbose) message("After filtering NA values in ", chain, ": ", after_na_filter, " rows (removed ", initial_rows - after_na_filter, " rows)")
+
       #filter rows with commas (multiple segments detected in a cell) in the requested chains
       metadata <- metadata[!grepl(",", metadata[[chain]]), ]
+      after_comma_filter <- nrow(metadata)
+      if (verbose) message("After filtering commas in ", chain, ": ", after_comma_filter, " rows (removed ", after_na_filter - after_comma_filter, " rows)")
 
       .PullTcrdist3Db(organism = organism,
-                      outputFilePath = file.path(dirname(outputCsv), 'tcrdist3_gene_segments.txt'))
+                      outputFilePath = file.path(dirname(outputCsv), 'tcrdist3_gene_segments.txt'),
+                      verbose = verbose)
       gene_segments_in_db <- readr::read_csv(file.path(dirname(outputCsv), 'tcrdist3_gene_segments.txt'), show_col_types = FALSE) |>
         dplyr::mutate(`gene_segments` = gsub("\\*[0-9]+$", "", `gene_segments`)) |>
         unlist() |>
         unique()
+      if (verbose) {
+        message("Found ", length(gene_segments_in_db), " gene segments in tcrdist3 database")
+        message("First 10 database gene segments: ", paste(head(gene_segments_in_db, 10), collapse = ", "))
+      }
+
       #remove gene segments not found in conga's database
       #TODO: add message flag that trips when TCRDist3 detects an unannotated gene segment
       if (chain == "TRA") {
@@ -121,7 +152,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
               dplyr::filter(TRA_V != "valid" | TRA_J != "valid") |>
               dplyr::select(TRA_V, TRA_J) |>
               unique.data.frame()
-            print(paste0("Writing TRA segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath(file.path(dirname(outputCsv),'filtered_TRA_gene_segments.csv'))))
+            if (verbose) message("Writing TRA segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath(file.path(dirname(outputCsv),'filtered_TRA_gene_segments.csv')))
             utils::write.csv(filtered_genes, file = file.path(dirname(outputCsv),'filtered_TRA_gene_segments.csv'), row.names = FALSE)
           }
         }
@@ -129,6 +160,44 @@ FormatMetadataForTcrDist3 <- function(metadata,
           dplyr::filter(TRA_V %in% gene_segments_in_db) |>
           dplyr::filter(TRA_J %in% gene_segments_in_db)
       } else if (chain == "TRB") {
+        if (verbose) message("Processing TRB chain filtering")
+
+        #check for required TRB columns
+        if (!"TRB_V" %in% colnames(metadata)) {
+          if (verbose) {
+            message("ERROR - TRB_V column not found in metadata!")
+            message("Available columns: ", paste(colnames(metadata), collapse = ", "))
+          }
+        }
+        if (!"TRB_J" %in% colnames(metadata)) {
+          if (verbose) {
+            message("ERROR - TRB_J column not found in metadata!")
+            message("Available columns: ", paste(colnames(metadata), collapse = ", "))
+          }
+        }
+
+        #check unique values in TRB_V and TRB_J columns
+        if ("TRB_V" %in% colnames(metadata)) {
+          unique_v_genes <- unique(metadata$TRB_V[!is.na(metadata$TRB_V)])
+          if (verbose) {
+            message("Found ", length(unique_v_genes), " unique TRB_V genes")
+            message("First 10 TRB_V genes: ", paste(head(unique_v_genes, 10), collapse = ", "))
+          }
+          v_genes_in_db <- sum(unique_v_genes %in% gene_segments_in_db)
+          if (verbose) message(v_genes_in_db, " out of ", length(unique_v_genes), " TRB_V genes found in database")
+        }
+
+        if ("TRB_J" %in% colnames(metadata)) {
+          unique_j_genes <- unique(metadata$TRB_J[!is.na(metadata$TRB_J)])
+          if (verbose) {
+            message("Found ", length(unique_j_genes), " unique TRB_J genes")
+            message("First 10 TRB_J genes: ", paste(head(unique_j_genes, 10), collapse = ", "))
+          }
+          j_genes_in_db <- sum(unique_j_genes %in% gene_segments_in_db)
+          if (verbose) message(j_genes_in_db, " out of ", length(unique_j_genes), " TRB_J genes found in database")
+        }
+
+        before_v_filter <- nrow(metadata)
         if (writeUnannotatedGeneSegmentsToFile) {
           if (any(!(metadata$TRB_V %in% gene_segments_in_db) | any(!metadata$TRB_J %in% gene_segments_in_db))) {
             message("TRB gene segments present in the data, but not found in conga database!")
@@ -149,13 +218,18 @@ FormatMetadataForTcrDist3 <- function(metadata,
               dplyr::filter(TRB_V != "valid" | TRB_J != "valid") |>
               dplyr::select(TRB_V, TRB_J) |>
               unique.data.frame()
-            print(paste0("Writing TRB segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath(file.path(dirname(outputCsv),'filtered_TRB_gene_segments.csv'))))
+            if (verbose) message("Writing TRB segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath(file.path(dirname(outputCsv),'filtered_TRB_gene_segments.csv')))
             utils::write.csv(filtered_genes, file = file.path(dirname(outputCsv), 'filtered_TRB_gene_segments.csv'), row.names = FALSE)
           }
         }
         metadata <- metadata |>
           dplyr::filter(TRB_V %in% gene_segments_in_db) |>
           dplyr::filter(TRB_J %in% gene_segments_in_db)
+        after_gene_filter <- nrow(metadata)
+        if (verbose) {
+          message("After filtering TRB gene segments: ", after_gene_filter, " rows (removed ", before_v_filter - after_gene_filter, " rows)")
+          message("Metadata after TRB filtering has ", nrow(metadata), " rows")
+        }
 
       } else if (chain == "TRG") {
         if (writeUnannotatedGeneSegmentsToFile) {
@@ -178,7 +252,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
               dplyr::filter(TRG_V != "valid" | TRG_J != "valid") |>
               dplyr::select(TRG_V, TRG_J) |>
               unique.data.frame()
-            print(paste0("Writing TRG segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath(file.path(dirname(outputCsv),'filtered_TRG_gene_segments.csv'))))
+            if (verbose) message("Writing TRG segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath(file.path(dirname(outputCsv),'filtered_TRG_gene_segments.csv')))
             utils::write.csv(filtered_genes, file = file.path(dirname(outputCsv),'filtered_TRG_gene_segments.csv'), row.names = FALSE)
           }
         }
@@ -206,7 +280,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
               dplyr::filter(TRD_V != "valid" | TRD_J != "valid") |>
               dplyr::select(TRD_V, TRD_J) |>
               unique.data.frame()
-            print(paste0("Writing TRD segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath(file.path(dirname(outputCsv),'filtered_TRD_gene_segments.csv'))))
+            if (verbose) message("Writing TRD segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath(file.path(dirname(outputCsv),'filtered_TRD_gene_segments.csv')))
             utils::write.csv(filtered_genes, file = file.path(dirname(outputCsv),'filtered_TRD_gene_segments.csv'), row.names = FALSE)
           }
         }
@@ -217,30 +291,88 @@ FormatMetadataForTcrDist3 <- function(metadata,
         stop(paste0("Chain ", chain, " is not supported."))
       }
     }
+    if (verbose) message("Finished metadata cleaning with ", nrow(metadata), " rows")
   }
   #impute clone names if asked
   if (imputeCloneNames) {
+    if (verbose) message("Starting clone name imputation with ", nrow(metadata), " rows")
+
+    if (nrow(metadata) == 0) {
+      if (verbose) message("ERROR - metadata has 0 rows when trying to impute clone names!")
+      stop("No data remaining after filtering. Check your gene segment names and database compatibility.")
+    }
+
     if (!"CloneNames" %in% colnames(metadata)) {
       #initialize the CloneNames metadata column
+      if (verbose) message("Creating CloneNames column")
       metadata$CloneNames <- "undefined_clone"
     }
-    #assume that clone names are set by Rdiscvr, but if they're NA (like for the tests, we need to impute them)
+    #assume that clone names are set by Rdiscvr, but if they're NA (like for the tests) we need to impute them
 
     if (!is.null(spikeInDataframe)){
       #if a user submits a spike-in dataframe, the subject IDs will need to be converted to a character column to merge with SubjectId == "SpikeIn"
       metadata$SubjectId <- as.character(metadata$SubjectId)
     }
 
+    # Check if SubjectId column exists, if not create it
+    if (!"SubjectId" %in% colnames(metadata)) {
+      if (verbose) message("SubjectId column not found, creating default SubjectId")
+      metadata$SubjectId <- "DefaultSubject"
+    }
+
+    # Check if TRA column exists, if not create dummy column
+    if (!"TRA" %in% colnames(metadata)) {
+      if (verbose) message("TRA column not found, creating dummy TRA column")
+      metadata$TRA <- "DUMMY_TRA"
+    }
+
+    # Check if TRB column exists, if not create dummy column
+    if (!"TRB" %in% colnames(metadata)) {
+      if (verbose) message("TRB column not found, creating dummy TRB column")
+      metadata$TRB <- "DUMMY_TRB"
+    }
+
+    # Check if TRA_V column exists, if not create dummy column
+    if (!"TRA_V" %in% colnames(metadata)) {
+      if (verbose) message("TRA_V column not found, creating dummy TRA_V column")
+      metadata$TRA_V <- "DUMMY_TRA_V"
+    }
+
+    # Check if TRA_J column exists, if not create dummy column
+    if (!"TRA_J" %in% colnames(metadata)) {
+      if (verbose) message("TRA_J column not found, creating dummy TRA_J column")
+      metadata$TRA_J <- "DUMMY_TRA_J"
+    }
+
+    #construct the grouping columns based on the supplied chains
+    grouping_columns <- c("SubjectId")
+    if ("TRA" %in% chains) {
+      grouping_columns <- c(grouping_columns, "TRA", "TRA_V", "TRA_J")
+    }
+    if ("TRB" %in% chains) {
+      grouping_columns <- c(grouping_columns, "TRB", "TRB_V", "TRB_J")
+    }
+    if ("TRG" %in% chains) {
+      grouping_columns <- c(grouping_columns, "TRG", "TRG_V", "TRG_J")
+    }
+    if ("TRD" %in% chains) {
+      grouping_columns <- c(grouping_columns, "TRD", "TRD_V", "TRD_J")
+    }
+
+    if (verbose) {
+      print(head(metadata))
+    }
+
     metadata <- metadata |>
       #if a user submits a spike-in dataframe, the clones will be missing a subject Id
-      dplyr::mutate(SubjectId = dplyr::case_when(is.na(CloneNames) & is.na(SubjectId) ~ "SpikeIn",
-                                     TRUE ~ as.character(SubjectId)),
-                    ) |>
-      dplyr::group_by(SubjectId, TRA, TRB, TRA_V, TRA_J, TRB_V, TRB_J) |>
-
+      dplyr::mutate(SubjectId = dplyr::case_when(
+        is.na(CloneNames) & is.na(SubjectId) ~ "SpikeIn",
+        TRUE ~ as.character(SubjectId)
+      )) |>
+      dplyr::group_by(dplyr::across(dplyr::all_of(grouping_columns))) |>
       dplyr::mutate(CloneNames =
                       dplyr::case_when( is.na(CloneNames) ~ paste0(SubjectId, "_", dplyr::cur_group_id()),
-                        TRUE ~ as.character(CloneNames)))
+                                        TRUE ~ as.character(CloneNames)))
   }
 
   #TODO: this implementation only works for TRA+TRB, need to fix eventually.
@@ -249,7 +381,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
     #TODO: figure out if we need to index clones jointly (across both chains)
     #or singly (TRAs would have a clone ID and TRBs would have their own clone ID)
     metadata <- metadata |>
-      dplyr::group_by(SubjectId, TRA, TRB, TRA_V, TRA_J, TRB_V, TRB_J) |>
+      dplyr::group_by(dplyr::across(dplyr::all_of(grouping_columns))) |>
       dplyr::reframe(count = dplyr::n(), CloneNames) |>
       unique.data.frame()
     #filter out unique/rare clones
@@ -262,29 +394,69 @@ FormatMetadataForTcrDist3 <- function(metadata,
 
   #unique-ify the metadata prior to formatting, since the random sampling in the reverse translation function can cause duplicates
   metadata <- metadata |> unique.data.frame()
+  if (verbose) message("Final metadata dimensions after cleaning and summarizing: ", nrow(metadata), " rows, ", ncol(metadata), " columns")
+  #reformat data for tcrDist3, iterate over chains specified:
 
-  #reformat data
-  formatted_data <- data.frame(
-    subject = metadata$SubjectId,
-    epitope = rep("dummy_epitope", nrow(metadata)),  #epitope information is not available in seuratMetadata.csv
-    count = metadata$count,    #TODO: I could tabulate count info if necessary
-    v_a_gene = paste0(metadata$TRA_V, "*01"),
-    j_a_gene = paste0(metadata$TRA_J, "*01"),
-    cdr3_a_aa = metadata$TRA,
-    cdr3_a_nucseq = sapply(metadata$TRA, .reverse_translate_cdr3),  #TODO: nucleotides aren't given, but could be reverse-translated
-    v_b_gene = paste0(metadata$TRB_V, "*01"),
-    j_b_gene = paste0(metadata$TRB_J, "*01"),
-    cdr3_b_aa = metadata$TRB,
-    cdr3_b_nucseq = sapply(metadata$TRB, .reverse_translate_cdr3),  #TODO: nucleotides aren't given, but could be reverse-translated
-    clone_id = metadata$CloneNames
-  )
-  # Write the formatted data to the output CSV file
+  formatted_data <- data.frame( subject = metadata$SubjectId,
+                                epitope = rep("dummy_epitope", nrow(metadata)),  #epitope information is not available in seuratMetadata.csv
+                                count = if("count" %in% colnames(metadata)) metadata$count else rep(1, nrow(metadata))
+                                )
+  if (verbose) {
+    print(head(formatted_data))
+    message("Dimensions of formatted_data: ", paste(dim(formatted_data), collapse = " x "))
+    message("Dimensions of metadata: ", paste(dim(metadata), collapse = " x "))
+  }
+  if ("TRA" %in% chains) {
+    if (verbose) message("Formatting TRA chains for tcrDist3")
+    formatted_data <- cbind(formatted_data,
+                            data.frame(
+                              v_a_gene = paste0(metadata$TRA_V, "*01"),
+                              j_a_gene = paste0(metadata$TRA_J, "*01"),
+                              cdr3_a_aa = metadata$TRA,
+                              cdr3_a_nucseq = sapply(metadata$TRA, .reverse_translate_cdr3)
+                            )
+    )
+  }
+  if ("TRB" %in% chains) {
+    if (verbose) message("Formatting TRB chains for tcrDist3")
+    formatted_data <- cbind(formatted_data,
+                            data.frame(
+                              v_b_gene = paste0(metadata$TRB_V, "*01"),
+                              j_b_gene = paste0(metadata$TRB_J, "*01"),
+                              cdr3_b_aa = metadata$TRB,
+                              cdr3_b_nucseq = sapply(metadata$TRB, .reverse_translate_cdr3)
+                            )
+    )
+  }
+  if ("TRG" %in% chains) {
+    if (verbose) message("Formatting TRG chains for tcrDist3")
+    formatted_data <- cbind(formatted_data,
+                            data.frame(
+                              v_g_gene = paste0(metadata$TRG_V, "*01"),
+                              j_g_gene = paste0(metadata$TRG_J, "*01"),
+                              cdr3_g_aa = metadata$TRG,
+                              cdr3_g_nucseq = sapply(metadata$TRG, .reverse_translate_cdr3)
+                            )
+    )
+  }
+  if ("TRD" %in% chains) {
+    if (verbose) message("Formatting TRD chains for tcrDist3")
+    formatted_data <- cbind(formatted_data,
+                            data.frame(
+                              v_d_gene = paste0(metadata$TRD_V, "*01"),
+                              j_d_gene = paste0(metadata$TRD_J, "*01"),
+                              cdr3_d_aa = metadata$TRD,
+                              cdr3_d_nucseq = sapply(metadata$TRD, .reverse_translate_cdr3)
+                            )
+    )
+  }
+  #write the formatted data to the output CSV file
   utils::write.csv(formatted_data, outputCsv, row.names = FALSE)
   return(formatted_data)
 }
 
 .reverse_translate_cdr3 <- function(cdr3_aa_seq) {
-  # Codon table
+  #codon table
   codon_table <- list(
     A = c("GCT", "GCC", "GCA", "GCG"),
     C = c("TGT", "TGC"),
@@ -320,7 +492,8 @@ FormatMetadataForTcrDist3 <- function(metadata,
 
 .PullTcrdist3Db <- function(organism = 'human',
                             outputFilePath = './tcrdist3_gene_segments',
-                            pythonExecutable = NULL) {
+                            pythonExecutable = NULL,
+                            verbose = FALSE) {
   if (is.null(pythonExecutable)) {
     pythonExecutable <- reticulate::py_exe()
     #fallback if reticulate fails
@@ -341,9 +514,9 @@ FormatMetadataForTcrDist3 <- function(metadata,
   Sys.chmod(script, mode = "755")
   system(paste("chmod 755", dirname(script)))
   #execute
-  print(paste("Python executable:", pythonExecutable))  # Debug
+  if (verbose) message("Python executable: ", pythonExecutable)
   result <- system2(pythonExecutable, script, stdout = TRUE, stderr = TRUE)
-  cat(result) #debugging
+  if (verbose) cat(result) 
   #check that the gene segments file is created
   if (!file.exists(outputFilePath)) {
     stop("tcrdist3_gene_segments.txt generation failed. Check Python script execution.")
@@ -395,9 +568,9 @@ FormatMetadataForTcrDist3 <- function(metadata,
   }
   m <- as.matrix(Seurat::GetAssayData(seuratObj_TCR, assay = assay, layer = "counts"))
   cluster_info <- factor(cluster_info)
-  
+
   if (annotate_clusters) {
-    col_annotation <- HeatmapAnnotation(
+    col_annotation <- ComplexHeatmap::HeatmapAnnotation(
       cluster = cluster_info,
       col = list(cluster = cluster_colors),
       show_annotation_name = FALSE,
@@ -405,15 +578,15 @@ FormatMetadataForTcrDist3 <- function(metadata,
       which = "column",
       show_legend = TRUE
     )
-    
-    row_annotation <- rowAnnotation(
+
+    row_annotation <- ComplexHeatmap::rowAnnotation(
       cluster = cluster_info,
       col     = list(cluster = cluster_colors),
       show_annotation_name = FALSE,
       show_legend          = FALSE
     )
-    
-    Heatmap(
+
+    ComplexHeatmap::Heatmap(
       m,
       name               = assay,
       column_title       = assay,
@@ -432,7 +605,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
       show_row_names       = FALSE
     )
   } else {
-    Heatmap(
+    ComplexHeatmap::Heatmap(
       m,
       name               = assay,
       column_title       = assay,
@@ -443,7 +616,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
       show_heatmap_legend = TRUE,
       show_column_names    = FALSE,
       show_row_names       = FALSE
-    ) 
+    )
   }
 }
 
@@ -477,25 +650,25 @@ TCRDistanceHeatmaps <- function(
   if (is.null(seuratObj_TCR)) {
     stop("Please provide a Seurat Object with TCR distance assays.")
   }
-  
+
   assays_to_use <- if (is.null(assayList)) {
     SeuratObject::Assays(seuratObj_TCR)
   } else {
     assayList
   }
-  
+
   heatmaps <- list()
-  
+
   for (assay in assays_to_use) {
     distance_matrix <- as.matrix(Seurat::GetAssayData(seuratObj_TCR, assay = assay, layer = "counts"))
-    
+
     # Find metadata column from clustering pipeline
     cluster_column <- paste0("TcrClustR_", assay, "_", resolution)
     if (!(cluster_column %in% colnames(seuratObj_TCR@meta.data))) {
       message(paste("Skipping", assay, "- no", cluster_column))
       next
     }
-    
+
     # Cluster metadata is an array of assay_size x n_assay, so iterate and slice
     # the correct portion of that array
     full_cluster_info <- seuratObj_TCR@meta.data[[cluster_column]]
@@ -506,7 +679,7 @@ TCRDistanceHeatmaps <- function(
       assay_start_index <- assay_start_index + ncol(Seurat::GetAssayData(seuratObj_TCR, assay = a, layer = "counts"))
     }
     assay_end_index <- assay_start_index + n_cells_in_assay - 1
-    
+
     cluster_info <- full_cluster_info[assay_start_index:assay_end_index]
     cluster_info <- as.factor(cluster_info)
     cluster_levels <- levels(cluster_info)
@@ -520,24 +693,25 @@ TCRDistanceHeatmaps <- function(
       },
       cluster_levels
     )
-    
+
     # Get a ComplexHeatmap
     heatmap_obj <- .TCRDistanceHeatmap(seuratObj_TCR, assay, cluster_info, cluster_colors, annotate_clusters)
     drawn_heatmap <- draw(heatmap_obj, merge_legend = FALSE, heatmap_legend_side = "right", annotation_legend_side = "right", newpage = FALSE)
-    
+
     if (!is.null(drawn_heatmap)) {
       heatmaps[[assay]] <- drawn_heatmap
     }
   }
-  
+
   # Composite with patchwork
-  combined_heatmaps <- wrap_plots(lapply(heatmaps, function(hm) grid.grabExpr(draw(hm))), ncol = 1)
-  
+  combined_heatmaps <- patchwork::wrap_plots(lapply(heatmaps, function(hm) grid.grabExpr(draw(hm))), ncol = 1)
+
   final_plot <- combined_heatmaps +
-    plot_annotation(title = "TCR Similarity", theme = theme(plot.title = element_text(size = 16, face = "bold", hjust = 0.5)))
-  
+    patchwork::plot_annotation(title = "TCR Similarity",
+                               theme = theme(plot.title = element_text(size = 16, face = "bold", hjust = 0.5)))
+
   print(final_plot)
-  
+
   return(final_plot)
 }
 
@@ -568,13 +742,13 @@ TCRDistanceHistograms <- function(
   if (is.null(seuratObj_TCR)) {
     stop("Please provide a Seurat object with TCR distance assays.")
   }
-  
+
   assays <- if (is.null(assayList)) {
     SeuratObject::Assays(seuratObj_TCR)
   } else {
     assayList
   }
-  
+
   # precompute how many cells each assay has
   cell_counts <- setNames(
     vapply(assays, function(a) {
@@ -582,39 +756,39 @@ TCRDistanceHistograms <- function(
     }, integer(1)),
     assays
   )
-  
+
   # compute start/end indices for slicing the metadata vector
   starts <- cumsum(c(1, head(cell_counts, -1)))
   ends   <- cumsum(cell_counts)
-  
+
   plots <- list()
   for (i in seq_along(assays)) {
     assay <- assays[i]
     cluster_col <- paste0("TcrClustR_", assay, "_", resolution)
-    
+
     if (!(cluster_col %in% colnames(seuratObj_TCR@meta.data))) {
       message("Skipping ", assay, ": no metadata column ", cluster_col)
       next
     }
-    
+
     dist_mat  <- as.matrix(Seurat::GetAssayData(
       seuratObj_TCR, assay = assay, layer = "counts"
     ))
-    
+
     # slice the full clustering vector down to this assay
     full_info    <- seuratObj_TCR@meta.data[[cluster_col]]
     cluster_info <- factor(full_info[starts[i]:ends[i]])
-    
+
     # Build palette
     n_clust <- length(levels(cluster_info))
     pal     <- RColorBrewer::brewer.pal(min(n_clust, 8), "Set2")
     cl_cols <- setNames(pal, levels(cluster_info))
-    
+
     df <- data.frame(
       DistanceSum = rowSums(dist_mat),
       Cluster     = cluster_info
     )
-    
+
     p <- ggplot(df, aes(x = DistanceSum, fill = Cluster)) +
       geom_histogram(bins = 50, color = "black") +
       scale_fill_manual(values = cl_cols) +
@@ -632,16 +806,16 @@ TCRDistanceHistograms <- function(
         strip.text      = element_text(face = "bold"),
         legend.position = "none"
       )
-    
+
     plots[[assay]] <- p
   }
-  
+
   if (length(plots) == 0) {
     stop("No assays with the requested clustering metadata were found.")
   }
-  
-  combined <- wrap_plots(plots, ncol = 1)
+
+  combined <- patchwork::wrap_plots(plots, ncol = 1)
   print(combined)
-  
+
   return(combined)
 }

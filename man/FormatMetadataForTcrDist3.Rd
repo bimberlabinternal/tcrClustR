@@ -15,7 +15,8 @@ FormatMetadataForTcrDist3(
   minimumClonesPerSubject = 100,
   writeUnannotatedGeneSegmentsToFile = T,
   spikeInDataframe = NULL,
-  pythonExecutable = NULL
+  pythonExecutable = NULL,
+  verbose = FALSE
 )
 }
 \arguments{
@@ -40,6 +41,8 @@ FormatMetadataForTcrDist3(
 \item{spikeInDataframe}{Data frame containing spike-in data. Default is NULL. See examples for formatting requirements.}
 
 \item{pythonExecutable}{Path to the python executable. Default is NULL, but imputes to reticulate::py_exe().}
+
+\item{verbose}{Boolean controlling whether to display processing steps. Default is FALSE.}
 }
 \value{
 a properly formatted metadata dataframe.
