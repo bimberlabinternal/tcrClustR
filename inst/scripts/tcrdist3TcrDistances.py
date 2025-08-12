@@ -60,15 +60,40 @@ def getTcrDistances(csv_path,
         In such a case, you can specify df and df2 arguments to create a non-square matrix of distances.
         See https://tcrdist3.readthedocs.io/en/latest/sparsity.html?highlight=sparse for more info.
     '''
-    #TODO part two: for now, we'll just bypass the warning and compute the pairwise distances in a dense array. 
-    if tr.pw_beta.shape[0] > 10000:
-       TCRrep.compute_distances()
-    return {
-        'pw_alpha': tr.pw_alpha,
-        'pw_beta': tr.pw_beta,
-        'pw_cdr3_a_aa': tr.pw_cdr3_a_aa,
-        'pw_cdr3_b_aa': tr.pw_cdr3_b_aa
+    #TODO part two: for now, we'll just bypass the warning and compute the pairwise distances in a dense array.
+    #check that the distances are fully pairwise 'pw' and not 'rw's, error out otherwise
+    sample_attr = None
+    for chain in chains:
+        attr_name = f'pw_{chain}'
+        if hasattr(tr, attr_name):
+            sample_attr = getattr(tr, attr_name)
+            break
+    
+    if sample_attr is not None and sample_attr.shape[0] > 10000:
+       tr.compute_distances()
+    
+    #build the expected return dict dynamically based on available chains and distance matrices
+    result = {}
+    for chain in chains:
+        attr_name = f'pw_{chain}'
+        if hasattr(tr, attr_name):
+            result[attr_name] = getattr(tr, attr_name)
+    
+    #look-up table for chain to attribute name mapping for CDR3-only distances
+    chain_mapping = {
+        'alpha': 'pw_cdr3_a_aa',
+        'beta': 'pw_cdr3_b_aa', 
+        'gamma': 'pw_cdr3_g_aa',
+        'delta': 'pw_cdr3_d_aa'
     }
+    #add the CDR3-only amino acid distance matrices to the result dict
+    for chain in chains:
+        if chain in chain_mapping:
+            attr_name = chain_mapping[chain]
+            if hasattr(tr, attr_name):
+                result[attr_name] = getattr(tr, attr_name)
+    
+    return result
 
 def writeTcrDistances(csv_path, 
                       organism='human', 
@@ -88,10 +113,12 @@ def writeTcrDistances(csv_path,
     base = importr('base')
     #context manager to handle numpy <-> R conversion
     with localconverter(default_converter + numpy2ri.converter):
-        base.saveRDS(distances['pw_alpha'], os.path.join(rds_output_path, 'pw_alpha.rds'))
-        base.saveRDS(distances['pw_beta'], os.path.join(rds_output_path, 'pw_beta.rds'))
-        base.saveRDS(distances['pw_cdr3_a_aa'], os.path.join(rds_output_path, 'pw_cdr3_a_aa.rds'))
-        base.saveRDS(distances['pw_cdr3_b_aa'], os.path.join(rds_output_path, 'pw_cdr3_b_aa.rds'))
+        #save all available distance matrices, which were constructed in the return of getTcrDistances
+        for matrix_name, matrix_data in distances.items():
+            output_file = os.path.join(rds_output_path, f'{matrix_name}.rds')
+            base.saveRDS(matrix_data, output_file)
+            if debug:
+                print(f"Saved {matrix_name} to {output_file}")
    
 #this file serves as a template. tcrDist3Wrapper.R will copy this function, add a string with arguments to the end, and then call the whole file. 
 

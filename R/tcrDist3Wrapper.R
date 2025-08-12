@@ -22,7 +22,8 @@ utils::globalVariables(
 #' @param rdsOutputPath Path to the output directory for the RDS files containing the distance matrices. Default is "./tcrdist3DistanceMatrices/".
 #' @param pythonExecutable Path to the python executable. Default is reticulate::py_exe().
 #' @param debugTcrdist3 String (to be passed to python and converted to boolean) controlling whether to run tcrdist3 in debug mode. Default is "True".
-#'
+#' @param verbose Boolean controlling whether to display processing steps. Default is FALSE.
+#' @import Matrix
 #'@examples
 #'\dontrun{
 #'   RunTcrdist3(seuratObj = seuratObj,
@@ -36,7 +37,8 @@ utils::globalVariables(
 #'               minimumClonesPerSubject = 2,
 #'               rdsOutputPath = "./tcrdist3DistanceMatrices/",
 #'               pythonExecutable = reticulate::py_exe(),
-#'               debugTcrdist3 = "True")
+#'               debugTcrdist3 = "True",
+#'               verbose = FALSE)
 #'
 #'     spikeInDataframe <- data.frame(CloneNames = rep(1:3),
 #'                                  TRA_V = c("TRAV1-2", "TRAV1-2", "TRAV1-2"),
@@ -65,7 +67,8 @@ RunTcrdist3 <- function(seuratObj = NULL,
                         minimumClonesPerSubject = 2,
                         rdsOutputPath = "./tcrdist3DistanceMatrices/",
                         pythonExecutable = NULL,
-                        debugTcrdist3 = "True") {
+                        debugTcrdist3 = "True",
+                        verbose = FALSE) {
   #TODO: allow for more direct control of all of the files that will be written
   #FormatMetadata can write several different kinds of files (filtered gene segments, database)
   #a "metadata directory" is probably the cleanest way to organize those files.
@@ -90,8 +93,9 @@ RunTcrdist3 <- function(seuratObj = NULL,
                                           summarizeClones = summarizeClones,
                                           imputeCloneNames = imputeCloneNames,
                                           minimumClonesPerSubject = minimumClonesPerSubject,
-                                          spikeInDataframe = spikeInDataframe, 
-                                          pythonExecutable = pythonExecutable)
+                                          spikeInDataframe = spikeInDataframe,
+                                          pythonExecutable = pythonExecutable,
+                                          verbose = verbose)
 
   }
 
@@ -130,7 +134,7 @@ RunTcrdist3 <- function(seuratObj = NULL,
   if (!dir.exists(rdsOutputPath)) {
     dir.create(rdsOutputPath)
   }
-  print(paste0("Creating tcrdist3 distance matrices in the following directory: ", rdsOutputPath))
+  if (verbose) message("Creating tcrdist3 distance matrices in the following directory: ", rdsOutputPath)
   #format and write the python function to the end of the script
   command <- paste0("writeTcrDistances(csv_path = '", postFormattingMetadataCsvPath,
                    "', organism = '", organism,
@@ -144,6 +148,8 @@ RunTcrdist3 <- function(seuratObj = NULL,
   system2(pythonExecutable, script)
 
   #return a seurat object, with the distance matrices implemented as assays
+  seuratObj_TCR <- NULL
+
   for (chain in chains) {
     #read the RDS file
     if (chain == "TRA") {
@@ -156,6 +162,7 @@ RunTcrdist3 <- function(seuratObj = NULL,
       chain_tcrdist3 <- "delta"
     } else {
       warning(paste0("Chain Type ", chain, " not recognized. Skipping."))
+      next
     }
     #process the full length TCR distance matrix
     rdsFile <- paste0(rdsOutputPath, "/pw_", chain_tcrdist3, ".rds")
@@ -163,8 +170,8 @@ RunTcrdist3 <- function(seuratObj = NULL,
       stop(paste0("Pairwise 'full' tcrdist3 distance matrix RDS file not found: ", rdsFile))
     }
     distanceMatrix_full_length <- readRDS(rdsFile)
-    colnames(distanceMatrix_full_length) <- paste0(chain, "_", seq_along(1:ncol(distanceMatrix_full_length)))
-    rownames(distanceMatrix_full_length) <- paste0(chain, "_", seq_along(1:nrow(distanceMatrix_full_length)))
+    colnames(distanceMatrix_full_length) <- paste0(chain, "_", seq_len(ncol(distanceMatrix_full_length)))
+    rownames(distanceMatrix_full_length) <- paste0(chain, "_", seq_len(nrow(distanceMatrix_full_length)))
 
     #process the CDR3 only TCR distance matrix
     #grab the first letter of the chain (distance matrices for the cdr3 are stored as "pw_cdr3_b_aa.rds" for a beta chain)
@@ -174,26 +181,27 @@ RunTcrdist3 <- function(seuratObj = NULL,
       stop(paste0("Pairwise CDR3 tcrdist3 distance matrix RDS file not found: ", rdsFile))
     }
     distanceMatrix_CDR3 <- readRDS(rdsFile)
-    colnames(distanceMatrix_CDR3) <- paste0(chain, "_", seq_along(1:ncol(distanceMatrix_CDR3)), "_cdr3")
-    rownames(distanceMatrix_CDR3) <- paste0(chain, "_", seq_along(1:nrow(distanceMatrix_CDR3)), "_cdr3")
+    colnames(distanceMatrix_CDR3) <- paste0(chain, "_", seq_len(ncol(distanceMatrix_CDR3)), "_cdr3")
+    rownames(distanceMatrix_CDR3) <- paste0(chain, "_", seq_len(nrow(distanceMatrix_CDR3)), "_cdr3")
 
     #add the distance matrices to the Seurat object
-    if (!exists("seuratObj_TCR")){
-      seuratObj_TCR <- SeuratObject::CreateSeuratObject(counts = distanceMatrix_full_length,
+    if (is.null(seuratObj_TCR)){
+      seuratObj_TCR <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_full_length, "dgCMatrix"),
                                                         assay =  chain)
-      #TODO: linked TODO with L231 in tcrdistUtils.R, this currently only works for joint TRA+TRBs.
       seuratObj_TCR <- Seurat::AddMetaData(seuratObj_TCR, metadata = formatted_metadata)
-      seuratObj_TCR_CDR3 <- SeuratObject::CreateSeuratObject(counts = distanceMatrix_CDR3, assay = paste0(chain, "_cdr3"))
+      seuratObj_TCR_CDR3 <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_CDR3, "dgCMatrix"),
+                                                             assay = paste0(chain, "_cdr3"))
       seuratObj_TCR_CDR3 <- Seurat::AddMetaData(seuratObj_TCR_CDR3, metadata = formatted_metadata)
-      seuratObj_TCR <- merge(seuratObj_TCR, seuratObj_TCR_CDR3)
+      seuratObj_TCR <- SeuratObject:::merge.Seurat(seuratObj_TCR, seuratObj_TCR_CDR3)
     } else {
-      seuratObj_TCR_subsequentChain <- SeuratObject::CreateSeuratObject(counts = distanceMatrix_full_length,
+      seuratObj_TCR_subsequentChain <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_full_length, "dgCMatrix"),
                                                                         assay =  chain)
       seuratObj_TCR_subsequentChain <- Seurat::AddMetaData(seuratObj_TCR_subsequentChain, metadata = formatted_metadata)
-      seuratObj_TCR_CDR3_subsequentChain <- SeuratObject::CreateSeuratObject(counts = distanceMatrix_CDR3, assay = paste0(chain, "_cdr3"))
+      seuratObj_TCR_CDR3_subsequentChain <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_CDR3, "dgCMatrix"),
+                                                                             assay = paste0(chain, "_cdr3"))
       seuratObj_TCR_CDR3_subsequentChain <- Seurat::AddMetaData(seuratObj_TCR_CDR3_subsequentChain, metadata = formatted_metadata)
-      seuratObj_TCR_subsequentChain <- merge(seuratObj_TCR_subsequentChain, seuratObj_TCR_CDR3_subsequentChain)
-      seuratObj_TCR <- merge(seuratObj_TCR, seuratObj_TCR_subsequentChain)
+      seuratObj_TCR_subsequentChain <- SeuratObject:::merge.Seurat(seuratObj_TCR_subsequentChain, seuratObj_TCR_CDR3_subsequentChain)
+      seuratObj_TCR <- SeuratObject:::merge.Seurat(seuratObj_TCR, seuratObj_TCR_subsequentChain)
     }
   }
   return(seuratObj_TCR)
