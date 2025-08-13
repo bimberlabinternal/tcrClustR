@@ -16,6 +16,7 @@ RunTcrdist3(
   summarizeClones = T,
   imputeCloneNames = T,
   minimumClonesPerSubject = 2,
+  multichain = FALSE,
   rdsOutputPath = "./tcrdist3DistanceMatrices/",
   pythonExecutable = NULL,
   debugTcrdist3 = "True",
@@ -45,6 +46,8 @@ RunTcrdist3(
 
 \item{minimumClonesPerSubject}{Minimum number of clones per subject to include in the analysis. Default is 2.}
 
+\item{multichain}{Boolean controlling whether to compute joint multi-chain distance matrices for observed chain combinations. Default is FALSE.}
+
 \item{rdsOutputPath}{Path to the output directory for the RDS files containing the distance matrices. Default is "./tcrdist3DistanceMatrices/".}
 
 \item{pythonExecutable}{Path to the python executable. Default is reticulate::py_exe().}
@@ -62,15 +65,22 @@ This function runs the tcrdist3 pipeline on a set of CDR3 sequences in a Seurat 
               metadata = NULL,
               formatMetadata = T,
               postFormattingMetadataCsvPath = './tcrDist3Input.csv',
-              chainsString = "alpha,beta",
+              chains = c("TRA", "TRB"),
               cleanMetadata = T,
               summarizeClones = T,
               imputeCloneNames = T,
               minimumClonesPerSubject = 2,
+              multichain = FALSE,
               rdsOutputPath = "./tcrdist3DistanceMatrices/",
               pythonExecutable = reticulate::py_exe(),
               debugTcrdist3 = "True",
               verbose = FALSE)
+
+  # Example with multichain analysis
+  RunTcrdist3(seuratObj = seuratObj,
+              chains = c("TRA", "TRB", "TRG", "TRD"),
+              multichain = TRUE,
+              verbose = TRUE)
 
     spikeInDataframe <- data.frame(CloneNames = rep(1:3),
                                  TRA_V = c("TRAV1-2", "TRAV1-2", "TRAV1-2"),

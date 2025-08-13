@@ -19,6 +19,7 @@ utils::globalVariables(
 #' @param summarizeClones Pass-through boolean controlling whether to summarize clones into a frequency (by SubjectId, TRA, TRB, TRA_V, and TRB_J). Default is TRUE.
 #' @param imputeCloneNames Pass-through boolean controlling whether to impute clone names if they are missing. Existing clone names will be inherited. Default is TRUE.
 #' @param minimumClonesPerSubject Minimum number of clones per subject to include in the analysis. Default is 2.
+#' @param multichain Boolean controlling whether to compute joint multi-chain distance matrices for observed chain combinations. Default is FALSE.
 #' @param rdsOutputPath Path to the output directory for the RDS files containing the distance matrices. Default is "./tcrdist3DistanceMatrices/".
 #' @param pythonExecutable Path to the python executable. Default is reticulate::py_exe().
 #' @param debugTcrdist3 String (to be passed to python and converted to boolean) controlling whether to run tcrdist3 in debug mode. Default is "True".
@@ -30,15 +31,22 @@ utils::globalVariables(
 #'               metadata = NULL,
 #'               formatMetadata = T,
 #'               postFormattingMetadataCsvPath = './tcrDist3Input.csv',
-#'               chainsString = "alpha,beta",
+#'               chains = c("TRA", "TRB"),
 #'               cleanMetadata = T,
 #'               summarizeClones = T,
 #'               imputeCloneNames = T,
 #'               minimumClonesPerSubject = 2,
+#'               multichain = FALSE,
 #'               rdsOutputPath = "./tcrdist3DistanceMatrices/",
 #'               pythonExecutable = reticulate::py_exe(),
 #'               debugTcrdist3 = "True",
 #'               verbose = FALSE)
+#'
+#'   # Example with multichain analysis
+#'   RunTcrdist3(seuratObj = seuratObj,
+#'               chains = c("TRA", "TRB", "TRG", "TRD"),
+#'               multichain = TRUE,
+#'               verbose = TRUE)
 #'
 #'     spikeInDataframe <- data.frame(CloneNames = rep(1:3),
 #'                                  TRA_V = c("TRAV1-2", "TRAV1-2", "TRAV1-2"),
@@ -65,6 +73,7 @@ RunTcrdist3 <- function(seuratObj = NULL,
                         summarizeClones = T,
                         imputeCloneNames = T,
                         minimumClonesPerSubject = 2,
+                        multichain = FALSE,
                         rdsOutputPath = "./tcrdist3DistanceMatrices/",
                         pythonExecutable = NULL,
                         debugTcrdist3 = "True",
@@ -204,11 +213,204 @@ RunTcrdist3 <- function(seuratObj = NULL,
       seuratObj_TCR <- SeuratObject:::merge.Seurat(seuratObj_TCR, seuratObj_TCR_subsequentChain)
     }
   }
+  
+  #add multichain tcrdist matrices if requested
+  if (multichain && length(chains) > 1) {
+    if (verbose) message("Computing multichain distance matrices...")
+    
+    #create joint distance matrices for observed chain combinations
+    #Note: matrices represent distances between observations (rows in formatted metadata)
+    #that have information for both chains in the combination
+    chain_combinations <- utils::combn(chains, 2, simplify = FALSE)
+    
+    for (combo in chain_combinations) {
+      chain1 <- combo[1]
+      chain2 <- combo[2]
+      
+      #skip identical chains (trivial case)
+      if (chain1 == chain2) {
+        if (verbose) message(paste("Skipping", chain1, "+", chain2, "combination - identical chains"))
+        next
+      }
+      
+      #sanity check to make sure the assays exist before pulling
+      if (!chain1 %in% SeuratObject::Assays(seuratObj_TCR) || 
+          !chain2 %in% SeuratObject::Assays(seuratObj_TCR)) {
+        if (verbose) message(paste("Skipping", chain1, "+", chain2, "combination - matrices not found"))
+        next
+      }
+      
+      #get distance matrices for both chains
+      dist_matrix1 <- SeuratObject::GetAssayData(seuratObj_TCR, assay = chain1, slot = "counts")
+      dist_matrix2 <- SeuratObject::GetAssayData(seuratObj_TCR, assay = chain2, slot = "counts")
+      
+      if (verbose) {
+        message(paste("Matrix dimensions for", chain1, ":", nrow(dist_matrix1), "x", ncol(dist_matrix1)))
+        message(paste("Matrix dimensions for", chain2, ":", nrow(dist_matrix2), "x", ncol(dist_matrix2)))
+      }
+      
+      #for different-sized matrices (almost certainly the case), identify observations with both chains
+      #read the formatted metadata to map sequence indices to observations
+      if (!exists("formatted_metadata_for_mapping")) {
+        if (file.exists(postFormattingMetadataCsvPath)) {
+          formatted_metadata_for_mapping <- readr::read_csv(postFormattingMetadataCsvPath, show_col_types = FALSE)
+        } else {
+          if (verbose) message("Warning: Cannot create multichain matrices - formatted metadata file not found")
+          next
+        }
+      }
+      
+      #whole-dataset chain pairing vectors
+      # Map chain names to tcrdist3 column names
+      chain1_col <- NULL
+      chain2_col <- NULL
+      
+      if (chain1 == "TRA") {
+        chain1_col <- "cdr3_a_aa"
+      } else if (chain1 == "TRB") {
+        chain1_col <- "cdr3_b_aa"
+      } else if (chain1 == "TRG") {
+        chain1_col <- "cdr3_g_aa"
+      } else if (chain1 == "TRD") {
+        chain1_col <- "cdr3_d_aa"
+      }
+      
+      if (chain2 == "TRA") {
+        chain2_col <- "cdr3_a_aa"
+      } else if (chain2 == "TRB") {
+        chain2_col <- "cdr3_b_aa"
+      } else if (chain2 == "TRG") {
+        chain2_col <- "cdr3_g_aa"
+      } else if (chain2 == "TRD") {
+        chain2_col <- "cdr3_d_aa"
+      }
+      
+      if (is.null(chain1_col) || is.null(chain2_col)) {
+        if (verbose) message(paste("Skipping", chain1, "+", chain2, "combination - unsupported chain types"))
+        next
+      }
+      
+      if (!chain1_col %in% colnames(formatted_metadata_for_mapping) || 
+          !chain2_col %in% colnames(formatted_metadata_for_mapping)) {
+        if (verbose) message(paste("Skipping", chain1, "+", chain2, "combination - chain columns not found in metadata"))
+        if (verbose) message(paste0("Looking for columns: ", chain1_col, ", ", chain2_col))
+        if (verbose) message(paste0("Available columns: ", paste(colnames(formatted_metadata_for_mapping), collapse = ", ")))
+        next
+      }
+      
+      #find rows (cells) that have non-NA values for both chains
+      both_chains_present <- !is.na(formatted_metadata_for_mapping[[chain1_col]]) & 
+                            !is.na(formatted_metadata_for_mapping[[chain2_col]]) &
+                            formatted_metadata_for_mapping[[chain1_col]] != "" &
+                            formatted_metadata_for_mapping[[chain2_col]] != ""
+      
+      if (sum(both_chains_present) == 0) {
+        if (verbose) message(paste("Skipping", chain1, "+", chain2, "combination - no observations with both chains"))
+        next
+      }
+      
+      #get the subset of metadata with both chains and set the dimensions of the joint matrix
+      dual_chain_metadata <- formatted_metadata_for_mapping[both_chains_present, ]
+      n_observations <- nrow(dual_chain_metadata)
+      
+      if (verbose) message(paste("Found", n_observations, "observations with both", chain1, "and", chain2))
+      
+      #create unique sequence mappings for each chain
+      #each chain's distance matrix rows/cols correspond to unique sequences in that chain
+      chain1_sequences <- unique(dual_chain_metadata[[chain1_col]])
+      chain2_sequences <- unique(dual_chain_metadata[[chain2_col]])
+      
+      #create mapping from sequences to matrix indices
+      chain1_seq_to_idx <- setNames(seq_along(chain1_sequences), chain1_sequences)
+      chain2_seq_to_idx <- setNames(seq_along(chain2_sequences), chain2_sequences)
+      
+      #create all possible matrix combinations (full + CDR3) for this chain pair
+      #this allows for mixed comparisons like full TRA + CDR3 TRB
+      
+      #init available matrix types for each chain
+      chain1_matrices <- list()
+      chain2_matrices <- list()
+      
+      #add full-length matrices
+      chain1_matrices[[chain1]] <- dist_matrix1
+      chain2_matrices[[chain2]] <- dist_matrix2
+      
+      #add CDR3 matrices (if they exist)
+      cdr3_assay1 <- paste0(chain1, "_cdr3")
+      cdr3_assay2 <- paste0(chain2, "_cdr3")
+      
+      if (cdr3_assay1 %in% SeuratObject::Assays(seuratObj_TCR)) {
+        chain1_matrices[[paste0(chain1, "_cdr3")]] <- SeuratObject::GetAssayData(seuratObj_TCR, assay = cdr3_assay1, slot = "counts")
+      }
+      
+      if (cdr3_assay2 %in% SeuratObject::Assays(seuratObj_TCR)) {
+        chain2_matrices[[paste0(chain2, "_cdr3")]] <- SeuratObject::GetAssayData(seuratObj_TCR, assay = cdr3_assay2, slot = "counts")
+      }
+      
+      #create joint matrices for all combinations
+      for (matrix1_name in names(chain1_matrices)) {
+        for (matrix2_name in names(chain2_matrices)) {
+          
+          matrix1 <- chain1_matrices[[matrix1_name]]
+          matrix2 <- chain2_matrices[[matrix2_name]]
+          
+          #initialize joint distance matrix (observations x observations)
+          joint_matrix <- matrix(0, nrow = n_observations, ncol = n_observations)
+          
+          # for each pair of observations, compute joint distance
+          for (i in 1:n_observations) {
+            for (j in 1:n_observations) {
+              #get sequences for observation i
+              seq1_chain1 <- dual_chain_metadata[[chain1_col]][i]
+              seq1_chain2 <- dual_chain_metadata[[chain2_col]][i]
+              
+              #get sequences for observation j  
+              seq2_chain1 <- dual_chain_metadata[[chain1_col]][j]
+              seq2_chain2 <- dual_chain_metadata[[chain2_col]][j]
+              
+              #get matrix indices for these sequences
+              idx1_chain1 <- chain1_seq_to_idx[seq1_chain1]
+              idx2_chain1 <- chain1_seq_to_idx[seq2_chain1]
+              idx1_chain2 <- chain2_seq_to_idx[seq1_chain2]
+              idx2_chain2 <- chain2_seq_to_idx[seq2_chain2]
+              
+              #extract distances from matrices
+              dist_chain1 <- 0
+              dist_chain2 <- 0
+              
+              if (!is.na(idx1_chain1) && !is.na(idx2_chain1) && 
+                  idx1_chain1 <= nrow(matrix1) && idx2_chain1 <= ncol(matrix1)) {
+                dist_chain1 <- matrix1[idx1_chain1, idx2_chain1]
+              }
+              
+              if (!is.na(idx1_chain2) && !is.na(idx2_chain2) && 
+                  idx1_chain2 <= nrow(matrix2) && idx2_chain2 <= ncol(matrix2)) {
+                dist_chain2 <- matrix2[idx1_chain2, idx2_chain2]
+              }
+              
+              #fill in joint matrix
+              joint_matrix[i, j] <- dist_chain1 + dist_chain2
+            }
+          }
+          
+          #create assay name based on matrix types
+          joint_assay_name <- paste0(matrix1_name, "_", matrix2_name)
+          colnames(joint_matrix) <- paste0(joint_assay_name, "_", seq_len(ncol(joint_matrix)))
+          rownames(joint_matrix) <- paste0(joint_assay_name, "_", seq_len(nrow(joint_matrix)))
+          
+          #create separate seurat object for joint matrix 
+          seuratObj_joint <- SeuratObject::CreateSeuratObject(counts = as(joint_matrix, "dgCMatrix"),
+                                                              assay = joint_assay_name)
+          seuratObj_joint <- Seurat::AddMetaData(seuratObj_joint, metadata = dual_chain_metadata)
+          
+          #merge with main object
+          seuratObj_TCR <- SeuratObject:::merge.Seurat(seuratObj_TCR, seuratObj_joint)
+          
+          if (verbose) message(paste("Created joint distance matrix:", joint_assay_name))
+        }
+      }
+    }
+  }
+  
   return(seuratObj_TCR)
 }
-
-
-
-
-
-
