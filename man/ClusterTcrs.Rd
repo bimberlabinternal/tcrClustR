@@ -19,11 +19,11 @@ ClusterTcrs(
 )
 }
 \arguments{
-\item{seuratObj}{Seurat object containing TCR data.}
+\item{seuratObj}{Seurat object containing TCR data (optional, for downstream joining).}
 
 \item{seuratObj_TCR}{Seurat object with TCR distance matrices.}
 
-\item{metadata}{Metadata dataframe for TCR data.}
+\item{metadata}{Metadata dataframe for TCR data (optional, for downstream joining).}
 
 \item{resolutionParameter}{Resolution parameter for clustering. Default is 0.1.}
 
