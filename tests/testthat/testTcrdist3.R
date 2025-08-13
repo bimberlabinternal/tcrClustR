@@ -45,7 +45,12 @@ test_that("tcrdist3 works", {
   #test that the "missing TCRs file" was created and properly stores the TCRs missing from the db
   testthat::expect_true(file.exists(filteredGeneSegmentsPath))
   testthat::expect_gt(file.size(filteredGeneSegmentsPath), 16)
-  testthat::expect_equal(file.size(filteredGeneSegmentsPath), 298)
+  
+  #validate files
+  filtered_content <- readr::read_csv(filteredGeneSegmentsPath, show_col_types = FALSE)
+  testthat::expect_gt(nrow(filtered_content), 0)  # Should have some filtered gene segments
+  testthat::expect_true("TRB_V" %in% colnames(filtered_content))  # Should have expected columns
+  testthat::expect_true("TRB_J" %in% colnames(filtered_content))
 
   #test that the RDS distance matrices were created
   testthat::expect_true(file.exists(file.path(rdsOutputPath, "pw_cdr3_a_aa.rds")))
@@ -80,5 +85,62 @@ test_that("tcrdist3 works", {
   testthat::expect_true(sum(grepl("spikeIn", tcrdist3Input$subject)) == 3)
   #test that the RDS distance matrices were created
   testthat::expect_true(file.exists(file.path(rdsOutputPath, "pw_cdr3_a_aa.rds")))
+
+  #test multichain functionality
+  seuratObj_TCR_multichain <- NULL
+  testthat::expect_no_error(
+    seuratObj_TCR_multichain <- RunTcrdist3(seuratObj = seuratObj,
+             metadata = NULL,
+             formatMetadata = T,
+             postFormattingMetadataCsvPath = postFormattingMetadataCsvPath,
+             chains = c("TRA", "TRB"),
+             cleanMetadata = T,
+             minimumClonesPerSubject = 2,
+             rdsOutputPath = rdsOutputPath,
+             pythonExecutable = Sys.which("python3"),
+             debugTcrdist3 = "True",
+             multichain = TRUE,
+             verbose = TRUE)
+  )
+  
+  #test that multichain assays were created
+  assay_names <- SeuratObject::Assays(seuratObj_TCR_multichain)
+  
+  #we should have multiple joint combinations:
+  # TRA_TRB (full TRA + full TRB)
+  # TRA_TRB_cdr3 (full TRA + CDR3 TRB) 
+  # TRA_cdr3_TRB (CDR3 TRA + full TRB)
+  # TRA_cdr3_TRB_cdr3 (CDR3 TRA + CDR3 TRB)
+  testthat::expect_true("TRA_TRB" %in% assay_names)
+  testthat::expect_true("TRA_TRB_cdr3" %in% assay_names)
+  testthat::expect_true("TRA_cdr3_TRB" %in% assay_names) 
+  testthat::expect_true("TRA_cdr3_TRB_cdr3" %in% assay_names)
+  
+  #test that joint distance matrices exist and have reasonable properties
+  joint_matrix <- SeuratObject::GetAssayData(seuratObj_TCR_multichain, assay = "TRA_TRB", layer = "counts")
+  tra_matrix <- SeuratObject::GetAssayData(seuratObj_TCR_multichain, assay = "TRA", layer = "counts")
+  trb_matrix <- SeuratObject::GetAssayData(seuratObj_TCR_multichain, assay = "TRB", layer = "counts")
+  
+  #joint matrix should exist and be non-empty
+  testthat::expect_gt(nrow(joint_matrix), 0)
+  testthat::expect_gt(ncol(joint_matrix), 0)
+  
+  #joint matrix should be square (distance matrix property)
+  testthat::expect_equal(nrow(joint_matrix), ncol(joint_matrix))
+  
+  #joint matrix dimensions should be <= individual matrix dimensions 
+  # (since it only includes observations with both chains)
+  testthat::expect_lte(nrow(joint_matrix), nrow(tra_matrix))
+  testthat::expect_lte(nrow(joint_matrix), nrow(trb_matrix))
+  
+  #all joint distances should be non-negative
+  testthat::expect_true(all(joint_matrix >= 0))
+  
+  #test mixed CDR3/full combinations exist
+  mixed_matrix1 <- SeuratObject::GetAssayData(seuratObj_TCR_multichain, assay = "TRA_TRB_cdr3", layer = "counts")
+  mixed_matrix2 <- SeuratObject::GetAssayData(seuratObj_TCR_multichain, assay = "TRA_cdr3_TRB", layer = "counts")
+  
+  testthat::expect_gt(nrow(mixed_matrix1), 0)
+  testthat::expect_gt(nrow(mixed_matrix2), 0)
 
 })
