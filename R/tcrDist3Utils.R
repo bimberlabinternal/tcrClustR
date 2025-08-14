@@ -1,6 +1,6 @@
 
 utils::globalVariables(
-  names = c('SubjectId', 'TRA', 'TRA_V', 'TRA_J', 'TRB', 'TRB_V', 'TRB_J', 'CloneNames', 'count'),
+  names = c('SubjectId', 'TRA', 'TRA_V', 'TRA_J', 'TRB', 'TRB_V', 'TRB_J', 'CloneNames', 'count', 'Cluster', 'DistanceSum'),
   package = 'tcrClustR',
   add = TRUE
 )
@@ -516,7 +516,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
   #execute
   if (verbose) message("Python executable: ", pythonExecutable)
   result <- system2(pythonExecutable, script, stdout = TRUE, stderr = TRUE)
-  if (verbose) cat(result) 
+  if (verbose) cat(result)
   #check that the gene segments file is created
   if (!file.exists(outputFilePath)) {
     stop("tcrdist3_gene_segments.txt generation failed. Check Python script execution.")
@@ -590,7 +590,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
       m,
       name               = assay,
       column_title       = assay,
-      border_gp          = gpar(col = "black", lty = 2),
+      border_gp          = grid::gpar(col = "black", lty = 2),
       top_annotation     = col_annotation,
       left_annotation    = row_annotation,
       use_raster         = TRUE,
@@ -609,7 +609,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
       m,
       name               = assay,
       column_title       = assay,
-      border_gp          = gpar(col = "black", lty = 2),
+      border_gp          = grid::gpar(col = "black", lty = 2),
       use_raster         = TRUE,
       cluster_columns    = FALSE,
       cluster_rows       = FALSE,
@@ -704,11 +704,11 @@ TCRDistanceHeatmaps <- function(
   }
 
   # Composite with patchwork
-  combined_heatmaps <- patchwork::wrap_plots(lapply(heatmaps, function(hm) grid.grabExpr(draw(hm))), ncol = 1)
+  combined_heatmaps <- patchwork::wrap_plots(lapply(heatmaps, function(hm) grid::grid.grabExpr(draw(hm))), ncol = 1)
 
   final_plot <- combined_heatmaps +
     patchwork::plot_annotation(title = "TCR Similarity",
-                               theme = theme(plot.title = element_text(size = 16, face = "bold", hjust = 0.5)))
+                               theme = ggplot2::theme(plot.title = ggplot2::element_text(size = 16, face = "bold", hjust = 0.5)))
 
   print(final_plot)
 
@@ -725,6 +725,7 @@ TCRDistanceHeatmaps <- function(
 #' @param resolution Numeric clustering resolution matching metadata column suffix.
 #'
 #' @return Returns the patchwork object containing the TCR distance histograms.
+#' @importFrom stats setNames
 #' @export
 #' @examples
 #' \dontrun{
@@ -789,21 +790,21 @@ TCRDistanceHistograms <- function(
       Cluster     = cluster_info
     )
 
-    p <- ggplot(df, aes(x = DistanceSum, fill = Cluster)) +
-      geom_histogram(bins = 50, color = "black") +
-      scale_fill_manual(values = cl_cols) +
-      facet_wrap(~ Cluster, nrow = 1, scales = "free_y") +
-      labs(
+    p <- ggplot2::ggplot(df, ggplot2::aes(x = DistanceSum, fill = Cluster)) +
+      ggplot2::geom_histogram(bins = 50, color = "black") +
+      ggplot2::scale_fill_manual(values = cl_cols) +
+      ggplot2::facet_wrap(~ Cluster, nrow = 1, scales = "free_y") +
+      ggplot2::labs(
         title = assay,
         x     = "Summed Distances",
         y     = "# of cells"
       ) +
-      theme_minimal() +
-      theme(
-        plot.title      = element_text(size = 14, face = "bold", hjust = 0),
-        axis.title      = element_text(size = 12),
-        axis.text       = element_text(size = 10),
-        strip.text      = element_text(face = "bold"),
+      ggplot2::theme_minimal() +
+      ggplot2::theme(
+        plot.title      = ggplot2::element_text(size = 14, face = "bold", hjust = 0),
+        axis.title      = ggplot2::element_text(size = 12),
+        axis.text       = ggplot2::element_text(size = 10),
+        strip.text      = ggplot2::element_text(face = "bold"),
         legend.position = "none"
       )
 

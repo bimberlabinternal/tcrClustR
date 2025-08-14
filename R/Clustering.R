@@ -1,66 +1,125 @@
 
 utils::globalVariables(
   names = c('matrix_rowname.x', 'matrix_rowname.y', '.data', '.', 'distanceMatrix', 'combined_matrix',
-            'key', 'seed', 'seuratObj', 'spikeInDataframe'),
+            'key', 'seed', 'seuratObj'),
   package = 'tcrClustR',
   add = TRUE
 )
 
 #TODO: summarize data lossy-ness vignette.
 
+#' @title Cluster TCRs using TcrClustR
+#' @description This function clusters TCRs in a Seurat object using TcrClustR.
+#' It performs PCA or kernel PCA, computes distance matrices, and applies clustering algorithms.
+#' @param seuratObj Seurat object containing TCR data (optional, for downstream joining).
+#' @param seuratObj_TCR Seurat object with TCR distance matrices.
+#' @param metadata Metadata dataframe for TCR data (optional, for downstream joining).
+#' @param resolutionParameter Resolution parameter for clustering. Default is 0.1.
+#' @param pcaComponents Number of components for PCA or kernel PCA. Default is 50.
+#' @param kpcaKernel Kernel type for kernel PCA. Default is "rbfdot". Ignored if usePCA is TRUE.
+#' @param usePCA Boolean indicating whether to use standard PCA instead of kernel PCA. Default is TRUE.
+#' @param proportionOfGraphAsNeighbors Proportion of the graph to consider as neighbors. Default is 0.1.
+#' @param jaccardIndexThreshold Jaccard index threshold for pruning edges. Default is 0.1.
+#' @param seed Random seed for reproducibility. Default is 1234.
+#' @param computeMultiChain Boolean indicating whether to compute multi-chain graphs. Default is TRUE.
+#' @return A list containing single-chain and multi-chain Seurat objects with clustering results.
+
+
 ClusterTcrs <- function(seuratObj = NULL,
                         seuratObj_TCR = NULL,
                         metadata = NULL,
                         resolutionParameter = 0.1,
-                        kpcaComponents = 50,
+                        pcaComponents = 50,
                         kpcaKernel = "rbfdot",
+                        usePCA = TRUE,
                         proportionOfGraphAsNeighbors = 0.1,
                         jaccardIndexThreshold = 0.1,
                         seed = 1234,
-                        spikeInDataframe =  NULL,
                         computeMultiChain = T) {
 
   #perform leiden clustering on the single chain distance matrices, create the multichain distance matrices, and cluster them.
   clusteredSeuratObjects <- .DistanceMatrixToClusteredGraphs(seuratObj_TCR = seuratObj_TCR,
-                                                             kpcaComponents = kpcaComponents,
+                                                             pcaComponents = pcaComponents,
                                                              kpcaKernel = kpcaKernel,
+                                                             usePCA = usePCA,
                                                              proportionOfGraphAsNeighbors = proportionOfGraphAsNeighbors,
-                                                             jaccardIndexThreshold = jaccardIndexThreshold)
+                                                             jaccardIndexThreshold = jaccardIndexThreshold,
+                                                             seed = seed,
+                                                             computeMultiChain = computeMultiChain)
+
+  #filter out NULL objects to prevent assay access errors when iterating
+  clusteredSeuratObjects <- clusteredSeuratObjects[!sapply(clusteredSeuratObjects, is.null)]
+
   #Parse the single chain and multi-chain seurat objects, iterate through the assays, and assign cells in the original seuratObj to various clusters
   for (tcr_object in clusteredSeuratObjects) {
     for (assay in SeuratObject::Assays(tcr_object)) {
       print(assay)
-      #detect multichain assays
-      if (!grepl("_", assay)) {
-        #parse out the group_by_variables
+      #detect multichain assays vs single chain assays
+      #single chain: "TRA", "TRB", "TRA_cdr3", "TRB_cdr3" etc.
+      #multi chain: "TRA_TRB", "TRA_TRB_cdr3", "TRA_cdr3_TRB", "TRA_cdr3_TRB_cdr3" etc.
+      #count the number of TCR chain identifiers in the assay name
+      parts <- strsplit(assay, "_")[[1]]
+      chain_count <- sum(parts %in% c("TRA", "TRB", "TRG", "TRD"))
+      is_single_chain <- chain_count == 1
+
+      if (is_single_chain) {
+        #parse out the group_by_variables for single chain
         group_by_variables <- c()
-        if (endsWith(assay, "CDR3")) {
-          group_by_variables <- gsub("CDR3", "", assay)
+        if (endsWith(assay, "_cdr3")) {
+          #CDR3-only assay: extract chain type
+          chain_type <- gsub("_cdr3$", "", assay)
+          group_by_variables <- chain_type
         } else {
-          assayname <- gsub("CDR3", "", assay)
-          group_by_variables <- c(paste0(assayname, "_V"), paste0(assayname, "_J"), assayname)
+          #full chain assay: V/J/CDR3
+          group_by_variables <- c(paste0(assay, "_V"), paste0(assay, "_J"), assay)
         }
-        print(paste0("single chain assay:", assay))
+        print(paste0("single chain assay: ", assay))
         print(group_by_variables)
-        singleChainMetadata <- tcr_object@meta.data
+
       } else {
-        #parse out the group_by_variables
+        #parse out the group_by_variables for multi-chain
+        #multichain assays are concatenated like "TRA_TRB", "TRA_TRB_cdr3", "TRA_cdr3_TRB", "TRA_cdr3_TRB_cdr3"
         group_by_variables <- c()
-        chains <- strsplit(assay, "_")[[1]]
-        for (chain in chains) {
-          if (endsWith(chain, "CDR3")) {
-            group_by_variables <- c(group_by_variables, gsub("CDR3", "", chain))
+
+        #split by underscore and reconstruct chain identifiers
+        parts <- strsplit(assay, "_")[[1]]
+        chains <- c()
+
+        #parse the parts to identify individual chains
+        i <- 1
+        while (i <= length(parts)) {
+          if (i < length(parts) && parts[i+1] == "cdr3") {
+            #this is a CDR3-only chain like "TRA_cdr3"
+            chains <- c(chains, paste0(parts[i], "_cdr3"))
+            i <- i + 2
+          } else if (parts[i] %in% c("TRA", "TRB", "TRG", "TRD")) {
+            #this is a full chain
+            chains <- c(chains, parts[i])
+            i <- i + 1
           } else {
-            chain_name <- gsub("CDR3", "", chain)
-            group_by_variables <- c(group_by_variables, paste0(chain_name, "_V"), paste0(chain_name, "_J"), gsub("CDR3", "", chain_name))
+            #skip unrecognized parts
+            i <- i + 1
           }
         }
-        print(paste0("multichain assay:", chains))
+
+        #build group_by_variables for each chain
+        for (chain in chains) {
+          if (endsWith(chain, "_cdr3")) {
+            #CDR3-only chain
+            chain_type <- gsub("_cdr3$", "", chain)
+            group_by_variables <- c(group_by_variables, chain_type)
+          } else {
+            #full chain with V/J/CDR3
+            group_by_variables <- c(group_by_variables, paste0(chain, "_V"), paste0(chain, "_J"), chain)
+          }
+        }
+        print(paste0("multichain assay: ", assay, " -> chains: ", paste(chains, collapse = ", ")))
         print(group_by_variables)
       }
     }
 
   }
+  return(clusteredSeuratObjects)
 }
 
 
@@ -69,26 +128,33 @@ ClusterTcrs <- function(seuratObj = NULL,
 #' @description
 #' This function takes a Seurat object with TCR distance matrices and computes clustered graphs for each chain.
 #' @param seuratObj_TCR Seurat object containing TCR distance matrices.
-#' @param kpcaComponents Number of components for kernel PCA. Default is 50.
-#' @param kpcaKernel Kernel type for kernel PCA. Default is "rbfdot".
+#' @param pcaComponents Number of components for PCA or kernel PCA. Default is 50.
+#' @param kpcaKernel Kernel type for kernel PCA. Default is "rbfdot". Ignored if usePCA is TRUE.
+#' @param usePCA Boolean indicating whether to use standard PCA instead of kernel PCA. Default is TRUE.
 #' @param partitionType Type of partitioning algorithm to use. Default is "CPMVertexPartition".
 #' @param proportionOfGraphAsNeighbors Proportion of the graph to consider as neighbors. Default is 0.1.
 #' @param jaccardIndexThreshold Jaccard index threshold for pruning edges. Default is 0.1.
 #' @param resolutions Vector of resolution parameters for clustering. Default is c(0.1, 0.2, 0.3).
+#' @param seed Random seed for reproducibility. Default is 1234.
 #' @param computeMultiChain Boolean indicating whether to compute multi-chain graphs. Default is TRUE.
 #' @return Single Chain and multi-chain Seurat objects
 
 .DistanceMatrixToClusteredGraphs <- function(seuratObj_TCR = NULL,
-                                             kpcaComponents = 50,
+                                             pcaComponents = 50,
                                              kpcaKernel = "rbfdot",
+                                             usePCA = TRUE,
                                              partitionType = "CPMVertexPartition",
                                              proportionOfGraphAsNeighbors = 0.1,
                                              jaccardIndexThreshold = 0.1,
                                              resolutions = c(0.1, 0.2, 0.3),
+                                             seed = 1234,
                                              computeMultiChain = T) {
 
   #check the Assays in the Seurat Object and compute graphs
   assays <- Seurat::Assays(seuratObj_TCR)
+
+  #initialize composite object for multi-chain analysis
+  seuratObj_TCR_composite <- NULL
 
   single_chain_graphs <- list()
 
@@ -96,13 +162,36 @@ ClusterTcrs <- function(seuratObj = NULL,
   for (assay in assays){
     print(assay)
     #get the distance matrix
-    distanceMatrix <- as.matrix(Seurat::GetAssayData(seuratObj_TCR, assay = assay, layer = "counts"))
-    graph_and_kpca_results <- .KpcaAndClustering(distanceMatrix = distanceMatrix,
-                                                 kpcaComponents = kpcaComponents,
-                                                 kpcaKernel = kpcaKernel,
-                                                 proportionOfGraphAsNeighbors = proportionOfGraphAsNeighbors,
-                                                 jaccardIndexThreshold = jaccardIndexThreshold)
-    pruned_graph <- graph_and_kpca_results$graph
+    #handle Seurat v5 layer system - join layers if necessary
+    tryCatch({
+      #try to join layers to avoid v5 compatibility issues
+      if (methods::is(seuratObj_TCR[[assay]], "Assay5")) {
+        seuratObj_TCR <- SeuratObject::JoinLayers(seuratObj_TCR, assay = assay)
+      }
+    }, error = function(e) {
+      #if JoinLayers fails or doesn't exist, continue without it
+      warning(paste("Could not join layers for assay", assay, ":", e$message))
+    })
+
+    #try to get data without specifying layer first, then with layer if needed
+    distanceMatrix <- tryCatch({
+      as.matrix(Seurat::GetAssayData(seuratObj_TCR, assay = assay))
+    }, error = function(e) {
+      #if that fails, try with layer specification
+      tryCatch({
+        as.matrix(Seurat::GetAssayData(seuratObj_TCR, assay = assay, layer = "counts"))
+      }, error = function(e2) {
+        #if both fail, try data slot
+        as.matrix(Seurat::GetAssayData(seuratObj_TCR, assay = assay, slot = "data"))
+      })
+    })
+    graph_and_pca_results <- .PcaAndClustering(distanceMatrix = distanceMatrix,
+                                               pcaComponents = pcaComponents,
+                                               kpcaKernel = kpcaKernel,
+                                               usePCA = usePCA,
+                                               proportionOfGraphAsNeighbors = proportionOfGraphAsNeighbors,
+                                               jaccardIndexThreshold = jaccardIndexThreshold)
+    pruned_graph <- graph_and_pca_results$graph
     print(assay)
     single_chain_graphs[[assay]] <- pruned_graph
     for (resolution in resolutions) {
@@ -123,11 +212,11 @@ ClusterTcrs <- function(seuratObj = NULL,
                                            partition_metadata,
                                            col.name = paste0("TcrClustR_", assay, "_", resolution))
     }
-    #add single-chain KPCA reductions and UMAPs
-    reductionName <- paste0("TcrClustR_kpca.", gsub("_",".", assay))
-    kpca_result <- graph_and_kpca_results$kpca_result
+    #add single-chain PCA/KPCA reductions and UMAPs
+    reductionName <- paste0("TcrClustR_pca.", gsub("_",".", assay))
+    pca_result <- graph_and_pca_results$pca_result
     seuratObj_TCR <- .AddDimensionalityReductions(seuratObj_TCR,
-                                                  kpca_result,
+                                                  pca_result,
                                                   reductionName = reductionName,
                                                   assayName = assay,
                                                   distanceMatrix = distanceMatrix
@@ -137,6 +226,20 @@ ClusterTcrs <- function(seuratObj = NULL,
   #TODO: this seems stylistically poor. A more upfront nested elif is probably better.
   #bail out of the multi-chain computation if it's not requested
   if (!computeMultiChain) {
+    return(list(singleChainSeuratObject = seuratObj_TCR, multiChainSeuratObject = NULL))
+  }
+
+  #check if multichain assays actually exist before proceeding
+  has_multichain_assays <- any(sapply(assays, function(assay) {
+    #count the number of TCR chain identifiers in the assay name
+    parts <- strsplit(assay, "_")[[1]]
+    chain_count <- sum(parts %in% c("TRA", "TRB", "TRG", "TRD"))
+    return(chain_count >= 2)
+  }))
+
+  if (!has_multichain_assays) {
+    print("No multichain assays found. Skipping multichain computation.")
+    print("To compute multichain clustering, run RunTcrdist3 with multichain = TRUE.")
     return(list(singleChainSeuratObject = seuratObj_TCR, multiChainSeuratObject = NULL))
   }
 
@@ -157,13 +260,9 @@ ClusterTcrs <- function(seuratObj = NULL,
   #calculate the combined chain graphs
   multi_chain_graphs <- list()
   for (joint_graph in chain_combinations) {
-    #initialize the vectors to store whether or not the chain is only CDR3
-    #or if the V/J segments should be used.
-    cdr3_only_chains <- c()
-    remaining_chains <- c()
+    #initialize the vectors to store group_by_variables and assays_to_access
     group_by_variables <- c()
     assays_to_access <- c()
-
 
     joint_graph <- gsub("_cdr3", "CDR3", joint_graph)
 
@@ -177,6 +276,10 @@ ClusterTcrs <- function(seuratObj = NULL,
       chains <- joint_graph
     }
     print(chains)
+
+    #get metadata once outside the loop
+    metadata <- seuratObj_TCR@meta.data
+
     for (chain in chains) {
       #determine if the chain is CDR3-only and extract type
       is_cdr3_only <- grepl("CDR3$", chain)
@@ -201,26 +304,26 @@ ClusterTcrs <- function(seuratObj = NULL,
         assays_to_access <- c(assays_to_access, type)
       }
       print(paste0("group_variables:", group_by_variables))
-      #iterate through the 10X data, merge with the spike-in dataframes and index the metadata by the:
-      # 1. observed TRA+TRB combinations in the 10X data
-      # 2. provided TRA+TRB combinations in the spikeInData
-      # TODO: make this work with a metadata dataframe instead of only with a seurat object
-      metadata <- plyr::rbind.fill(seuratObj@meta.data, spikeInDataframe)
+    }
 
-      #if there are multiple chains, figure out how to combine them
-      if (length(assays_to_access) > 1) {
+    #process multichain combinations after parsing all chains
+    if (length(assays_to_access) > 1) {
+      #translate group_by_variables to tcrdist3 column names for metadata access
+      translated_group_by_variables <- .TranslateGroupByVariablesToTcrdist3(group_by_variables)
+      names(translated_group_by_variables) <- names(group_by_variables)
 
-        combined_matrix <- .ComputeMultiTCRDistanceMatrix(seuratObj_TCR = seuratObj_TCR,
-                                                          group_by_variables = group_by_variables,
-                                                          assays_to_access = assays_to_access,
-                                                          metadata = metadata)
+      combined_matrix <- .ComputeMultiTCRDistanceMatrix(seuratObj_TCR = seuratObj_TCR,
+                                                        group_by_variables = translated_group_by_variables,
+                                                        assays_to_access = assays_to_access,
+                                                        metadata = metadata)
 
-        graph_and_kpca_results <- .KpcaAndClustering(distanceMatrix = as.matrix(combined_matrix),
-                                                     kpcaComponents = kpcaComponents,
-                                                     kpcaKernel = kpcaKernel,
-                                                     proportionOfGraphAsNeighbors = proportionOfGraphAsNeighbors,
-                                                     jaccardIndexThreshold = jaccardIndexThreshold)
-        combined_graph <- graph_and_kpca_results$graph
+        graph_and_pca_results <- .PcaAndClustering(distanceMatrix = as.matrix(combined_matrix),
+                                                   pcaComponents = pcaComponents,
+                                                   kpcaKernel = kpcaKernel,
+                                                   usePCA = usePCA,
+                                                   proportionOfGraphAsNeighbors = proportionOfGraphAsNeighbors,
+                                                   jaccardIndexThreshold = jaccardIndexThreshold)
+        combined_graph <- graph_and_pca_results$graph
 
         multi_chain_graphs[[joint_graph]] <- combined_graph
 
@@ -231,27 +334,18 @@ ClusterTcrs <- function(seuratObj = NULL,
           seuratObj_TCR_composite$orig.ident <- joint_graph
           seuratObj_TCR_composite <- Seurat::AddMetaData(seuratObj_TCR_composite, rownames(combined_matrix), col.name = "composite_id")
         } else {
-          seuratObj_TCR_composite_subsequent_chain_combination <- Seurat::CreateSeuratObject(counts = combined_matrix,
-                                                                                             assay = joint_graph)
-          seuratObj_TCR_composite_subsequent_chain_combination$orig.ident <- joint_graph
-          seuratObj_TCR_composite_subsequent_chain_combination <- Seurat::AddMetaData(seuratObj_TCR_composite_subsequent_chain_combination, rownames(combined_matrix), col.name = "composite_id")
-          embeddings <- kpca_result@rotated
-          colnames(embeddings) <- paste0("TcrClustR_kpca.", gsub("_",".", joint_graph), "-", seq_len(ncol(embeddings)))
-          seuratObj_TCR_composite[[paste0("TcrClustR_kpca.", gsub("_",".", joint_graph))]] <-  Seurat::CreateDimReducObject(embeddings = embeddings,
-                                                                                                                            assay = joint_graph,
-                                                                                                                            key = "KPCA_")
-          seuratObj_TCR_composite <- merge(seuratObj_TCR_composite, seuratObj_TCR_composite_subsequent_chain_combination)
+          #create a new assay in the existing composite object instead of merging separate objects
+          seuratObj_TCR_composite[[joint_graph]] <- Seurat::CreateAssayObject(counts = combined_matrix)
         }
 
-        #add multi-chain KPCA reductions and UMAPs
-        reductionName <- paste0("TcrClustR_kpca.", gsub("_",".", joint_graph))
-        kpca_result <- graph_and_kpca_results$kpca_result
-        assayName <- joint_graph
+        #add multi-chain PCA/KPCA reductions and UMAPs
+        reductionName <- paste0("TcrClustR_pca.", gsub("_",".", joint_graph))
+        pca_result <- graph_and_pca_results$pca_result
         seuratObj_TCR_composite <- .AddDimensionalityReductions(seuratObj_TCR_composite,
-                                                                kpca_result,
+                                                                pca_result,
                                                                 reductionName,
                                                                 assayName = joint_graph,
-                                                                distanceMatrix = distanceMatrix
+                                                                distanceMatrix = combined_matrix
         )
 
         for (resolution in resolutions) {
@@ -278,7 +372,6 @@ ClusterTcrs <- function(seuratObj = NULL,
         }
       }
     }
-  }
   #rename the seuratObj_TCR object's assays to have parity with the multi-chain seuratObj_TCR_composite
   for (assay in Seurat::Assays(seuratObj_TCR)) {
     if (endsWith(assay, "_cdr3")) {
@@ -289,24 +382,65 @@ ClusterTcrs <- function(seuratObj = NULL,
   return(list(singleChainSeuratObject = seuratObj_TCR, multiChainSeuratObject = seuratObj_TCR_composite))
 }
 
-.KpcaAndClustering <- function(distanceMatrix = distanceMatrix,
-                               kpcaComponents = kpcaComponents,
-                               kpcaKernel = kpcaKernel,
-                               proportionOfGraphAsNeighbors = proportionOfGraphAsNeighbors,
-                               jaccardIndexThreshold = jaccardIndexThreshold){
-  #perform kernel PCA in the same way that conga does
-  kpca_result <- kernlab::kpca(x = distanceMatrix, kernel = kpcaKernel)
+.PcaAndClustering <- function(distanceMatrix = distanceMatrix,
+                              pcaComponents = pcaComponents,
+                              kpcaKernel = kpcaKernel,
+                              usePCA = TRUE,
+                              proportionOfGraphAsNeighbors = proportionOfGraphAsNeighbors,
+                              jaccardIndexThreshold = jaccardIndexThreshold){
+
+  #validate distance matrix dimensions
+  if (any(dim(distanceMatrix) == 0)) {
+    stop(paste("Distance matrix has zero dimensions:", paste(dim(distanceMatrix), collapse = "x")))
+  }
+
+  #validate number of components vs distance matrix dimensions
+  if (pcaComponents > ncol(distanceMatrix)) {
+   print("Warning: number of requested components exceeds available dimensions.")
+   print("Setting pcaComponents to the number of columns in the distance matrix.")
+   pcaComponents <- ncol(distanceMatrix)
+  }
+
+  if (usePCA) {
+    #use standard PCA
+    pca_result <- stats::prcomp(distanceMatrix, center = TRUE, scale. = TRUE)
+
+    #create a compatible object structure similar to kernlab::kpca, so downstream parsing can be identical
+    pca_result_obj <- list(
+      rotated = pca_result$x,
+      sdev = pca_result$sdev
+    )
+    class(pca_result_obj) <- "pca_result"
+
+    #add methods for compatibility
+    attr(pca_result_obj, "rotated") <- pca_result$x
+
+  } else {
+    #otherwise, kernel PCA.
+    pca_result_obj <- kernlab::kpca(x = distanceMatrix, kernel = kpcaKernel)
+  }
+
+  #get the rotated data from the kernlab compatible object
+  if (usePCA) {
+    rotated_data <- pca_result_obj$rotated
+  } else {
+    rotated_data <- kernlab::rotated(pca_result_obj)
+  }
 
   #reduce the data to the first n_components
-  n_components <- min( c(kpcaComponents, nrow(distanceMatrix), ncol(kernlab::rotated(kpca_result))))
-  reduced_data <- kernlab::rotated(kpca_result)[, 1:n_components]
+  n_components <- min(c(pcaComponents, nrow(distanceMatrix), ncol(rotated_data)))
+  reduced_data <- rotated_data[, 1:n_components, drop = FALSE]
 
   #take 10% of the graph as nearest neighbors, in the style of conga by default
   k <-  round(proportionOfGraphAsNeighbors * ncol(distanceMatrix))
-  knn_result <- FNN::get.knn(reduced_data, k = round(k))
+  #validate the number of neighbors
+  if (k < 1) k <- 1
+  if (k >= nrow(distanceMatrix)) k <- max(1, nrow(distanceMatrix) - 1)
+
+  knn_result <- FNN::get.knn(reduced_data, k = k)
 
   #make graph
-  edges <- cbind(rep(1:nrow(distanceMatrix), each = k), c(knn_result$nn.index))
+  edges <- cbind(rep(seq_len(nrow(distanceMatrix)), each = k), c(knn_result$nn.index))
   g <- igraph::graph_from_edgelist(edges, directed = FALSE)
   #remove loops
   g <- igraph::simplify(g)
@@ -318,7 +452,7 @@ ClusterTcrs <- function(seuratObj = NULL,
 
   #TODO: evaluate some of these parameters in different contexts ('barnyard' experiment on TCRs?)
   pruned_graph <- igraph::graph_from_adjacency_matrix(adj_matrix, mode = 'undirected')
-  return(list(graph = pruned_graph, kpca_result = kpca_result))
+  return(list(graph = pruned_graph, pca_result = pca_result_obj))
 }
 
 .ComputeMultiTCRDistanceMatrix <- function(seuratObj_TCR = NULL,
@@ -326,55 +460,147 @@ ClusterTcrs <- function(seuratObj = NULL,
                                            assays_to_access = NULL,
                                            metadata = NULL) {
 
+  print(paste("Debug: group_by_variables =", paste(group_by_variables, collapse = ", ")))
+  print(paste("Debug: assays_to_access =", paste(assays_to_access, collapse = ", ")))
+  print(paste("Debug: metadata columns =", paste(colnames(metadata), collapse = ", ")))
+
+  # Generate the required columns for observed_tcr_pairs using the SAME logic as .CreateTcrKeyLookup
+  # This ensures consistency between observed_tcr_pairs and lookup tables
+
+  # Use the same logic as .CreateTcrKeyLookup to determine required columns
+  get_required_cols <- function(assay_name) {
+    is_cdr3_assay <- endsWith(assay_name, "_cdr3")
+    chain_type <- gsub("_cdr3", "", assay_name)
+
+    if(is_cdr3_assay) {
+      return(.TranslateGroupByVariablesToTcrdist3(chain_type))
+    } else {
+      return(.TranslateGroupByVariablesToTcrdist3(c(
+        paste0(chain_type, "_V"),
+        paste0(chain_type, "_J"),
+        chain_type
+      )))
+    }
+  }
+
+  required_cols_first <- get_required_cols(assays_to_access[1])
+  required_cols_second <- get_required_cols(assays_to_access[2])
+  all_required_cols <- unique(c(required_cols_first, required_cols_second))
+
+  print(paste("Debug: required columns for observed_tcr_pairs:", paste(all_required_cols, collapse = ", ")))
+
   observed_tcr_pairs <- metadata |>
-    dplyr::select(dplyr::all_of(group_by_variables)) |>
+    dplyr::select(dplyr::all_of(all_required_cols)) |>
     dplyr::filter_all(dplyr::all_vars(!is.na(.))) |>
     dplyr::filter_all(dplyr::all_vars(!grepl(",",.))) |>
     dplyr::distinct()
 
-  first_chain_matrix <- Seurat::GetAssayData(seuratObj_TCR, assay = assays_to_access[1], layer = "counts")
-  second_chain_matrix <- Seurat::GetAssayData(seuratObj_TCR, assay = assays_to_access[2], layer = "counts")
+  print(paste("Debug: observed_tcr_pairs has", nrow(observed_tcr_pairs), "rows"))
 
-  #populate all possible combinations of metadata features
-  first_chain_variables <- seuratObj_TCR@meta.data[,.TranslateGroupByVariablesToTcrdist3(group_by_variables[names(group_by_variables) == assays_to_access[1]]), drop = FALSE]
-  second_chain_variables <- seuratObj_TCR@meta.data[,.TranslateGroupByVariablesToTcrdist3(group_by_variables[names(group_by_variables) == assays_to_access[2]]), drop = FALSE]
+  # Handle Seurat v5 layer system for both assays
+  for (assay in assays_to_access) {
+    tryCatch({
+      if (methods::is(seuratObj_TCR[[assay]], "Assay5")) {
+        seuratObj_TCR <- SeuratObject::JoinLayers(seuratObj_TCR, assay = assay)
+      }
+    }, error = function(e) {
+      warning(paste("Could not join layers for assay", assay, ":", e$message))
+    })
+  }
+
+  # Get matrices with fallback for Seurat v5 compatibility
+  first_chain_matrix <- tryCatch({
+    Seurat::GetAssayData(seuratObj_TCR, assay = assays_to_access[1])
+  }, error = function(e) {
+    tryCatch({
+      Seurat::GetAssayData(seuratObj_TCR, assay = assays_to_access[1], layer = "counts")
+    }, error = function(e2) {
+      Seurat::GetAssayData(seuratObj_TCR, assay = assays_to_access[1], slot = "data")
+    })
+  })
+
+  second_chain_matrix <- tryCatch({
+    Seurat::GetAssayData(seuratObj_TCR, assay = assays_to_access[2])
+  }, error = function(e) {
+    tryCatch({
+      Seurat::GetAssayData(seuratObj_TCR, assay = assays_to_access[2], layer = "counts")
+    }, error = function(e2) {
+      Seurat::GetAssayData(seuratObj_TCR, assay = assays_to_access[2], slot = "data")
+    })
+  })
 
   #create lookup tables for both chains
   first_chain_lookup <- .CreateTcrKeyLookup(seuratObj_TCR, assays_to_access[1])
   second_chain_lookup <- .CreateTcrKeyLookup(seuratObj_TCR, assays_to_access[2])
 
-  first_chain_type <- gsub("_cdr3$", "", assays_to_access[1])
-  second_chain_type <- gsub("_cdr3$", "", assays_to_access[2])
-  #generate keys for observed pairs
-  observed_pairs_with_keys <- observed_tcr_pairs %>%
+  print(paste("Debug: first_chain_lookup has", nrow(first_chain_lookup), "rows"))
+  print(paste("Debug: second_chain_lookup has", nrow(second_chain_lookup), "rows"))
+
+  print(paste("Debug: observed_tcr_pairs columns =", paste(colnames(observed_tcr_pairs), collapse = ", ")))
+
+  # Create keys for observed_tcr_pairs using the SAME logic as .CreateTcrKeyLookup
+  # Apply the same key generation logic as .CreateTcrKeyLookup for both chains
+
+  # For first chain - apply same logic as .CreateTcrKeyLookup
+  if(grepl("_cdr3$", assays_to_access[1])) {
+    # CDR3-only first chain - extract the first column (CDR3 sequence)
+    first_chain_key_col <- required_cols_first[1]
+    observed_pairs_with_keys <- observed_tcr_pairs %>%
+      dplyr::mutate(first_chain_key = .data[[first_chain_key_col]])
+  } else {
+    # Full first chain - paste V, J, CDR3 with underscore separator
+    observed_pairs_with_keys <- observed_tcr_pairs %>%
+      dplyr::mutate(first_chain_key = paste(
+        .data[[required_cols_first[1]]],  # V gene
+        .data[[required_cols_first[2]]],  # J gene
+        .data[[required_cols_first[3]]],  # CDR3 sequence
+        sep = "_"
+      ))
+  }
+
+  # For second chain - apply same logic as .CreateTcrKeyLookup
+  if(grepl("_cdr3$", assays_to_access[2])) {
+    # CDR3-only second chain - extract the first column (CDR3 sequence)
+    second_chain_key_col <- required_cols_second[1]
+    observed_pairs_with_keys <- observed_pairs_with_keys %>%
+      dplyr::mutate(second_chain_key = .data[[second_chain_key_col]])
+  } else {
+    # Full second chain - paste V, J, CDR3 with underscore separator
+    observed_pairs_with_keys <- observed_pairs_with_keys %>%
+      dplyr::mutate(second_chain_key = paste(
+        .data[[required_cols_second[1]]],  # V gene
+        .data[[required_cols_second[2]]],  # J gene
+        .data[[required_cols_second[3]]],  # CDR3 sequence
+        sep = "_"
+      ))
+  }
+
+  # Remove allele annotations (same as in .CreateTcrKeyLookup) to match lookup table format
+  observed_pairs_with_keys <- observed_pairs_with_keys %>%
     dplyr::mutate(
-      first_chain_key = if(grepl("_cdr3$", assays_to_access[1])) {
-        .data[[names(group_by_variables[names(group_by_variables) == assays_to_access[1]])]]
-      } else {
-        paste(
-          .data[[paste0(first_chain_type, "_V")]],
-          .data[[paste0(first_chain_type, "_J")]],
-          .data[[first_chain_type]],
-          sep = "_"
-        )
-      },
-      second_chain_key = if(grepl("_cdr3$", assays_to_access[2])) {
-        .data[[names(group_by_variables[names(group_by_variables) == assays_to_access[2]])]]
-      } else {
-        paste(
-          .data[[paste0(second_chain_type, "_V")]],
-          .data[[paste0(second_chain_type, "_J")]],
-          .data[[second_chain_type]],
-          sep = "_"
-        )
-      }
+      first_chain_key = gsub("\\*01", "", .data$first_chain_key),
+      second_chain_key = gsub("\\*01", "", .data$second_chain_key)
     )
+
+  # Debug: show sample keys from both sides
+  print("Debug: Sample keys from observed_pairs_with_keys:")
+  print(head(observed_pairs_with_keys[c("first_chain_key", "second_chain_key")], 3))
+  print("Debug: Sample keys from first_chain_lookup:")
+  print(head(first_chain_lookup$key, 3))
+  print("Debug: Sample keys from second_chain_lookup:")
+  print(head(second_chain_lookup$key, 3))
 
   #map keys to matrix row names using lookups
   valid_pairs <- observed_pairs_with_keys %>%
     dplyr::left_join(first_chain_lookup, by = c("first_chain_key" = "key")) %>%
     dplyr::left_join(second_chain_lookup, by = c("second_chain_key" = "key")) %>%
     dplyr::filter(!is.na(matrix_rowname.x) & !is.na(matrix_rowname.y))
+
+  print(paste("Debug: valid_pairs has", nrow(valid_pairs), "rows after join and filter"))
+
+  if (nrow(valid_pairs) == 0) {
+    stop("No valid TCR pairs found for multi-chain analysis. Check that metadata columns exist and contain matching data.")
+  }
 
   #create a composite ID for each pair, however this ID needs to map to the "cell barcode" version of the TCR to map with the metadata, rather than the "features" version of the TCR
   #for seurat reasons, the "cellbarcode" supports underscores, and the 'feature' supports hypens.
@@ -456,7 +682,15 @@ ClusterTcrs <- function(seuratObj = NULL,
   #TODO: support alleles? unsure how to do this in the current compute environment though.
   keys <- gsub("\\*01", "", keys)
 
-  matrix_rownames <- rownames(Seurat::GetAssayData(seuratObj_TCR, assay = assay_name, layer = 'counts'))
+  matrix_rownames <- tryCatch({
+    rownames(Seurat::GetAssayData(seuratObj_TCR, assay = assay_name))
+  }, error = function(e) {
+    tryCatch({
+      rownames(Seurat::GetAssayData(seuratObj_TCR, assay = assay_name, layer = 'counts'))
+    }, error = function(e2) {
+      rownames(Seurat::GetAssayData(seuratObj_TCR, assay = assay_name, slot = 'data'))
+    })
+  })
 
   #create lookup table: key -> matrix row name
   lookup <- data.frame(
@@ -471,18 +705,23 @@ ClusterTcrs <- function(seuratObj = NULL,
 }
 
 .AddDimensionalityReductions <- function(seuratObj,
-                                         kpca_result = NULL,
+                                         pca_result = NULL,
                                          reductionName = NULL,
                                          assayName = NULL,
-                                         kpcaComponents = 50,
+                                         pcaComponents = 50,
                                          kpcaKernel = 'rbfdot',
                                          proportionOfGraphAsNeighbors = 0.1,
                                          jaccardIndexThreshold = 0.1,
                                          distanceMatrix = NULL) {
-  #add KPCA components and make UMAP
-  embeddings <- kpca_result@rotated
+  #add PCA/KPCA components and make UMAP
+  # Handle both PCA and kernel PCA results
+  if (inherits(pca_result, "pca_result")) {
+    embeddings <- pca_result$rotated
+  } else {
+    embeddings <- pca_result@rotated
+  }
 
-  rownames(embeddings) <- paste0(colnames(seuratObj[[assayName]]))
+  rownames(embeddings) <- colnames(seuratObj[[assayName]])
   seuratObj[[reductionName]] <-  Seurat::CreateDimReducObject(embeddings = embeddings,
                                                               assay = assayName,
                                                               key = paste0(reductionName, "_"))
@@ -490,7 +729,12 @@ ClusterTcrs <- function(seuratObj = NULL,
   k.param <-  round(proportionOfGraphAsNeighbors * ncol(distanceMatrix))
 
   #TODO: compute a cutoff for the number of components used, but I'm not sure what these distributions look like yet.
-  n_components = min(c(kpcaComponents, nrow(embeddings), ncol(kpca_result@rotated)))
+  # Handle both PCA and kernel PCA for getting number of components
+  if (inherits(pca_result, "pca_result")) {
+    n_components = min(c(pcaComponents, nrow(embeddings), ncol(pca_result$rotated)))
+  } else {
+    n_components = min(c(pcaComponents, nrow(embeddings), ncol(pca_result@rotated)))
+  }
   seuratObj <- Seurat::FindNeighbors(seuratObj,
                                      reduction = reductionName,
                                      dims = 1:n_components,
