@@ -56,6 +56,7 @@
 <span>  summarizeClones <span class="op">=</span> <span class="cn">T</span>,</span>
 <span>  imputeCloneNames <span class="op">=</span> <span class="cn">T</span>,</span>
 <span>  minimumClonesPerSubject <span class="op">=</span> <span class="fl">2</span>,</span>
+<span>  multichain <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  rdsOutputPath <span class="op">=</span> <span class="st">"./tcrdist3DistanceMatrices/"</span>,</span>
 <span>  pythonExecutable <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  debugTcrdist3 <span class="op">=</span> <span class="st">"True"</span>,</span>
@@ -111,6 +112,10 @@
 <dd><p>Minimum number of clones per subject to include in the analysis. Default is 2.</p></dd>
 
 
+<dt id="arg-multichain">multichain<a class="anchor" aria-label="anchor" href="#arg-multichain"></a></dt>
+<dd><p>Boolean controlling whether to compute joint multi-chain distance matrices for observed chain combinations. Default is FALSE.</p></dd>
+
+
 <dt id="arg-rdsoutputpath">rdsOutputPath<a class="anchor" aria-label="anchor" href="#arg-rdsoutputpath"></a></dt>
 <dd><p>Path to the output directory for the RDS files containing the distance matrices. Default is "./tcrdist3DistanceMatrices/".</p></dd>
 
@@ -135,15 +140,22 @@
 <span class="r-in"><span>              metadata <span class="op">=</span> <span class="cn">NULL</span>,</span></span>
 <span class="r-in"><span>              formatMetadata <span class="op">=</span> <span class="cn">T</span>,</span></span>
 <span class="r-in"><span>              postFormattingMetadataCsvPath <span class="op">=</span> <span class="st">'./tcrDist3Input.csv'</span>,</span></span>
-<span class="r-in"><span>              chainsString <span class="op">=</span> <span class="st">"alpha,beta"</span>,</span></span>
+<span class="r-in"><span>              chains <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"TRA"</span>, <span class="st">"TRB"</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>              cleanMetadata <span class="op">=</span> <span class="cn">T</span>,</span></span>
 <span class="r-in"><span>              summarizeClones <span class="op">=</span> <span class="cn">T</span>,</span></span>
 <span class="r-in"><span>              imputeCloneNames <span class="op">=</span> <span class="cn">T</span>,</span></span>
 <span class="r-in"><span>              minimumClonesPerSubject <span class="op">=</span> <span class="fl">2</span>,</span></span>
+<span class="r-in"><span>              multichain <span class="op">=</span> <span class="cn">FALSE</span>,</span></span>
 <span class="r-in"><span>              rdsOutputPath <span class="op">=</span> <span class="st">"./tcrdist3DistanceMatrices/"</span>,</span></span>
 <span class="r-in"><span>              pythonExecutable <span class="op">=</span> <span class="fu">reticulate</span><span class="fu">::</span><span class="fu"><a href="https://rstudio.github.io/reticulate/reference/py_exe.html" class="external-link">py_exe</a></span><span class="op">(</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>              debugTcrdist3 <span class="op">=</span> <span class="st">"True"</span>,</span></span>
 <span class="r-in"><span>              verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span>  <span class="co"># Example with multichain analysis</span></span></span>
+<span class="r-in"><span>  <span class="fu">RunTcrdist3</span><span class="op">(</span>seuratObj <span class="op">=</span> <span class="va">seuratObj</span>,</span></span>
+<span class="r-in"><span>              chains <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"TRA"</span>, <span class="st">"TRB"</span>, <span class="st">"TRG"</span>, <span class="st">"TRD"</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>              multichain <span class="op">=</span> <span class="cn">TRUE</span>,</span></span>
+<span class="r-in"><span>              verbose <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span>    <span class="va">spikeInDataframe</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>CloneNames <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">3</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>                                 TRA_V <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"TRAV1-2"</span>, <span class="st">"TRAV1-2"</span>, <span class="st">"TRAV1-2"</span><span class="op">)</span>,</span></span>

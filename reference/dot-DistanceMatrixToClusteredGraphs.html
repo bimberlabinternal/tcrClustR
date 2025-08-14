@@ -46,12 +46,14 @@
     <div id="ref-usage">
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">.DistanceMatrixToClusteredGraphs</span><span class="op">(</span></span>
 <span>  seuratObj_TCR <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  kpcaComponents <span class="op">=</span> <span class="fl">50</span>,</span>
+<span>  pcaComponents <span class="op">=</span> <span class="fl">50</span>,</span>
 <span>  kpcaKernel <span class="op">=</span> <span class="st">"rbfdot"</span>,</span>
+<span>  usePCA <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  partitionType <span class="op">=</span> <span class="st">"CPMVertexPartition"</span>,</span>
 <span>  proportionOfGraphAsNeighbors <span class="op">=</span> <span class="fl">0.1</span>,</span>
 <span>  jaccardIndexThreshold <span class="op">=</span> <span class="fl">0.1</span>,</span>
 <span>  resolutions <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.1</span>, <span class="fl">0.2</span>, <span class="fl">0.3</span><span class="op">)</span>,</span>
+<span>  seed <span class="op">=</span> <span class="fl">1234</span>,</span>
 <span>  computeMultiChain <span class="op">=</span> <span class="cn">T</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -64,12 +66,16 @@
 <dd><p>Seurat object containing TCR distance matrices.</p></dd>
 
 
-<dt id="arg-kpcacomponents">kpcaComponents<a class="anchor" aria-label="anchor" href="#arg-kpcacomponents"></a></dt>
-<dd><p>Number of components for kernel PCA. Default is 50.</p></dd>
+<dt id="arg-pcacomponents">pcaComponents<a class="anchor" aria-label="anchor" href="#arg-pcacomponents"></a></dt>
+<dd><p>Number of components for PCA or kernel PCA. Default is 50.</p></dd>
 
 
 <dt id="arg-kpcakernel">kpcaKernel<a class="anchor" aria-label="anchor" href="#arg-kpcakernel"></a></dt>
-<dd><p>Kernel type for kernel PCA. Default is "rbfdot".</p></dd>
+<dd><p>Kernel type for kernel PCA. Default is "rbfdot". Ignored if usePCA is TRUE.</p></dd>
+
+
+<dt id="arg-usepca">usePCA<a class="anchor" aria-label="anchor" href="#arg-usepca"></a></dt>
+<dd><p>Boolean indicating whether to use standard PCA instead of kernel PCA. Default is TRUE.</p></dd>
 
 
 <dt id="arg-partitiontype">partitionType<a class="anchor" aria-label="anchor" href="#arg-partitiontype"></a></dt>
@@ -86,6 +92,10 @@
 
 <dt id="arg-resolutions">resolutions<a class="anchor" aria-label="anchor" href="#arg-resolutions"></a></dt>
 <dd><p>Vector of resolution parameters for clustering. Default is c(0.1, 0.2, 0.3).</p></dd>
+
+
+<dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
+<dd><p>Random seed for reproducibility. Default is 1234.</p></dd>
 
 
 <dt id="arg-computemultichain">computeMultiChain<a class="anchor" aria-label="anchor" href="#arg-computemultichain"></a></dt>
