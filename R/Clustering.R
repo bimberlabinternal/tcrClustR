@@ -56,59 +56,64 @@ ClusterTcrs <- function(seuratObj = NULL,
       print(assay)
       #detect multichain assays vs single chain assays
       #single chain: "TRA", "TRB", "TRA_cdr3", "TRB_cdr3" etc.
-      #multi chain: "TRA_TRB", "TRACDR3_TRB" etc.
-      is_single_chain <- grepl("^TR[ABGD](_cdr3)?$", assay) || grepl("^TR[ABGD]CDR3$", assay)
+      #multi chain: "TRA_TRB", "TRA_TRB_cdr3", "TRA_cdr3_TRB", "TRA_cdr3_TRB_cdr3" etc.
+      #count the number of TCR chain identifiers in the assay name
+      parts <- strsplit(assay, "_")[[1]]
+      chain_count <- sum(parts %in% c("TRA", "TRB", "TRG", "TRD"))
+      is_single_chain <- chain_count == 1
       
       if (is_single_chain) {
         #parse out the group_by_variables for single chain
         group_by_variables <- c()
-        if (endsWith(assay, "CDR3") || endsWith(assay, "_cdr3")) {
+        if (endsWith(assay, "_cdr3")) {
           #CDR3-only assay: extract chain type
-          chain_type <- gsub("(CDR3|_cdr3)$", "", assay)
+          chain_type <- gsub("_cdr3$", "", assay)
           group_by_variables <- chain_type
         } else {
           #full chain assay: V/J/CDR3
           group_by_variables <- c(paste0(assay, "_V"), paste0(assay, "_J"), assay)
         }
-        print(paste0("single chain assay:", assay))
+        print(paste0("single chain assay: ", assay))
         print(group_by_variables)
 
       } else {
         #parse out the group_by_variables for multi-chain
+        #multichain assays are concatenated like "TRA_TRB", "TRA_TRB_cdr3", "TRA_cdr3_TRB", "TRA_cdr3_TRB_cdr3"
         group_by_variables <- c()
-        #for multi-chain, split by underscore but be careful about _CDR3 endings
-        chain_parts <- strsplit(assay, "_")[[1]]
         
-        #reconstruct proper chain identifiers
+        #split by underscore and reconstruct chain identifiers
+        parts <- strsplit(assay, "_")[[1]]
         chains <- c()
+        
+        #parse the parts to identify individual chains
         i <- 1
-        while (i <= length(chain_parts)) {
-          if (i < length(chain_parts) && chain_parts[i+1] == "cdr3") {
-            #this handles CDR3-only chain assays like "TRA_cdr3"
-            chains <- c(chains, paste0(chain_parts[i], "CDR3"))
+        while (i <= length(parts)) {
+          if (i < length(parts) && parts[i+1] == "cdr3") {
+            #this is a CDR3-only chain like "TRA_cdr3"
+            chains <- c(chains, paste0(parts[i], "_cdr3"))
             i <- i + 2
-          } else if (endsWith(chain_parts[i], "CDR3")) {
-            #this handles CDR3 chain assays like "TRACDR3"
-            chains <- c(chains, chain_parts[i])
+          } else if (parts[i] %in% c("TRA", "TRB", "TRG", "TRD")) {
+            #this is a full chain
+            chains <- c(chains, parts[i])
             i <- i + 1
           } else {
-            #this handles full chain assays like "TRA"
-            chains <- c(chains, chain_parts[i])
+            #skip unrecognized parts
             i <- i + 1
           }
         }
         
+        #build group_by_variables for each chain
         for (chain in chains) {
-          if (endsWith(chain, "CDR3")) {
+          if (endsWith(chain, "_cdr3")) {
             #CDR3-only chain
-            chain_type <- gsub("CDR3$", "", chain)
+            chain_type <- gsub("_cdr3$", "", chain)
             group_by_variables <- c(group_by_variables, chain_type)
           } else {
             #full chain with V/J/CDR3
             group_by_variables <- c(group_by_variables, paste0(chain, "_V"), paste0(chain, "_J"), chain)
           }
         }
-        print(paste0("multichain assay:", chains))
+        print(paste0("multichain assay: ", assay, " -> chains: ", paste(chains, collapse = ", ")))
         print(group_by_variables)
       }
     }
@@ -224,6 +229,20 @@ ClusterTcrs <- function(seuratObj = NULL,
     return(list(singleChainSeuratObject = seuratObj_TCR, multiChainSeuratObject = NULL))
   }
 
+  #check if multichain assays actually exist before proceeding
+  has_multichain_assays <- any(sapply(assays, function(assay) {
+    #count the number of TCR chain identifiers in the assay name
+    parts <- strsplit(assay, "_")[[1]]
+    chain_count <- sum(parts %in% c("TRA", "TRB", "TRG", "TRD"))
+    return(chain_count >= 2)
+  }))
+  
+  if (!has_multichain_assays) {
+    print("No multichain assays found. Skipping multichain computation.")
+    print("To compute multichain clustering, run RunTcrdist3 with multichain = TRUE.")
+    return(list(singleChainSeuratObject = seuratObj_TCR, multiChainSeuratObject = NULL))
+  }
+
   #create a list of all possible combinations of chains
   chain_combinations <- utils::combn(names(single_chain_graphs), 2, simplify = FALSE)
   chain_combinations <- lapply(chain_combinations, function(x) paste(sort(x), collapse = "_"))
@@ -245,7 +264,6 @@ ClusterTcrs <- function(seuratObj = NULL,
     group_by_variables <- c()
     assays_to_access <- c()
 
-
     joint_graph <- gsub("_cdr3", "CDR3", joint_graph)
 
     #the graphs are named with the chains (TRA if V+J+CDR3, or TRACDR3 if only CDR3) separated by underscores
@@ -258,6 +276,10 @@ ClusterTcrs <- function(seuratObj = NULL,
       chains <- joint_graph
     }
     print(chains)
+    
+    #get metadata once outside the loop
+    metadata <- seuratObj_TCR@meta.data
+    
     for (chain in chains) {
       #determine if the chain is CDR3-only and extract type
       is_cdr3_only <- grepl("CDR3$", chain)
@@ -282,22 +304,18 @@ ClusterTcrs <- function(seuratObj = NULL,
         assays_to_access <- c(assays_to_access, type)
       }
       print(paste0("group_variables:", group_by_variables))
-      #iterate through the 10X data and index the metadata by observed TRA+TRB combinations
-      # The clustering functions work with pre-computed distance matrices.
-      # Spike-in data should be incorporated during distance matrix generation.
-      metadata <- seuratObj_TCR@meta.data
+    }
 
-      #if there are multiple chains, figure out how to combine them
-      if (length(assays_to_access) > 1) {
-        
-        #translate group_by_variables to tcrdist3 column names for metadata access
-        translated_group_by_variables <- .TranslateGroupByVariablesToTcrdist3(group_by_variables)
-        names(translated_group_by_variables) <- names(group_by_variables)
+    #process multichain combinations after parsing all chains
+    if (length(assays_to_access) > 1) {
+      #translate group_by_variables to tcrdist3 column names for metadata access
+      translated_group_by_variables <- .TranslateGroupByVariablesToTcrdist3(group_by_variables)
+      names(translated_group_by_variables) <- names(group_by_variables)
 
-        combined_matrix <- .ComputeMultiTCRDistanceMatrix(seuratObj_TCR = seuratObj_TCR,
-                                                          group_by_variables = translated_group_by_variables,
-                                                          assays_to_access = assays_to_access,
-                                                          metadata = metadata)
+      combined_matrix <- .ComputeMultiTCRDistanceMatrix(seuratObj_TCR = seuratObj_TCR,
+                                                        group_by_variables = translated_group_by_variables,
+                                                        assays_to_access = assays_to_access,
+                                                        metadata = metadata)
 
         graph_and_pca_results <- .PcaAndClustering(distanceMatrix = as.matrix(combined_matrix),
                                                    pcaComponents = pcaComponents,
@@ -316,24 +334,8 @@ ClusterTcrs <- function(seuratObj = NULL,
           seuratObj_TCR_composite$orig.ident <- joint_graph
           seuratObj_TCR_composite <- Seurat::AddMetaData(seuratObj_TCR_composite, rownames(combined_matrix), col.name = "composite_id")
         } else {
-          seuratObj_TCR_composite_subsequent_chain_combination <- Seurat::CreateSeuratObject(counts = combined_matrix,
-                                                                                             assay = joint_graph)
-          seuratObj_TCR_composite_subsequent_chain_combination$orig.ident <- joint_graph
-          seuratObj_TCR_composite_subsequent_chain_combination <- Seurat::AddMetaData(seuratObj_TCR_composite_subsequent_chain_combination, rownames(combined_matrix), col.name = "composite_id")
-
-          #get the PCA result for creating embeddings
-          pca_result <- graph_and_pca_results$pca_result
-          #handle both PCA and kernel PCA results
-          if (inherits(pca_result, "pca_result")) {
-            embeddings <- pca_result$rotated
-          } else {
-            embeddings <- pca_result@rotated
-          }
-          colnames(embeddings) <- paste0("TcrClustR_pca.", gsub("_",".", joint_graph), "-", seq_len(ncol(embeddings)))
-          seuratObj_TCR_composite[[paste0("TcrClustR_pca.", gsub("_",".", joint_graph))]] <-  Seurat::CreateDimReducObject(embeddings = embeddings,
-                                                                                                                           assay = joint_graph,
-                                                                                                                           key = "PCA_")
-          seuratObj_TCR_composite <- merge(seuratObj_TCR_composite, seuratObj_TCR_composite_subsequent_chain_combination)
+          #create a new assay in the existing composite object instead of merging separate objects
+          seuratObj_TCR_composite[[joint_graph]] <- Seurat::CreateAssayObject(counts = combined_matrix)
         }
 
         #add multi-chain PCA/KPCA reductions and UMAPs
@@ -343,7 +345,7 @@ ClusterTcrs <- function(seuratObj = NULL,
                                                                 pca_result,
                                                                 reductionName,
                                                                 assayName = joint_graph,
-                                                                distanceMatrix = distanceMatrix
+                                                                distanceMatrix = combined_matrix
         )
 
         for (resolution in resolutions) {
@@ -370,7 +372,6 @@ ClusterTcrs <- function(seuratObj = NULL,
         }
       }
     }
-  }
   #rename the seuratObj_TCR object's assays to have parity with the multi-chain seuratObj_TCR_composite
   for (assay in Seurat::Assays(seuratObj_TCR)) {
     if (endsWith(assay, "_cdr3")) {
@@ -720,7 +721,7 @@ ClusterTcrs <- function(seuratObj = NULL,
     embeddings <- pca_result@rotated
   }
 
-  rownames(embeddings) <- paste0(colnames(seuratObj[[assayName]]))
+  rownames(embeddings) <- colnames(seuratObj[[assayName]])
   seuratObj[[reductionName]] <-  Seurat::CreateDimReducObject(embeddings = embeddings,
                                                               assay = assayName,
                                                               key = paste0(reductionName, "_"))

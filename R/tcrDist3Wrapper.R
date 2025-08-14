@@ -91,7 +91,7 @@ RunTcrdist3 <- function(seuratObj = NULL,
   }
   if (is.null(pythonExecutable)) {
     pythonExecutable <- reticulate::py_exe()
-    
+
     #if reticulate doesn't provide a valid executable, try system default
     if (is.null(pythonExecutable) || pythonExecutable == "" || !file.exists(pythonExecutable)) {
       pythonExecutable <- Sys.which("python3")
@@ -99,24 +99,24 @@ RunTcrdist3 <- function(seuratObj = NULL,
         pythonExecutable <- Sys.which("python")
       }
     }
-    
+
     if (pythonExecutable == "" || !file.exists(pythonExecutable)) {
       stop("No valid Python executable found. Please specify pythonExecutable parameter or ensure Python is in PATH.")
     }
   }
-  
+
   #validate Python environment and required packages
   print(paste("Using Python executable:", pythonExecutable))
-  
+
   #test if required packages are available
-  testCmd <- paste0(pythonExecutable, " -c \"import tcrdist3; import rpy2; print('Python environment OK')\"")
+  testCmd <- paste0(pythonExecutable, " -c \"import tcrdist; import rpy2; print('Python environment OK')\"")
   testResult <- tryCatch({
     system(testCmd, intern = TRUE)
   }, error = function(e) {
     warning(paste("Python environment test failed:", e$message))
     return(NULL)
   })
-  
+
   if (is.null(testResult)) {
     warning("Python environment may not have required packages (tcrdist3, rpy2). This may cause failures.")
   }
@@ -241,42 +241,42 @@ RunTcrdist3 <- function(seuratObj = NULL,
       seuratObj_TCR <- SeuratObject:::merge.Seurat(seuratObj_TCR, seuratObj_TCR_subsequentChain)
     }
   }
-  
+
   #add multichain tcrdist matrices if requested
   if (multichain && length(chains) > 1) {
     if (verbose) message("Computing multichain distance matrices...")
-    
+
     #create joint distance matrices for observed chain combinations
     #Note: matrices represent distances between observations (rows in formatted metadata)
     #that have information for both chains in the combination
     chain_combinations <- utils::combn(chains, 2, simplify = FALSE)
-    
+
     for (combo in chain_combinations) {
       chain1 <- combo[1]
       chain2 <- combo[2]
-      
+
       #skip identical chains (trivial case)
       if (chain1 == chain2) {
         if (verbose) message(paste("Skipping", chain1, "+", chain2, "combination - identical chains"))
         next
       }
-      
+
       #sanity check to make sure the assays exist before pulling
-      if (!chain1 %in% SeuratObject::Assays(seuratObj_TCR) || 
+      if (!chain1 %in% SeuratObject::Assays(seuratObj_TCR) ||
           !chain2 %in% SeuratObject::Assays(seuratObj_TCR)) {
         if (verbose) message(paste("Skipping", chain1, "+", chain2, "combination - matrices not found"))
         next
       }
-      
+
       #get distance matrices for both chains
       dist_matrix1 <- SeuratObject::GetAssayData(seuratObj_TCR, assay = chain1, slot = "counts")
       dist_matrix2 <- SeuratObject::GetAssayData(seuratObj_TCR, assay = chain2, slot = "counts")
-      
+
       if (verbose) {
         message(paste("Matrix dimensions for", chain1, ":", nrow(dist_matrix1), "x", ncol(dist_matrix1)))
         message(paste("Matrix dimensions for", chain2, ":", nrow(dist_matrix2), "x", ncol(dist_matrix2)))
       }
-      
+
       #for different-sized matrices (almost certainly the case), identify observations with both chains
       #read the formatted metadata to map sequence indices to observations
       if (!exists("formatted_metadata_for_mapping")) {
@@ -287,12 +287,12 @@ RunTcrdist3 <- function(seuratObj = NULL,
           next
         }
       }
-      
+
       #whole-dataset chain pairing vectors
       # Map chain names to tcrdist3 column names
       chain1_col <- NULL
       chain2_col <- NULL
-      
+
       if (chain1 == "TRA") {
         chain1_col <- "cdr3_a_aa"
       } else if (chain1 == "TRB") {
@@ -302,7 +302,7 @@ RunTcrdist3 <- function(seuratObj = NULL,
       } else if (chain1 == "TRD") {
         chain1_col <- "cdr3_d_aa"
       }
-      
+
       if (chain2 == "TRA") {
         chain2_col <- "cdr3_a_aa"
       } else if (chain2 == "TRB") {
@@ -312,133 +312,133 @@ RunTcrdist3 <- function(seuratObj = NULL,
       } else if (chain2 == "TRD") {
         chain2_col <- "cdr3_d_aa"
       }
-      
+
       if (is.null(chain1_col) || is.null(chain2_col)) {
         if (verbose) message(paste("Skipping", chain1, "+", chain2, "combination - unsupported chain types"))
         next
       }
-      
-      if (!chain1_col %in% colnames(formatted_metadata_for_mapping) || 
+
+      if (!chain1_col %in% colnames(formatted_metadata_for_mapping) ||
           !chain2_col %in% colnames(formatted_metadata_for_mapping)) {
         if (verbose) message(paste("Skipping", chain1, "+", chain2, "combination - chain columns not found in metadata"))
         if (verbose) message(paste0("Looking for columns: ", chain1_col, ", ", chain2_col))
         if (verbose) message(paste0("Available columns: ", paste(colnames(formatted_metadata_for_mapping), collapse = ", ")))
         next
       }
-      
+
       #find rows (cells) that have non-NA values for both chains
-      both_chains_present <- !is.na(formatted_metadata_for_mapping[[chain1_col]]) & 
+      both_chains_present <- !is.na(formatted_metadata_for_mapping[[chain1_col]]) &
                             !is.na(formatted_metadata_for_mapping[[chain2_col]]) &
                             formatted_metadata_for_mapping[[chain1_col]] != "" &
                             formatted_metadata_for_mapping[[chain2_col]] != ""
-      
+
       if (sum(both_chains_present) == 0) {
         if (verbose) message(paste("Skipping", chain1, "+", chain2, "combination - no observations with both chains"))
         next
       }
-      
+
       #get the subset of metadata with both chains and set the dimensions of the joint matrix
       dual_chain_metadata <- formatted_metadata_for_mapping[both_chains_present, ]
       n_observations <- nrow(dual_chain_metadata)
-      
+
       if (verbose) message(paste("Found", n_observations, "observations with both", chain1, "and", chain2))
-      
+
       #create unique sequence mappings for each chain
       #each chain's distance matrix rows/cols correspond to unique sequences in that chain
       chain1_sequences <- unique(dual_chain_metadata[[chain1_col]])
       chain2_sequences <- unique(dual_chain_metadata[[chain2_col]])
-      
+
       #create mapping from sequences to matrix indices
       chain1_seq_to_idx <- setNames(seq_along(chain1_sequences), chain1_sequences)
       chain2_seq_to_idx <- setNames(seq_along(chain2_sequences), chain2_sequences)
-      
+
       #create all possible matrix combinations (full + CDR3) for this chain pair
       #this allows for mixed comparisons like full TRA + CDR3 TRB
-      
+
       #init available matrix types for each chain
       chain1_matrices <- list()
       chain2_matrices <- list()
-      
+
       #add full-length matrices
       chain1_matrices[[chain1]] <- dist_matrix1
       chain2_matrices[[chain2]] <- dist_matrix2
-      
+
       #add CDR3 matrices (if they exist)
       cdr3_assay1 <- paste0(chain1, "_cdr3")
       cdr3_assay2 <- paste0(chain2, "_cdr3")
-      
+
       if (cdr3_assay1 %in% SeuratObject::Assays(seuratObj_TCR)) {
         chain1_matrices[[paste0(chain1, "_cdr3")]] <- SeuratObject::GetAssayData(seuratObj_TCR, assay = cdr3_assay1, slot = "counts")
       }
-      
+
       if (cdr3_assay2 %in% SeuratObject::Assays(seuratObj_TCR)) {
         chain2_matrices[[paste0(chain2, "_cdr3")]] <- SeuratObject::GetAssayData(seuratObj_TCR, assay = cdr3_assay2, slot = "counts")
       }
-      
+
       #create joint matrices for all combinations
       for (matrix1_name in names(chain1_matrices)) {
         for (matrix2_name in names(chain2_matrices)) {
-          
+
           matrix1 <- chain1_matrices[[matrix1_name]]
           matrix2 <- chain2_matrices[[matrix2_name]]
-          
+
           #initialize joint distance matrix (observations x observations)
           joint_matrix <- matrix(0, nrow = n_observations, ncol = n_observations)
-          
+
           # for each pair of observations, compute joint distance
           for (i in 1:n_observations) {
             for (j in 1:n_observations) {
               #get sequences for observation i
               seq1_chain1 <- dual_chain_metadata[[chain1_col]][i]
               seq1_chain2 <- dual_chain_metadata[[chain2_col]][i]
-              
-              #get sequences for observation j  
+
+              #get sequences for observation j
               seq2_chain1 <- dual_chain_metadata[[chain1_col]][j]
               seq2_chain2 <- dual_chain_metadata[[chain2_col]][j]
-              
+
               #get matrix indices for these sequences
               idx1_chain1 <- chain1_seq_to_idx[seq1_chain1]
               idx2_chain1 <- chain1_seq_to_idx[seq2_chain1]
               idx1_chain2 <- chain2_seq_to_idx[seq1_chain2]
               idx2_chain2 <- chain2_seq_to_idx[seq2_chain2]
-              
+
               #extract distances from matrices
               dist_chain1 <- 0
               dist_chain2 <- 0
-              
-              if (!is.na(idx1_chain1) && !is.na(idx2_chain1) && 
+
+              if (!is.na(idx1_chain1) && !is.na(idx2_chain1) &&
                   idx1_chain1 <= nrow(matrix1) && idx2_chain1 <= ncol(matrix1)) {
                 dist_chain1 <- matrix1[idx1_chain1, idx2_chain1]
               }
-              
-              if (!is.na(idx1_chain2) && !is.na(idx2_chain2) && 
+
+              if (!is.na(idx1_chain2) && !is.na(idx2_chain2) &&
                   idx1_chain2 <= nrow(matrix2) && idx2_chain2 <= ncol(matrix2)) {
                 dist_chain2 <- matrix2[idx1_chain2, idx2_chain2]
               }
-              
+
               #fill in joint matrix
               joint_matrix[i, j] <- dist_chain1 + dist_chain2
             }
           }
-          
+
           #create assay name based on matrix types
           joint_assay_name <- paste0(matrix1_name, "_", matrix2_name)
           colnames(joint_matrix) <- paste0(joint_assay_name, "_", seq_len(ncol(joint_matrix)))
           rownames(joint_matrix) <- paste0(joint_assay_name, "_", seq_len(nrow(joint_matrix)))
-          
-          #create separate seurat object for joint matrix 
+
+          #create separate seurat object for joint matrix
           seuratObj_joint <- SeuratObject::CreateSeuratObject(counts = as(joint_matrix, "dgCMatrix"),
                                                               assay = joint_assay_name)
           seuratObj_joint <- Seurat::AddMetaData(seuratObj_joint, metadata = dual_chain_metadata)
-          
+
           #merge with main object
           seuratObj_TCR <- SeuratObject:::merge.Seurat(seuratObj_TCR, seuratObj_joint)
-          
+
           if (verbose) message(paste("Created joint distance matrix:", joint_assay_name))
         }
       }
     }
   }
-  
+
   return(seuratObj_TCR)
 }

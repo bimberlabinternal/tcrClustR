@@ -341,11 +341,11 @@ test_that("Parameter validation works correctly", {
 })
 
 test_that("Multi-chain clustering works when enabled", {
-  # Read test data
+  #read test data
   seuratObj <- readRDS("../testdata/small_RIRA.rds")
   seuratObj <- subset(seuratObj, cells = SeuratObject::WhichCells(seuratObj, which(as.numeric(seuratObj$cDNA_ID) > 1)))
 
-  # Generate distance matrices
+  #generate distance matrices
   temp_dir <- tempdir()
   postFormattingMetadataCsvPath <- file.path(temp_dir, "tcrdist3Input.csv")
   rdsOutputPath <- file.path(temp_dir, "tcrdist3DistanceMatrices")
@@ -356,9 +356,10 @@ test_that("Multi-chain clustering works when enabled", {
                               chains = c("TRA", "TRB"),
                               minimumClonesPerSubject = 2,
                               rdsOutputPath = rdsOutputPath,
-                              pythonExecutable = Sys.which("python3"))
+                              pythonExecutable = Sys.which("python3"),
+                              multichain = TRUE)
 
-  # Test with multi-chain enabled (but expect it might not complete due to data size)
+  #test with multi-chain enabled
   testthat::expect_no_error({
     result <- .DistanceMatrixToClusteredGraphs(
       seuratObj_TCR = seuratObj_TCR,
@@ -368,7 +369,7 @@ test_that("Multi-chain clustering works when enabled", {
       jaccardIndexThreshold = 0.1,
       resolutions = c(0.1),
       seed = 1234,
-      computeMultiChain = TRUE  # Enable multi-chain
+      computeMultiChain = TRUE
     )
   })
 
@@ -428,4 +429,28 @@ test_that("Spike-in functionality works correctly", {
   # Verify spike-ins are present in the input file
   tcrdist3Input <- readr::read_csv(postFormattingMetadataCsvPath, show_col_types = FALSE)
   testthat::expect_true(sum(grepl("spikeIn", tcrdist3Input$subject)) == 3)
+})
+
+test_that("Multichain assay detection works correctly", {
+  # Test single chain assays
+  single_chain_assays <- c("TRA", "TRB", "TRA_cdr3", "TRB_cdr3", "TRG", "TRD")
+  
+  for (assay in single_chain_assays) {
+    parts <- strsplit(assay, "_")[[1]]
+    chain_count <- sum(parts %in% c("TRA", "TRB", "TRG", "TRD"))
+    is_single_chain <- chain_count == 1
+    testthat::expect_true(is_single_chain, 
+                         info = paste("Assay", assay, "should be detected as single chain"))
+  }
+  
+  # Test multichain assays
+  multichain_assays <- c("TRA_TRB", "TRA_TRB_cdr3", "TRA_cdr3_TRB", "TRA_cdr3_TRB_cdr3")
+  
+  for (assay in multichain_assays) {
+    parts <- strsplit(assay, "_")[[1]]
+    chain_count <- sum(parts %in% c("TRA", "TRB", "TRG", "TRD"))
+    is_single_chain <- chain_count == 1
+    testthat::expect_false(is_single_chain, 
+                          info = paste("Assay", assay, "should be detected as multichain"))
+  }
 })
