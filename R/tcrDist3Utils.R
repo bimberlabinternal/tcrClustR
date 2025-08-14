@@ -590,7 +590,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
       m,
       name               = assay,
       column_title       = assay,
-      border_gp          = gpar(col = "black", lty = 2),
+      border_gp          = grid::gpar(col = "black", lty = 2),
       top_annotation     = col_annotation,
       left_annotation    = row_annotation,
       use_raster         = TRUE,
@@ -609,7 +609,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
       m,
       name               = assay,
       column_title       = assay,
-      border_gp          = gpar(col = "black", lty = 2),
+      border_gp          = grid::gpar(col = "black", lty = 2),
       use_raster         = TRUE,
       cluster_columns    = FALSE,
       cluster_rows       = FALSE,
@@ -708,7 +708,7 @@ TCRDistanceHeatmaps <- function(
 
   final_plot <- combined_heatmaps +
     patchwork::plot_annotation(title = "TCR Similarity",
-                               theme = theme(plot.title = element_text(size = 16, face = "bold", hjust = 0.5)))
+                               theme = ggplot2::theme(plot.title = ggplot2::element_text(size = 16, face = "bold", hjust = 0.5)))
 
   print(final_plot)
 
