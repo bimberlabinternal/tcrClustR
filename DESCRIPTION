@@ -26,7 +26,8 @@ Imports:
     ggplot2,
     RColorBrewer,
     patchwork, 
-    ComplexHeatmap
+    ComplexHeatmap, 
+    methods
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
 Suggests: 

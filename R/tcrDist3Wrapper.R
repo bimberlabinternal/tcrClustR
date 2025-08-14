@@ -25,6 +25,7 @@ utils::globalVariables(
 #' @param debugTcrdist3 String (to be passed to python and converted to boolean) controlling whether to run tcrdist3 in debug mode. Default is "True".
 #' @param verbose Boolean controlling whether to display processing steps. Default is FALSE.
 #' @import Matrix
+#' @importFrom methods as
 #'@examples
 #'\dontrun{
 #'   RunTcrdist3(seuratObj = seuratObj,
