@@ -8,7 +8,8 @@ TCRDistanceHeatmaps(
   seuratObj_TCR = NULL,
   assayList = NULL,
   resolution = 0.1,
-  annotate_clusters = TRUE
+  annotate_clusters = TRUE,
+  verbose = FALSE
 )
 }
 \arguments{
@@ -19,6 +20,8 @@ TCRDistanceHeatmaps(
 \item{resolution}{Numeric clustering resolution parameter matching metadata column suffix.}
 
 \item{annotate_clusters}{Boolean specifying whether to display clustering information.}
+
+\item{verbose}{Boolean controlling whether to display processing steps. Default is FALSE.}
 }
 \value{
 Returns the patchwork object containing ComplexHeatmaps of the TCR distance data.
@@ -32,7 +35,8 @@ TCRDistanceHeatmaps(
   seuratObj_TCR = seuratObj,
   assayList = NULL,
   resolution = 0.1,
-  annotate_clusters = TRUE
+  annotate_clusters = TRUE,
+  verbose = TRUE
 )
 }
 }

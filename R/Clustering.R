@@ -22,7 +22,9 @@ utils::globalVariables(
 #' @param jaccardIndexThreshold Jaccard index threshold for pruning edges. Default is 0.1.
 #' @param seed Random seed for reproducibility. Default is 1234.
 #' @param computeMultiChain Boolean indicating whether to compute multi-chain graphs. Default is TRUE.
+#' @param verbose Boolean indicating whether to print verbose debugging output. Default is FALSE.
 #' @return A list containing single-chain and multi-chain Seurat objects with clustering results.
+#' @export
 
 
 ClusterTcrs <- function(seuratObj = NULL,
@@ -35,7 +37,8 @@ ClusterTcrs <- function(seuratObj = NULL,
                         proportionOfGraphAsNeighbors = 0.1,
                         jaccardIndexThreshold = 0.1,
                         seed = 1234,
-                        computeMultiChain = T) {
+                        computeMultiChain = T,
+                        verbose = FALSE) {
 
   #perform leiden clustering on the single chain distance matrices, create the multichain distance matrices, and cluster them.
   clusteredSeuratObjects <- .DistanceMatrixToClusteredGraphs(seuratObj_TCR = seuratObj_TCR,
@@ -45,79 +48,55 @@ ClusterTcrs <- function(seuratObj = NULL,
                                                              proportionOfGraphAsNeighbors = proportionOfGraphAsNeighbors,
                                                              jaccardIndexThreshold = jaccardIndexThreshold,
                                                              seed = seed,
-                                                             computeMultiChain = computeMultiChain)
+                                                             computeMultiChain = computeMultiChain,
+                                                             verbose = verbose)
 
   #filter out NULL objects to prevent assay access errors when iterating
   clusteredSeuratObjects <- clusteredSeuratObjects[!sapply(clusteredSeuratObjects, is.null)]
 
-  #Parse the single chain and multi-chain seurat objects, iterate through the assays, and assign cells in the original seuratObj to various clusters
-  for (tcr_object in clusteredSeuratObjects) {
-    for (assay in SeuratObject::Assays(tcr_object)) {
-      print(assay)
-      #detect multichain assays vs single chain assays
-      #single chain: "TRA", "TRB", "TRA_cdr3", "TRB_cdr3" etc.
-      #multi chain: "TRA_TRB", "TRA_TRB_cdr3", "TRA_cdr3_TRB", "TRA_cdr3_TRB_cdr3" etc.
-      #count the number of TCR chain identifiers in the assay name
-      parts <- strsplit(assay, "_")[[1]]
-      chain_count <- sum(parts %in% c("TRA", "TRB", "TRG", "TRD"))
-      is_single_chain <- chain_count == 1
-
-      if (is_single_chain) {
-        #parse out the group_by_variables for single chain
-        group_by_variables <- c()
-        if (endsWith(assay, "_cdr3")) {
-          #CDR3-only assay: extract chain type
-          chain_type <- gsub("_cdr3$", "", assay)
-          group_by_variables <- chain_type
+  #transfer clustering results from TCR-specific objects back to the original seuratObj
+  if (!is.null(seuratObj)) {
+    for (tcr_object in clusteredSeuratObjects) {
+      #get all clustering columns from the TCR object metadata
+      tcr_metadata <- tcr_object@meta.data
+      clustering_cols <- names(tcr_metadata)[grepl("^TcrClustR_", names(tcr_metadata))]
+      
+      if (length(clustering_cols) > 0) {
+        if (verbose) print(paste("Transferring clustering columns:", paste(clustering_cols, collapse = ", ")))
+        
+        #create a mapping from TCR object cells to original object cells
+        #this assumes the cell names in seuratObj_TCR correspond to cell names in seuratObj
+        tcr_cells <- rownames(tcr_metadata)
+        original_cells <- rownames(seuratObj@meta.data)
+        
+        #find the intersection of cells
+        common_cells <- intersect(tcr_cells, original_cells)
+        
+        if (length(common_cells) > 0) {
+          if (verbose) print(paste("Found", length(common_cells), "common cells between TCR object and original object"))
+          
+          #transfer clustering information for common cells
+          for (col in clustering_cols) {
+            cluster_values <- rep(NA, nrow(seuratObj@meta.data))
+            names(cluster_values) <- rownames(seuratObj@meta.data)
+            
+            #assign clustering values for cells that have TCR data
+            cluster_values[common_cells] <- tcr_metadata[common_cells, col]
+            
+            #add to the original Seurat object
+            seuratObj <- Seurat::AddMetaData(seuratObj, cluster_values, col.name = col)
+          }
         } else {
-          #full chain assay: V/J/CDR3
-          group_by_variables <- c(paste0(assay, "_V"), paste0(assay, "_J"), assay)
+          warning("No common cells found between TCR object and original Seurat object. Clustering information not transferred.")
         }
-        print(paste0("single chain assay: ", assay))
-        print(group_by_variables)
-
-      } else {
-        #parse out the group_by_variables for multi-chain
-        #multichain assays are concatenated like "TRA_TRB", "TRA_TRB_cdr3", "TRA_cdr3_TRB", "TRA_cdr3_TRB_cdr3"
-        group_by_variables <- c()
-
-        #split by underscore and reconstruct chain identifiers
-        parts <- strsplit(assay, "_")[[1]]
-        chains <- c()
-
-        #parse the parts to identify individual chains
-        i <- 1
-        while (i <= length(parts)) {
-          if (i < length(parts) && parts[i+1] == "cdr3") {
-            #this is a CDR3-only chain like "TRA_cdr3"
-            chains <- c(chains, paste0(parts[i], "_cdr3"))
-            i <- i + 2
-          } else if (parts[i] %in% c("TRA", "TRB", "TRG", "TRD")) {
-            #this is a full chain
-            chains <- c(chains, parts[i])
-            i <- i + 1
-          } else {
-            #skip unrecognized parts
-            i <- i + 1
-          }
-        }
-
-        #build group_by_variables for each chain
-        for (chain in chains) {
-          if (endsWith(chain, "_cdr3")) {
-            #CDR3-only chain
-            chain_type <- gsub("_cdr3$", "", chain)
-            group_by_variables <- c(group_by_variables, chain_type)
-          } else {
-            #full chain with V/J/CDR3
-            group_by_variables <- c(group_by_variables, paste0(chain, "_V"), paste0(chain, "_J"), chain)
-          }
-        }
-        print(paste0("multichain assay: ", assay, " -> chains: ", paste(chains, collapse = ", ")))
-        print(group_by_variables)
       }
     }
-
+    
+    #return the original seuratObj with clustering information added, plus the clustered TCR objects
+    return(list(
+      seuratObj = seuratObj,
+      clusteredSeuratObjects = clusteredSeuratObjects
+    ))
   }
   return(clusteredSeuratObjects)
 }
@@ -148,7 +127,8 @@ ClusterTcrs <- function(seuratObj = NULL,
                                              jaccardIndexThreshold = 0.1,
                                              resolutions = c(0.1, 0.2, 0.3),
                                              seed = 1234,
-                                             computeMultiChain = T) {
+                                             computeMultiChain = T,
+                                             verbose = FALSE) {
 
   #check the Assays in the Seurat Object and compute graphs
   assays <- Seurat::Assays(seuratObj_TCR)
@@ -160,7 +140,7 @@ ClusterTcrs <- function(seuratObj = NULL,
 
   #calculate the single chain graphs
   for (assay in assays){
-    print(assay)
+    if (verbose) print(assay)
     #get the distance matrix
     #handle Seurat v5 layer system - join layers if necessary
     tryCatch({
@@ -192,7 +172,7 @@ ClusterTcrs <- function(seuratObj = NULL,
                                                proportionOfGraphAsNeighbors = proportionOfGraphAsNeighbors,
                                                jaccardIndexThreshold = jaccardIndexThreshold)
     pruned_graph <- graph_and_pca_results$graph
-    print(assay)
+    if (verbose) print(assay)
     single_chain_graphs[[assay]] <- pruned_graph
     for (resolution in resolutions) {
       partition <- leidenbase::leiden_find_partition(pruned_graph,
@@ -203,7 +183,7 @@ ClusterTcrs <- function(seuratObj = NULL,
                                                      seed = seed,
                                                      resolution_parameter = resolution,
                                                      num_iter = 2,
-                                                     verbose = TRUE)
+                                                     verbose = verbose)
       #add the partition to the seurat object's metadata
       partition_metadata <- data.frame(partition$membership)
       rownames(partition_metadata) <- colnames(seuratObj_TCR[[assay]])
@@ -238,8 +218,10 @@ ClusterTcrs <- function(seuratObj = NULL,
   }))
 
   if (!has_multichain_assays) {
-    print("No multichain assays found. Skipping multichain computation.")
-    print("To compute multichain clustering, run RunTcrdist3 with multichain = TRUE.")
+    if (verbose) {
+      print("No multichain assays found. Skipping multichain computation.")
+      print("To compute multichain clustering, run RunTcrdist3 with multichain = TRUE.")
+    }
     return(list(singleChainSeuratObject = seuratObj_TCR, multiChainSeuratObject = NULL))
   }
 
@@ -275,7 +257,7 @@ ClusterTcrs <- function(seuratObj = NULL,
     } else {
       chains <- joint_graph
     }
-    print(chains)
+    if (verbose) print(chains)
 
     #get metadata once outside the loop
     metadata <- seuratObj_TCR@meta.data
@@ -303,7 +285,7 @@ ClusterTcrs <- function(seuratObj = NULL,
         names(group_by_variables)[length(group_by_variables) - 2:0] <- c(paste0(type, "_V"), paste0(type, "_J"), type)
         assays_to_access <- c(assays_to_access, type)
       }
-      print(paste0("group_variables:", group_by_variables))
+      if (verbose) print(paste0("group_variables:", group_by_variables))
     }
 
     #process multichain combinations after parsing all chains
@@ -315,7 +297,8 @@ ClusterTcrs <- function(seuratObj = NULL,
       combined_matrix <- .ComputeMultiTCRDistanceMatrix(seuratObj_TCR = seuratObj_TCR,
                                                         group_by_variables = translated_group_by_variables,
                                                         assays_to_access = assays_to_access,
-                                                        metadata = metadata)
+                                                        metadata = metadata,
+                                                        verbose = verbose)
 
         graph_and_pca_results <- .PcaAndClustering(distanceMatrix = as.matrix(combined_matrix),
                                                    pcaComponents = pcaComponents,
@@ -357,7 +340,7 @@ ClusterTcrs <- function(seuratObj = NULL,
                                                          seed = seed,
                                                          resolution_parameter = resolution,
                                                          num_iter = 2,
-                                                         verbose = TRUE)
+                                                         verbose = verbose)
           #add the partition to the seurat object's metadata
           partition_metadata <- data.frame(partition$membership)
           rownames(partition_metadata) <- colnames(seuratObj_TCR_composite[[joint_graph]])
@@ -367,7 +350,7 @@ ClusterTcrs <- function(seuratObj = NULL,
           } else {
             joint_graph_name <- joint_graph
           }
-          print(joint_graph_name)
+          if (verbose) print(joint_graph_name)
           seuratObj_TCR_composite <- Seurat::AddMetaData(seuratObj_TCR_composite, partition_metadata, col.name = paste0("TcrClustR_", joint_graph_name, "_", resolution))
         }
       }
@@ -396,8 +379,7 @@ ClusterTcrs <- function(seuratObj = NULL,
 
   #validate number of components vs distance matrix dimensions
   if (pcaComponents > ncol(distanceMatrix)) {
-   print("Warning: number of requested components exceeds available dimensions.")
-   print("Setting pcaComponents to the number of columns in the distance matrix.")
+   warning("Number of requested components exceeds available dimensions. Setting pcaComponents to the number of columns in the distance matrix.")
    pcaComponents <- ncol(distanceMatrix)
   }
 
@@ -458,11 +440,14 @@ ClusterTcrs <- function(seuratObj = NULL,
 .ComputeMultiTCRDistanceMatrix <- function(seuratObj_TCR = NULL,
                                            group_by_variables = NULL,
                                            assays_to_access = NULL,
-                                           metadata = NULL) {
+                                           metadata = NULL,
+                                           verbose = FALSE) {
 
-  print(paste("Debug: group_by_variables =", paste(group_by_variables, collapse = ", ")))
-  print(paste("Debug: assays_to_access =", paste(assays_to_access, collapse = ", ")))
-  print(paste("Debug: metadata columns =", paste(colnames(metadata), collapse = ", ")))
+  if (verbose) {
+    print(paste("Debug: group_by_variables =", paste(group_by_variables, collapse = ", ")))
+    print(paste("Debug: assays_to_access =", paste(assays_to_access, collapse = ", ")))
+    print(paste("Debug: metadata columns =", paste(colnames(metadata), collapse = ", ")))
+  }
 
   # Generate the required columns for observed_tcr_pairs using the SAME logic as .CreateTcrKeyLookup
   # This ensures consistency between observed_tcr_pairs and lookup tables
@@ -487,7 +472,9 @@ ClusterTcrs <- function(seuratObj = NULL,
   required_cols_second <- get_required_cols(assays_to_access[2])
   all_required_cols <- unique(c(required_cols_first, required_cols_second))
 
-  print(paste("Debug: required columns for observed_tcr_pairs:", paste(all_required_cols, collapse = ", ")))
+  if (verbose) {
+    print(paste("Debug: required columns for observed_tcr_pairs:", paste(all_required_cols, collapse = ", ")))
+  }
 
   observed_tcr_pairs <- metadata |>
     dplyr::select(dplyr::all_of(all_required_cols)) |>
@@ -495,9 +482,11 @@ ClusterTcrs <- function(seuratObj = NULL,
     dplyr::filter_all(dplyr::all_vars(!grepl(",",.))) |>
     dplyr::distinct()
 
-  print(paste("Debug: observed_tcr_pairs has", nrow(observed_tcr_pairs), "rows"))
+  if (verbose) {
+    print(paste("Debug: observed_tcr_pairs has", nrow(observed_tcr_pairs), "rows"))
+  }
 
-  # Handle Seurat v5 layer system for both assays
+  #handle Seurat v5 layer system for both assays
   for (assay in assays_to_access) {
     tryCatch({
       if (methods::is(seuratObj_TCR[[assay]], "Assay5")) {
@@ -508,7 +497,7 @@ ClusterTcrs <- function(seuratObj = NULL,
     })
   }
 
-  # Get matrices with fallback for Seurat v5 compatibility
+  #get matrices with fallback for Seurat v5 compatibility
   first_chain_matrix <- tryCatch({
     Seurat::GetAssayData(seuratObj_TCR, assay = assays_to_access[1])
   }, error = function(e) {
@@ -533,22 +522,23 @@ ClusterTcrs <- function(seuratObj = NULL,
   first_chain_lookup <- .CreateTcrKeyLookup(seuratObj_TCR, assays_to_access[1])
   second_chain_lookup <- .CreateTcrKeyLookup(seuratObj_TCR, assays_to_access[2])
 
-  print(paste("Debug: first_chain_lookup has", nrow(first_chain_lookup), "rows"))
-  print(paste("Debug: second_chain_lookup has", nrow(second_chain_lookup), "rows"))
+  if (verbose) {
+    print(paste("first_chain_lookup has", nrow(first_chain_lookup), "rows"))
+    print(paste("second_chain_lookup has", nrow(second_chain_lookup), "rows"))
+    print(paste("observed_tcr_pairs columns =", paste(colnames(observed_tcr_pairs), collapse = ", ")))
+  }
 
-  print(paste("Debug: observed_tcr_pairs columns =", paste(colnames(observed_tcr_pairs), collapse = ", ")))
+  #create keys for observed_tcr_pairs using the same logic as .CreateTcrKeyLookup
+  #apply the same key generation logic as .CreateTcrKeyLookup for both chains
 
-  # Create keys for observed_tcr_pairs using the SAME logic as .CreateTcrKeyLookup
-  # Apply the same key generation logic as .CreateTcrKeyLookup for both chains
-
-  # For first chain - apply same logic as .CreateTcrKeyLookup
+  #for first chain - apply same logic as .CreateTcrKeyLookup
   if(grepl("_cdr3$", assays_to_access[1])) {
     # CDR3-only first chain - extract the first column (CDR3 sequence)
     first_chain_key_col <- required_cols_first[1]
     observed_pairs_with_keys <- observed_tcr_pairs %>%
       dplyr::mutate(first_chain_key = .data[[first_chain_key_col]])
   } else {
-    # Full first chain - paste V, J, CDR3 with underscore separator
+    #full first chain - paste V, J, CDR3 with underscore separator
     observed_pairs_with_keys <- observed_tcr_pairs %>%
       dplyr::mutate(first_chain_key = paste(
         .data[[required_cols_first[1]]],  # V gene
@@ -558,14 +548,14 @@ ClusterTcrs <- function(seuratObj = NULL,
       ))
   }
 
-  # For second chain - apply same logic as .CreateTcrKeyLookup
+  #for second chain - apply same logic as .CreateTcrKeyLookup
   if(grepl("_cdr3$", assays_to_access[2])) {
     # CDR3-only second chain - extract the first column (CDR3 sequence)
     second_chain_key_col <- required_cols_second[1]
     observed_pairs_with_keys <- observed_pairs_with_keys %>%
       dplyr::mutate(second_chain_key = .data[[second_chain_key_col]])
   } else {
-    # Full second chain - paste V, J, CDR3 with underscore separator
+    #full second chain - paste V, J, CDR3 with underscore separator
     observed_pairs_with_keys <- observed_pairs_with_keys %>%
       dplyr::mutate(second_chain_key = paste(
         .data[[required_cols_second[1]]],  # V gene
@@ -575,20 +565,22 @@ ClusterTcrs <- function(seuratObj = NULL,
       ))
   }
 
-  # Remove allele annotations (same as in .CreateTcrKeyLookup) to match lookup table format
+  #remove allele annotations (same as in .CreateTcrKeyLookup) to match lookup table format
   observed_pairs_with_keys <- observed_pairs_with_keys %>%
     dplyr::mutate(
       first_chain_key = gsub("\\*01", "", .data$first_chain_key),
       second_chain_key = gsub("\\*01", "", .data$second_chain_key)
     )
 
-  # Debug: show sample keys from both sides
-  print("Debug: Sample keys from observed_pairs_with_keys:")
-  print(head(observed_pairs_with_keys[c("first_chain_key", "second_chain_key")], 3))
-  print("Debug: Sample keys from first_chain_lookup:")
-  print(head(first_chain_lookup$key, 3))
-  print("Debug: Sample keys from second_chain_lookup:")
-  print(head(second_chain_lookup$key, 3))
+  if (verbose) {
+    #show sample keys from both sides
+    print("Sample keys from observed_pairs_with_keys:")
+    print(head(observed_pairs_with_keys[c("first_chain_key", "second_chain_key")], 3))
+    print("Sample keys from first_chain_lookup:")
+    print(head(first_chain_lookup$key, 3))
+    print("Sample keys from second_chain_lookup:")
+    print(head(second_chain_lookup$key, 3))
+  }
 
   #map keys to matrix row names using lookups
   valid_pairs <- observed_pairs_with_keys %>%
@@ -596,7 +588,9 @@ ClusterTcrs <- function(seuratObj = NULL,
     dplyr::left_join(second_chain_lookup, by = c("second_chain_key" = "key")) %>%
     dplyr::filter(!is.na(matrix_rowname.x) & !is.na(matrix_rowname.y))
 
-  print(paste("Debug: valid_pairs has", nrow(valid_pairs), "rows after join and filter"))
+  if (verbose) {
+    print(paste("valid_pairs has", nrow(valid_pairs), "rows after join and filter"))
+  }
 
   if (nrow(valid_pairs) == 0) {
     stop("No valid TCR pairs found for multi-chain analysis. Check that metadata columns exist and contain matching data.")

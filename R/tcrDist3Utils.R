@@ -1,4 +1,3 @@
-
 utils::globalVariables(
   names = c('SubjectId', 'TRA', 'TRA_V', 'TRA_J', 'TRB', 'TRB_V', 'TRB_J', 'CloneNames', 'count', 'Cluster', 'DistanceSum'),
   package = 'tcrClustR',
@@ -533,6 +532,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
 #' @param cluster_info Factor vector of cluster assignments for each cell in the assay.
 #' @param cluster_colors Named character vector of colors corresponding to cluster levels.
 #' @param annotate_clusters Boolean specifying whether to display clustering information.
+#' @param verbose Boolean controlling whether to display processing steps. Default is FALSE.
 #'
 #' @return A ComplexHeatmap object ready for drawing.
 #' @importFrom ComplexHeatmap Heatmap draw HeatmapAnnotation rowAnnotation
@@ -544,7 +544,8 @@ FormatMetadataForTcrDist3 <- function(metadata,
 #'   assay = "TCRAssay",
 #'   cluster_info = info_df,
 #'   cluster_colors = color_list,
-#'   annotate_clusters = TRUE
+#'   annotate_clusters = TRUE,
+#'   verbose = TRUE
 #' )
 #' }
 .TCRDistanceHeatmap <- function(
@@ -552,7 +553,8 @@ FormatMetadataForTcrDist3 <- function(metadata,
     assay = NULL,
     cluster_info = NULL,
     cluster_colors = NULL,
-    annotate_clusters = TRUE
+    annotate_clusters = TRUE,
+    verbose = FALSE
 ) {
   if (is.null(seuratObj_TCR)) {
     stop("seuratObj_TCR must not be NULL.")
@@ -566,7 +568,26 @@ FormatMetadataForTcrDist3 <- function(metadata,
   if (is.null(cluster_colors)) {
     stop("cluster_colors must not be NULL.")
   }
+
+  if (verbose) message("Creating heatmap for assay: ", assay)
+
   m <- as.matrix(Seurat::GetAssayData(seuratObj_TCR, assay = assay, layer = "counts"))
+
+  if (verbose) {
+    message("Distance matrix dimensions: ", nrow(m), " x ", ncol(m))
+    message("Number of cluster levels: ", length(levels(factor(cluster_info))))
+    message("Cluster info length: ", length(cluster_info))
+  }
+
+  # Validate dimensions
+  if (nrow(m) == 0 || ncol(m) == 0) {
+    stop("Distance matrix has zero dimensions for assay ", assay, ": ", nrow(m), " x ", ncol(m))
+  }
+
+  if (length(cluster_info) != ncol(m)) {
+    stop("Cluster info length (", length(cluster_info), ") does not match matrix columns (", ncol(m), ") for assay ", assay)
+  }
+
   cluster_info <- factor(cluster_info)
 
   if (annotate_clusters) {
@@ -629,6 +650,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
 #' @param assayList Character vector of assay names to include. Default is NULL (all assays).
 #' @param resolution Numeric clustering resolution parameter matching metadata column suffix.
 #' @param annotate_clusters Boolean specifying whether to display clustering information.
+#' @param verbose Boolean controlling whether to display processing steps. Default is FALSE.
 #'
 #' @return Returns the patchwork object containing ComplexHeatmaps of the TCR distance data.
 #' @export
@@ -638,17 +660,25 @@ FormatMetadataForTcrDist3 <- function(metadata,
 #'   seuratObj_TCR = seuratObj,
 #'   assayList = NULL,
 #'   resolution = 0.1,
-#'   annotate_clusters = TRUE
+#'   annotate_clusters = TRUE,
+#'   verbose = TRUE
 #' )
 #' }
 TCRDistanceHeatmaps <- function(
     seuratObj_TCR = NULL,
     assayList = NULL,
     resolution = 0.1,
-    annotate_clusters = TRUE
+    annotate_clusters = TRUE,
+    verbose = FALSE
 ) {
   if (is.null(seuratObj_TCR)) {
     stop("Please provide a Seurat Object with TCR distance assays.")
+  }
+
+  if (verbose) {
+    message("Starting TCRDistanceHeatmaps with resolution: ", resolution)
+    message("Available assays in Seurat object: ", paste(SeuratObject::Assays(seuratObj_TCR), collapse = ", "))
+    message("Available metadata columns: ", paste(colnames(seuratObj_TCR@meta.data), collapse = ", "))
   }
 
   assays_to_use <- if (is.null(assayList)) {
@@ -657,14 +687,23 @@ TCRDistanceHeatmaps <- function(
     assayList
   }
 
+  if (verbose) message("Assays to process: ", paste(assays_to_use, collapse = ", "))
+
   heatmaps <- list()
 
   for (assay in assays_to_use) {
+    if (verbose) message("Processing assay: ", assay)
+
     distance_matrix <- as.matrix(Seurat::GetAssayData(seuratObj_TCR, assay = assay, layer = "counts"))
+
+    if (verbose) message("Distance matrix dimensions for ", assay, ": ", nrow(distance_matrix), " x ", ncol(distance_matrix))
 
     # Find metadata column from clustering pipeline
     cluster_column <- paste0("TcrClustR_", assay, "_", resolution)
+    if (verbose) message("Looking for cluster column: ", cluster_column)
+
     if (!(cluster_column %in% colnames(seuratObj_TCR@meta.data))) {
+      if (verbose) message("Skipping ", assay, " - cluster column ", cluster_column, " not found")
       message(paste("Skipping", assay, "- no", cluster_column))
       next
     }
@@ -673,16 +712,37 @@ TCRDistanceHeatmaps <- function(
     # the correct portion of that array
     full_cluster_info <- seuratObj_TCR@meta.data[[cluster_column]]
     n_cells_in_assay <- ncol(distance_matrix)
+
+    if (verbose) {
+      message("Full cluster info length: ", length(full_cluster_info))
+      message("Cells in current assay (", assay, "): ", n_cells_in_assay)
+    }
+
     assay_start_index <- 1
     for (a in SeuratObject::Assays(seuratObj_TCR)) {
       if (a == assay) break
-      assay_start_index <- assay_start_index + ncol(Seurat::GetAssayData(seuratObj_TCR, assay = a, layer = "counts"))
+      assay_cells <- ncol(Seurat::GetAssayData(seuratObj_TCR, assay = a, layer = "counts"))
+      if (verbose) message("Assay ", a, " has ", assay_cells, " cells, start index now: ", assay_start_index + assay_cells)
+      assay_start_index <- assay_start_index + assay_cells
     }
     assay_end_index <- assay_start_index + n_cells_in_assay - 1
+
+    if (verbose) message("Slicing cluster info from index ", assay_start_index, " to ", assay_end_index)
+
+    if (assay_end_index > length(full_cluster_info)) {
+      if (verbose) message("ERROR: End index (", assay_end_index, ") exceeds cluster info length (", length(full_cluster_info), ")")
+      message("Skipping ", assay, " - cluster indexing error")
+      next
+    }
 
     cluster_info <- full_cluster_info[assay_start_index:assay_end_index]
     cluster_info <- as.factor(cluster_info)
     cluster_levels <- levels(cluster_info)
+
+    if (verbose) {
+      message("Cluster levels for ", assay, ": ", paste(cluster_levels, collapse = ", "))
+      message("Number of cluster levels: ", length(cluster_levels))
+    }
     cluster_colors <- setNames(
       if (length(cluster_levels) <= 8) {
         RColorBrewer::brewer.pal(length(cluster_levels), "Set2")
@@ -695,13 +755,29 @@ TCRDistanceHeatmaps <- function(
     )
 
     # Get a ComplexHeatmap
-    heatmap_obj <- .TCRDistanceHeatmap(seuratObj_TCR, assay, cluster_info, cluster_colors, annotate_clusters)
-    drawn_heatmap <- draw(heatmap_obj, merge_legend = FALSE, heatmap_legend_side = "right", annotation_legend_side = "right", newpage = FALSE)
+    if (verbose) message("Creating ComplexHeatmap for ", assay)
+
+    heatmap_obj <- .TCRDistanceHeatmap(seuratObj_TCR,
+                                       assay,
+                                       cluster_info,
+                                       cluster_colors,
+                                       annotate_clusters,
+                                       verbose = verbose)
+    drawn_heatmap <- draw(heatmap_obj,
+                          merge_legend = FALSE,
+                          heatmap_legend_side = "right",
+                          annotation_legend_side = "right",
+                          newpage = FALSE)
 
     if (!is.null(drawn_heatmap)) {
+      if (verbose) message("Successfully created heatmap for ", assay)
       heatmaps[[assay]] <- drawn_heatmap
+    } else {
+      if (verbose) message("Failed to create heatmap for ", assay)
     }
   }
+
+  if (verbose) message("Created ", length(heatmaps), " heatmaps total")
 
   # Composite with patchwork
   combined_heatmaps <- patchwork::wrap_plots(lapply(heatmaps, function(hm) grid::grid.grabExpr(draw(hm))), ncol = 1)
@@ -723,6 +799,7 @@ TCRDistanceHeatmaps <- function(
 #' @param seuratObj_TCR A Seurat object with TCR distance assay data.
 #' @param assayList Character vector of assays to plot. Default is NULL (all assays).
 #' @param resolution Numeric clustering resolution matching metadata column suffix.
+#' @param verbose Boolean controlling whether to display processing steps. Default is FALSE.
 #'
 #' @return Returns the patchwork object containing the TCR distance histograms.
 #' @importFrom stats setNames
@@ -732,13 +809,15 @@ TCRDistanceHeatmaps <- function(
 #' TCRDistanceHistograms(
 #'   seuratObj_TCR = seuratObj,
 #'   assayList = NULL,
-#'   resolution = 0.1
+#'   resolution = 0.1,
+#'   verbose = TRUE
 #' )
 #' }
 TCRDistanceHistograms <- function(
     seuratObj_TCR = NULL,
     assayList  = NULL,
-    resolution = 0.1
+    resolution = 0.1,
+    verbose = FALSE
 ) {
   if (is.null(seuratObj_TCR)) {
     stop("Please provide a Seurat object with TCR distance assays.")
@@ -819,4 +898,23 @@ TCRDistanceHistograms <- function(
   print(combined)
 
   return(combined)
+}
+
+#' @title Get Example Markdown
+#'
+#' @description Save a template R markdown file, showing usage of this package
+#' @param dest The destination filepath, where the file will be saved
+#' @export
+GetExampleMarkdown <- function(dest) {
+  source <- system.file("rmd/tcrClustR.rmd", package = "tcrClustR")
+  if (!file.exists(source)) {
+    stop(paste0('Unable to find file: ', source))
+  }
+
+  dest <- normalizePath(dest, mustWork = F)
+  success <- file.copy(source, dest, overwrite = TRUE)
+
+  if (!success) {
+    stop(paste0('Unable to copy file to: ', dest))
+  }
 }

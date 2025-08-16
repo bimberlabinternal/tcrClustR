@@ -1,0 +1,369 @@
+---
+title: "`r params$doc_title`"
+date: "`r Sys.Date()`"
+params:
+  doc_title: "Example tcrClustR Report"
+  skipVisualization: false
+output:
+  rmdformats::html_clean:
+    highlight: kate
+    self_contained: yes
+    keep_md: false
+    thumbnails: yes
+    fig_width: 12
+    code_folding: hide
+    gallery: true
+    lightbox: true
+    df_print: paged
+---
+
+```{r setup}
+
+library(tcrClustR)
+library(dplyr)
+library(Seurat)
+
+knitr::opts_chunk$set(message=FALSE, warning=FALSE, echo=TRUE, error=TRUE)
+
+```
+
+# Setup and Validate Inputs 
+
+## Setup
+
+```{r setupVariables, include=FALSE}
+
+#load data and set required variables
+seuratObj <- readRDS("../../tests/testdata/small_RIRA.rds")
+outputPath <- tempdir()
+
+#set default values for optional parameters
+chains <- if(exists('chains')) chains else c("TRA", "TRB")
+cleanMetadata <- if(exists('cleanMetadata')) cleanMetadata else TRUE
+summarizeClones <- if(exists('summarizeClones')) summarizeClones else TRUE
+minimumClonesPerSubject <- if(exists('minimumClonesPerSubject')) minimumClonesPerSubject else 2
+resolutionParameter <- if(exists('resolutionParameter')) resolutionParameter else 0.1
+pcaComponents <- if(exists('pcaComponents')) pcaComponents else 50
+usePCA <- if(exists('usePCA')) usePCA else TRUE
+verbose <- if(exists('verbose')) verbose else FALSE
+pythonExecutable <- if(exists('pythonExecutable')) pythonExecutable else NULL
+
+```
+
+## Validation
+```{r InputValidation}
+
+#validate required inputs
+if (!exists('seuratObj') || is.null(seuratObj)) {
+  stop('seuratObj must be defined')
+}
+if (!exists('outputPath') || is.null(outputPath)) {
+  stop('outputPath must be defined')
+}
+if (!inherits(seuratObj, "Seurat")) {
+  stop('seuratObj must be a Seurat object with TCR metadata')
+}
+tcr_columns <- c("TRA", "TRB", "TRA_V", "TRA_J", "TRB_V", "TRB_J")
+available_tcr_cols <- intersect(tcr_columns, colnames(seuratObj@meta.data))
+if (length(available_tcr_cols) == 0) {
+  stop("No TCR columns found in metadata. Please ensure TCR data is properly formatted.")
+}
+if (!dir.exists(outputPath)) {
+  dir.create(outputPath, recursive = TRUE)
+}
+
+#initialize result objects
+formatted_metadata <- NULL
+seuratObj_TCR <- NULL
+clustering_result <- NULL
+seuratObj_clustered <- seuratObj
+clustered_tcr_objects <- NULL
+
+print("Input validation completed successfully")
+
+```
+
+# Data Overview
+
+```{r DataOverview}
+
+print("Seurat object summary:")
+print(paste0("Number of cells: ", ncol(seuratObj)))
+print(paste0("Number of features: ", nrow(seuratObj)))
+print(paste0("Available TCR columns: ", paste(available_tcr_cols, collapse = ", ")))
+
+```
+
+# TCR Data Formatting
+
+```{r FormatMetadata}
+
+tryCatch({
+  formatted_metadata <- FormatMetadataForTcrDist3(
+    metadata = seuratObj@meta.data,
+    chains = chains,
+    cleanMetadata = cleanMetadata,
+    summarizeClones = summarizeClones,
+    minimumClonesPerSubject = minimumClonesPerSubject,
+    outputCsv = file.path(outputPath, 'tcrDist3Input.csv'),
+    pythonExecutable = pythonExecutable,
+    verbose = verbose
+  )
+  
+  print("Formatted metadata summary:")
+  print(paste0("Number of rows: ", nrow(formatted_metadata)))
+  print(paste0("Number of columns: ", ncol(formatted_metadata)))
+  print(paste0("Chains included: ", paste(chains, collapse = ", ")))
+  
+  #show first few rows
+  knitr::kable(head(formatted_metadata, n = 5), caption = "First 5 rows of formatted metadata")
+  
+}, error = function(e){
+  message("Error formatting metadata: ", e)
+  traceback()
+  stop("Cannot proceed without properly formatted metadata")
+})
+
+```
+
+# TCR Distance Matrix Computation
+
+```{r RunTcrdist3}
+
+#validate that we have valid formatted metadata
+if (is.null(formatted_metadata) || nrow(formatted_metadata) == 0) {
+  stop("No valid formatted metadata available for distance computation")
+}
+
+tryCatch({
+  seuratObj_TCR <- RunTcrdist3(
+    seuratObj = seuratObj,
+    chains = chains,
+    cleanMetadata = cleanMetadata,
+    minimumClonesPerSubject = minimumClonesPerSubject,
+    rdsOutputPath = file.path(outputPath, "tcrdist3DistanceMatrices"),
+    pythonExecutable = pythonExecutable,
+    verbose = verbose
+  )
+  
+  print("TCR distance matrices computed successfully!")
+  print(paste0("Available assays: ", paste(SeuratObject::Assays(seuratObj_TCR), collapse = ", ")))
+  print(paste0("Number of cells in TCR object: ", ncol(seuratObj_TCR)))
+  
+}, error = function(e){
+  message("Error computing TCR distances: ", e)
+  traceback()
+  stop("Cannot proceed without TCR distance matrices")
+})
+
+```
+
+# TCR Clustering
+
+```{r ClusterTCRs, fig.width = 15}
+
+#validate that we have valid TCR distance object
+if (is.null(seuratObj_TCR)) {
+  stop("No TCR distance object available for clustering")
+}
+
+tryCatch({
+  clustering_result <- ClusterTcrs(
+    seuratObj = seuratObj,
+    seuratObj_TCR = seuratObj_TCR,
+    resolutionParameter = resolutionParameter,
+    usePCA = usePCA,
+    pcaComponents = pcaComponents
+  )
+  
+  print("TCR clustering completed successfully!")
+  
+  #extract clustered objects
+  if (is.list(clustering_result) && "seuratObj" %in% names(clustering_result)) {
+    seuratObj_clustered <- clustering_result$seuratObj
+    clustered_tcr_objects <- clustering_result$clusteredSeuratObjects
+  } else {
+    clustered_tcr_objects <- clustering_result
+    seuratObj_clustered <- seuratObj
+  }
+  
+  #show clustering columns that were added
+  cluster_cols <- grep("TcrClustR_", colnames(seuratObj_clustered@meta.data), value = TRUE)
+  if (length(cluster_cols) > 0) {
+    print(paste0("Added clustering columns: ", paste(cluster_cols, collapse = ", ")))
+  }
+  
+}, error = function(e){
+  message("Error clustering TCRs: ", e$message)
+  #set fallback values to allow report to continue
+  seuratObj_clustered <- seuratObj
+  clustered_tcr_objects <- NULL
+})
+
+```
+
+# Visualization
+
+```{r Visualization, fig.width = 15}
+
+if (params$skipVisualization) {
+  message("Skipping visualization as requested")
+} else {
+  
+  #find clustering columns to determine visualization approach
+  all_meta_cols <- colnames(seuratObj_clustered@meta.data)
+  tcr_cols <- grep("TcrClustR_", all_meta_cols, value = TRUE)
+  
+  #generate visualizations based on available clustering results
+  if (length(tcr_cols) > 0) {
+    print(paste0("Found clustering columns: ", paste(tcr_cols, collapse = ", ")))
+    
+    tryCatch({
+      TCRDistanceHeatmaps(
+        seuratObj_TCR = seuratObj_clustered,
+        resolution = resolutionParameter,
+        annotate_clusters = TRUE,
+        verbose = verbose
+      )
+    }, error = function(e){
+      message("Error generating heatmaps: ", e)
+    })
+    
+    tryCatch({
+      TCRDistanceHistograms(
+        seuratObj_TCR = seuratObj_clustered,
+        resolution = resolutionParameter,
+        verbose = verbose
+      )
+    }, error = function(e){
+      message("Error generating histograms: ", e)
+    })
+    
+  } else if (!is.null(clustered_tcr_objects)) {
+    #use TCR-specific objects for visualization
+    visualize_tcr_object <- function(tcr_obj, obj_name) {
+      tcr_cols <- grep("TcrClustR_", colnames(tcr_obj@meta.data), value = TRUE)
+      
+      if (length(tcr_cols) == 0) {
+        message("No clustering columns found for ", obj_name, ". Skipping visualization.")
+        return()
+      }
+      
+      tryCatch({
+        TCRDistanceHeatmaps(
+          seuratObj_TCR = tcr_obj,
+          resolution = resolutionParameter,
+          annotate_clusters = TRUE,
+          verbose = verbose
+        )
+      }, error = function(e){
+        message("Error generating heatmaps for ", obj_name, ": ", e)
+      })
+      
+      tryCatch({
+        TCRDistanceHistograms(
+          seuratObj_TCR = tcr_obj,
+          resolution = resolutionParameter,
+          verbose = verbose
+        )
+      }, error = function(e){
+        message("Error generating histograms for ", obj_name, ": ", e)
+      })
+    }
+    
+    #apply visualization to each TCR object
+    for (i in seq_along(clustered_tcr_objects)) {
+      obj_name <- names(clustered_tcr_objects)[i]
+      if (is.null(obj_name)) obj_name <- paste("Object", i)
+      visualize_tcr_object(clustered_tcr_objects[[i]], obj_name)
+    }
+    
+  } else {
+    message("No clustering results available for visualization")
+  }
+}
+
+```
+
+# Clustering Summary
+
+```{r ClusteringSummary}
+#summarization function
+summarize_clusters <- function(obj, obj_name) {
+  print(paste("##", obj_name, "Clustering Summary"))
+  
+  cluster_cols <- grep("TcrClustR_", colnames(obj@meta.data), value = TRUE)
+  
+  if (length(cluster_cols) == 0) {
+    print("No TcrClustR clustering columns found")
+    return()
+  }
+  
+  for (col in cluster_cols) {
+    cluster_table <- table(obj@meta.data[[col]], useNA = "ifany")
+    print(paste0("Clusters for ", col, ":"))
+    print(cluster_table)
+    
+    # Show non-NA cluster summary
+    non_na_clusters <- cluster_table[!is.na(names(cluster_table))]
+    if (length(non_na_clusters) > 0) {
+      print(paste0("Number of non-NA clusters: ", length(non_na_clusters)))
+      print(paste0("Total cells with cluster assignments: ", sum(non_na_clusters)))
+    }
+    
+    na_count <- sum(is.na(obj@meta.data[[col]]))
+    if (na_count > 0) {
+      print(paste0("Number of cells without TCR clustering: ", na_count))
+    }
+  }
+}
+
+# Summarize main Seurat object
+if (exists("seuratObj_clustered") && !is.null(seuratObj_clustered)) {
+  summarize_clusters(seuratObj_clustered, "Main Seurat Object")
+}
+
+# Summarize TCR-specific objects
+if (exists("clustered_tcr_objects") && !is.null(clustered_tcr_objects)) {
+  print("## TCR-Specific Objects Clustering Summary")
+  
+  for (i in seq_along(clustered_tcr_objects)) {
+    obj_name <- names(clustered_tcr_objects)[i]
+    if (is.null(obj_name)) obj_name <- paste("Object", i)
+    
+    print(paste0("### ", obj_name))
+    summarize_clusters(clustered_tcr_objects[[i]], obj_name)
+  }
+}
+
+```
+
+# Session Information
+
+```{r SessionInfo}
+
+sessionInfo()
+
+```
+
+# File Outputs
+
+```{r FileOutputs}
+
+print("Files created in output directory:")
+
+if (!dir.exists(outputPath)) {
+  print("  Output directory does not exist")
+} else {
+  files <- list.files(outputPath, recursive = TRUE)
+  
+  if (length(files) == 0) {
+    print("  No files found in output directory")
+  } else {
+    for (file in files) {
+      print(paste0("  ", file))
+    }
+  }
+}
+
+```

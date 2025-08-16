@@ -14,7 +14,8 @@
   jaccardIndexThreshold = 0.1,
   resolutions = c(0.1, 0.2, 0.3),
   seed = 1234,
-  computeMultiChain = T
+  computeMultiChain = T,
+  verbose = FALSE
 )
 }
 \arguments{
