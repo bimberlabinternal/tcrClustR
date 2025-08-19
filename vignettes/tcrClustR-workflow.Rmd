@@ -1,0 +1,416 @@
+---
+title: "tcrClustR Workflow: TCR Clustering and Analysis"
+author: "Bimber Lab"
+date: "`r Sys.Date()`"
+output: 
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 3
+vignette: >
+  %\VignetteIndexEntry{tcrClustR Workflow: TCR Clustering and Analysis}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 10,
+  fig.height = 6
+)
+```
+
+## Introduction
+
+The `tcrClustR` package provides tools for analyzing T-cell receptor (TCR) data by computing distance matrices between TCRs and clustering them into families. This vignette demonstrates the complete workflow using example data from the Rhesus Immunome Reference Atlas (https://bimberlab.github.io/RIRA/).
+
+The package uses network analysis from different TCR distance metrics to group TCRs into, hopefully functional, families for prioritization in synthesis studies.
+
+## Setup
+
+First, we load the required libraries and set up the analysis parameters:
+
+```{r libraries, message=FALSE, warning=FALSE}
+library(tcrClustR)
+library(dplyr)
+library(Seurat)
+
+# Set analysis parameters
+chains <- c("TRA", "TRB")
+cleanMetadata <- TRUE
+summarizeClones <- TRUE
+minimumClonesPerSubject <- 2
+resolutionParameter <- 0.1
+pcaComponents <- 50
+usePCA <- TRUE
+verbose <- FALSE
+pythonExecutable <- NULL
+
+# Create output directory
+outputPath <- tempdir()
+```
+
+## Load Example Data
+
+We'll use the example dataset included with the package:
+
+```{r loadData}
+# Load example Seurat object with TCR data
+data_path <- system.file("extdata", "small_RIRA.rds", package = "tcrClustR")
+seuratObj <- readRDS(data_path)
+
+print("Seurat object summary:")
+print(paste0("Number of cells: ", ncol(seuratObj)))
+print(paste0("Number of features: ", nrow(seuratObj)))
+
+# Check for required TCR columns
+tcr_columns <- c("TRA", "TRB", "TRA_V", "TRA_J", "TRB_V", "TRB_J")
+available_tcr_cols <- intersect(tcr_columns, colnames(seuratObj@meta.data))
+print(paste0("Available TCR columns: ", paste(available_tcr_cols, collapse = ", ")))
+```
+
+## Step 1: Format TCR Metadata
+
+The first step is to format the TCR metadata for downstream analysis:
+
+```{r formatMetadata}
+formatted_metadata <- FormatMetadataForTcrDist3(
+  metadata = seuratObj@meta.data,
+  chains = chains,
+  cleanMetadata = cleanMetadata,
+  summarizeClones = summarizeClones,
+  minimumClonesPerSubject = minimumClonesPerSubject,
+  outputCsv = file.path(outputPath, 'tcrDist3Input.csv'),
+  pythonExecutable = pythonExecutable,
+  verbose = verbose
+)
+
+print("Formatted metadata summary:")
+print(paste0("Number of rows: ", nrow(formatted_metadata)))
+print(paste0("Number of columns: ", ncol(formatted_metadata)))
+print(paste0("Chains included: ", paste(chains, collapse = ", ")))
+
+# Display first few rows
+knitr::kable(head(formatted_metadata, n = 5), caption = "First 5 rows of formatted metadata")
+```
+
+## Step 2: Compute TCR Distance Matrices
+
+Next, we compute distance matrices between TCRs using tcrdist3:
+
+```{r computeDistances}
+seuratObj_TCR <- RunTcrdist3(
+  seuratObj = seuratObj,
+  chains = chains,
+  cleanMetadata = cleanMetadata,
+  minimumClonesPerSubject = minimumClonesPerSubject,
+  rdsOutputPath = file.path(outputPath, "tcrdist3DistanceMatrices"),
+  pythonExecutable = pythonExecutable,
+  verbose = verbose
+)
+
+print("TCR distance matrices computed successfully!")
+print(paste0("Available assays: ", paste(SeuratObject::Assays(seuratObj_TCR), collapse = ", ")))
+print(paste0("Number of cells in TCR object: ", ncol(seuratObj_TCR)))
+```
+
+Optionally, you may start at the `RunTcrdist3` step and set `formatMetadata = TRUE`.
+
+## Step 3: Cluster TCRs
+
+Now, we can cluster the TCRs based on their similarity using Leiden clustering via `leidenbase`
+
+```{r clusterTCRs}
+clustering_result <- ClusterTcrs(
+  seuratObj_TCR = seuratObj_TCR,
+  resolutionParameter = resolutionParameter,
+  usePCA = usePCA,
+  pcaComponents = pcaComponents
+)
+
+print("TCR clustering completed successfully!")
+
+# The clustering result is a list containing clustered TCR objects
+print(paste0("Number of clustered TCR objects: ", length(clustering_result)))
+
+# Check clustering columns in the single-chain object
+single_chain_obj <- clustering_result$singleChainSeuratObject
+if (!is.null(single_chain_obj)) {
+  cluster_cols <- grep("TcrClustR_", colnames(single_chain_obj@meta.data), value = TRUE)
+  print(paste0("Clustering columns in single-chain object: ", paste(cluster_cols, collapse = ", ")))
+  
+  # Show sample clustering results
+  if (length(cluster_cols) > 0) {
+    print("Sample clustering assignments:")
+    sample_data <- single_chain_obj@meta.data[1:5, c("cdr3_b_aa", "cdr3_b_aa", cluster_cols[1]), drop = FALSE]
+    print(sample_data)
+  }
+}
+```
+
+## Step 4: Join Clustering Results to Original Object
+
+The clustering results are stored in the metadata of the clustered TCR objects. To transfer these results back to your original Seurat object, you can perform a subject + clonotypic join using the TCR sequence information. For single-chain clustering, we join on subject + individual chain sequences (TRA or TRB within each subject):
+
+```{r joinClustering}
+
+#TODO: Drastically simplify this section
+# Extract clustering information from the single-chain object
+if (is.null(single_chain_obj)) {
+  stop("No single-chain clustering results available")
+}
+
+# Step 1: Prepare for joining clustering results
+cluster_cols <- grep("TcrClustR_", colnames(single_chain_obj@meta.data), value = TRUE)
+available_chains <- intersect(c("cdr3_a_aa", "cdr3_b_aa"), colnames(single_chain_obj@meta.data))
+
+# Validate we have the necessary data
+if (length(cluster_cols) == 0) stop("No clustering columns found")
+if (length(available_chains) == 0) stop("No compatible chain columns found")
+
+print(paste("Found", length(cluster_cols), "clustering columns for", length(available_chains), "chains"))
+
+# Step 2: Set up the join using TCR sequences and subject information
+tcr_metadata <- single_chain_obj@meta.data
+original_meta <- seuratObj@meta.data
+original_meta$original_rowname <- rownames(original_meta) 
+
+# Store the subject columns (i.e. "SubjectId" in original data Seurat Object, "subject" in the clustering result)
+original_subject_col <- "SubjectId"
+
+# Step 3: Join clustering results for each TCR chain (TRA and TRB)
+for (chain in available_chains) {
+  print(paste("Processing", chain, "chain..."))
+  
+  #get TCRs with this chain sequence
+  chain_lookup <- tcr_metadata[!is.na(tcr_metadata[[chain]]), ]
+  original_chain_col <- if (chain == "cdr3_a_aa") "TRA" else "TRB"
+  
+  if (nrow(chain_lookup) == 0 || !original_chain_col %in% colnames(original_meta)) {
+    print(paste("Skipping", chain, "- no data available"))
+    next
+  }
+  
+  #create unique identifiers combining subject + TCR sequence
+  chain_values <- as.character(chain_lookup[[chain]])
+  original_chain_values <- as.character(original_meta[[original_chain_col]])
+  
+  if (!is.null(original_subject_col)) {
+    chain_lookup$join_key <- paste(chain_lookup$subject, chain_values, sep = "_")
+    original_meta$join_key <- paste(original_meta[[original_subject_col]], original_chain_values, sep = "_")
+  } else {
+    chain_lookup$join_key <- chain_values
+    original_meta$join_key <- original_chain_values
+  }
+  
+  #find matching TCRs between clustered and original data
+  matching_keys <- intersect(
+    chain_lookup$join_key[!is.na(chain_lookup$join_key)], 
+    original_meta$join_key[!is.na(original_meta$join_key)]
+  )
+  
+  print(paste("Found", length(matching_keys), "matching TCRs for", chain))
+  
+  #merge clustering assignments for this chain
+  if (length(matching_keys) > 0) {
+    chain_suffix <- if (chain == "cdr3_a_aa") "_TRA" else "_TRB"
+    
+    for (col in cluster_cols) {
+      col_data <- chain_lookup[!is.na(chain_lookup[[col]]) & 
+                             chain_lookup$join_key %in% matching_keys, 
+                             c("join_key", col)]
+      col_data <- col_data[!duplicated(col_data$join_key), ]
+      
+      if (nrow(col_data) > 0) {
+        colnames(col_data)[2] <- paste0(col, chain_suffix)
+        original_meta <- merge(original_meta, col_data, by = "join_key", all.x = TRUE)
+      }
+    }
+  }
+  original_meta$join_key <- NULL  # Clean up temporary column
+}
+
+# Step 4: Restore original cell order and update the Seurat object
+current_rownames <- rownames(seuratObj@meta.data)
+match_indices <- match(current_rownames, original_meta$original_rowname)
+
+if (all(!is.na(match_indices))) {
+  original_meta <- original_meta[match_indices, ]
+  original_meta$original_rowname <- NULL
+  rownames(original_meta) <- current_rownames
+  seuratObj@meta.data <- original_meta
+  print("Successfully updated Seurat object with clustering results")
+} else {
+  stop("Failed to restore original cell order")
+}
+
+# Step 5: Clean up column names and combine TRA/TRB results
+final_cluster_cols <- grep("TcrClustR_.*_(TRA|TRB)$", colnames(seuratObj@meta.data), value = TRUE)
+
+if (length(final_cluster_cols) > 0) {
+  base_names <- unique(gsub("_(TRA|TRB)$", "", final_cluster_cols))
+  
+  for (base_name in base_names) {
+    tra_col <- paste0(base_name, "_TRA")
+    trb_col <- paste0(base_name, "_TRB")
+    
+    # Combine TRA and TRB clustering results into single columns
+    if (tra_col %in% colnames(seuratObj@meta.data) && trb_col %in% colnames(seuratObj@meta.data)) {
+      # Use TRB assignments where available, otherwise use TRA
+      combined_values <- seuratObj@meta.data[[trb_col]]
+      na_indices <- is.na(combined_values)
+      combined_values[na_indices] <- seuratObj@meta.data[[tra_col]][na_indices]
+      
+      seuratObj@meta.data[[base_name]] <- combined_values
+      seuratObj@meta.data[[tra_col]] <- NULL
+      seuratObj@meta.data[[trb_col]] <- NULL
+    } else if (tra_col %in% colnames(seuratObj@meta.data)) {
+      seuratObj@meta.data[[base_name]] <- seuratObj@meta.data[[tra_col]]
+      seuratObj@meta.data[[tra_col]] <- NULL
+    } else if (trb_col %in% colnames(seuratObj@meta.data)) {
+      seuratObj@meta.data[[base_name]] <- seuratObj@meta.data[[trb_col]]
+      seuratObj@meta.data[[trb_col]] <- NULL
+    }
+  }
+}
+
+# Step 6: Display results
+final_clean_cols <- grep("TcrClustR_", colnames(seuratObj@meta.data), value = TRUE)
+print("Successfully joined clustering results:")
+
+non_na_counts <- sapply(final_clean_cols, function(col) sum(!is.na(seuratObj@meta.data[[col]])))
+for (i in seq_along(final_clean_cols)) {
+  cat(paste0("  ", final_clean_cols[i], ": ", non_na_counts[i], " cells assigned\n"))
+}
+
+# Show sample of merged metadata
+if (length(final_clean_cols) > 0) {
+  cat("\nSample of merged clustering metadata:\n")
+  sample_indices <- which(!is.na(seuratObj@meta.data[[final_clean_cols[1]]]))
+  
+  if (length(sample_indices) > 0) {
+    sample_size <- min(5, length(sample_indices))
+    sample_rows <- sample_indices[seq_len(sample_size)]
+    
+    n_display_cols <- min(3, length(final_clean_cols))
+    display_cols <- c("SubjectId", "TRA", "TRB", final_clean_cols[seq_len(n_display_cols)])
+    print(seuratObj@meta.data[sample_rows, display_cols, drop = FALSE])
+  }
+}
+```
+
+The `clustering_result` object contains clustered TCR Seurat objects with different types of clustering:
+- `singleChainSeuratObject` - TCRs clustered using individual chain distances (e.g. TRA, TRB, TRA_cdr3, TRB_cdr3). Each clone is indexed by subject + individual chain sequence.
+- `multiChainSeuratObject` - TCRs clustered using combined multi-chain distances (e.g. TRA + TRB, TRA_cdr3 + TRB_cdr3). Each clone represents a paired TCR combination.
+
+The clustering results are stored in the metadata of these objects with column names starting with "TcrClustR_". 
+For single-chain results, the clonotypic join matches on subject + individual chain sequence (TRA or TRB).
+For multi-chain results, the join would use the full TCR pair information.
+
+## Step 5: Explore Clustering Results
+
+Now that we have clustering results joined to our original Seurat object, let's explore the results:
+
+```{r exploreResults}
+
+# Summary of cluster assignments
+cluster_table <- table(seuratObj@meta.data[["TcrClustR_TRA_0.1"]], useNA = "always")
+print(cluster_table)
+```
+
+## Step 6: Visualize Results
+
+Generate visualizations of the TCR clustering results using the clustered TCR objects:
+
+```{r visualizations, fig.width=12, fig.height=8}
+#Heatmaps
+    TCRDistanceHeatmaps(
+      seuratObj_TCR = single_chain_obj,
+      resolution = resolutionParameter,
+      annotate_clusters = TRUE,
+      verbose = verbose
+    )
+
+
+# UMAP and PCA plots
+umap_reduction <- "TcrClustR_pca.TRA.cdr3_umap"
+DimPlot(single_chain_obj,
+        reduction = umap_reduction,
+        group.by = "TcrClustR_TRA_cdr3_0.1",
+        label = TRUE,
+        pt.size = 0.5
+      )
+
+  # Check for PCA reduction
+pca_reduction <- "TcrClustR_pca.TRA.cdr3"
+DimPlot(
+        single_chain_obj,
+        reduction = pca_reduction,
+        group.by = "TcrClustR_TRA_cdr3_0.1",
+        label = TRUE,
+        pt.size = 0.5
+      )
+```
+
+## Understanding the Results
+
+The tcrClustR workflow produces several key outputs:
+
+1. **Distance Matrices**: Pairwise distances between TCRs based on various metrics
+2. **Clustering Results**: TCRs grouped into clusters based on similarity
+3. **Visualizations**: Heatmaps and histograms showing clustering patterns
+4. **Clonotypic Join**: Transfer of clustering results back to the original Seurat object
+
+### Interpreting Clusters
+
+- Each cluster represents a group of similar TCRs that may have related functions
+- Cluster assignments are added as new columns to your Seurat object metadata after the clonotypic join
+- Cells without TCR data will have `NA` values for clustering columns
+
+### Next Steps
+
+With clustering results now available in your main Seurat object, you can:
+
+1. **Analyze cluster composition**: Examine which cell types or conditions are enriched in each TCR cluster
+2. **Functional analysis**: Investigate whether TCR clusters correlate with specific cellular functions
+3. **Comparative studies**: Compare TCR clustering patterns across different experimental conditions
+4. **Integration with other data**: Combine TCR clustering with gene expression, surface marker, or other omics data
+- The resolution parameter controls the granularity of clustering (lower = fewer, larger clusters)
+
+### Next Steps
+
+After clustering, you can:
+
+- Extract specific clusters for further analysis
+- Use cluster assignments for downstream functional studies
+- Prioritize representative TCRs from each cluster for synthesis
+- Correlate clusters with phenotypic or functional data
+
+## Output Files
+
+```{r outputFiles}
+cat("Files created in output directory:\n")
+
+files <- list.files(outputPath, recursive = TRUE)
+for (file in files) {
+  cat("  ", file, "\n")
+}
+```
+
+## Session Information
+
+```{r sessionInfo}
+sessionInfo()
+```
+
+## Conclusion
+
+This vignette demonstrated the complete tcrClustR workflow for analyzing TCR data. The package provides a streamlined approach to:
+
+1. Format TCR metadata for analysis
+2. Compute distance matrices between TCRs
+3. Cluster TCRs based on similarity
+4. Visualize and interpret results
+
+The resulting clusters can be used to identify groups of potentially functionally related TCRs for downstream analysis and experimental validation.

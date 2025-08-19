@@ -11,9 +11,9 @@ utils::globalVariables(
 #' @title Cluster TCRs using TcrClustR
 #' @description This function clusters TCRs in a Seurat object using TcrClustR.
 #' It performs PCA or kernel PCA, computes distance matrices, and applies clustering algorithms.
-#' @param seuratObj Seurat object containing TCR data (optional, for downstream joining).
+#' The clustering results are stored in the metadata of the returned Seurat objects.
+#' Users can join clustering results back to their original object using clonotypic metadata.
 #' @param seuratObj_TCR Seurat object with TCR distance matrices.
-#' @param metadata Metadata dataframe for TCR data (optional, for downstream joining).
 #' @param resolutionParameter Resolution parameter for clustering. Default is 0.1.
 #' @param pcaComponents Number of components for PCA or kernel PCA. Default is 50.
 #' @param kpcaKernel Kernel type for kernel PCA. Default is "rbfdot". Ignored if usePCA is TRUE.
@@ -23,7 +23,8 @@ utils::globalVariables(
 #' @param seed Random seed for reproducibility. Default is 1234.
 #' @param computeMultiChain Boolean indicating whether to compute multi-chain graphs. Default is TRUE.
 #' @param verbose Boolean indicating whether to print verbose debugging output. Default is FALSE.
-#' @return A list containing single-chain and multi-chain Seurat objects with clustering results.
+#' @return A list containing single-chain and multi-chain Seurat objects with clustering results in their metadata.
+#'   Users should perform clonotypic joins to transfer clustering information to their original Seurat object.
 #' @export
 
 
@@ -54,50 +55,9 @@ ClusterTcrs <- function(seuratObj = NULL,
   #filter out NULL objects to prevent assay access errors when iterating
   clusteredSeuratObjects <- clusteredSeuratObjects[!sapply(clusteredSeuratObjects, is.null)]
 
-  #transfer clustering results from TCR-specific objects back to the original seuratObj
-  if (!is.null(seuratObj)) {
-    for (tcr_object in clusteredSeuratObjects) {
-      #get all clustering columns from the TCR object metadata
-      tcr_metadata <- tcr_object@meta.data
-      clustering_cols <- names(tcr_metadata)[grepl("^TcrClustR_", names(tcr_metadata))]
-      
-      if (length(clustering_cols) > 0) {
-        if (verbose) print(paste("Transferring clustering columns:", paste(clustering_cols, collapse = ", ")))
-        
-        #create a mapping from TCR object cells to original object cells
-        #this assumes the cell names in seuratObj_TCR correspond to cell names in seuratObj
-        tcr_cells <- rownames(tcr_metadata)
-        original_cells <- rownames(seuratObj@meta.data)
-        
-        #find the intersection of cells
-        common_cells <- intersect(tcr_cells, original_cells)
-        
-        if (length(common_cells) > 0) {
-          if (verbose) print(paste("Found", length(common_cells), "common cells between TCR object and original object"))
-          
-          #transfer clustering information for common cells
-          for (col in clustering_cols) {
-            cluster_values <- rep(NA, nrow(seuratObj@meta.data))
-            names(cluster_values) <- rownames(seuratObj@meta.data)
-            
-            #assign clustering values for cells that have TCR data
-            cluster_values[common_cells] <- tcr_metadata[common_cells, col]
-            
-            #add to the original Seurat object
-            seuratObj <- Seurat::AddMetaData(seuratObj, cluster_values, col.name = col)
-          }
-        } else {
-          warning("No common cells found between TCR object and original Seurat object. Clustering information not transferred.")
-        }
-      }
-    }
-    
-    #return the original seuratObj with clustering information added, plus the clustered TCR objects
-    return(list(
-      seuratObj = seuratObj,
-      clusteredSeuratObjects = clusteredSeuratObjects
-    ))
-  }
+  #return the clustered TCR objects
+  #users can join clustering results to their original object using clonotypic metadata
+  #see the vignette for examples of how to do this join
   return(clusteredSeuratObjects)
 }
 

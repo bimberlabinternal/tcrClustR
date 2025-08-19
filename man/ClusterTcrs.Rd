@@ -20,11 +20,11 @@ ClusterTcrs(
 )
 }
 \arguments{
-\item{seuratObj}{Seurat object containing TCR data (optional, for downstream joining).}
+\item{seuratObj}{Seurat object containing TCR data (not used in current implementation - for future compatibility).}
 
 \item{seuratObj_TCR}{Seurat object with TCR distance matrices.}
 
-\item{metadata}{Metadata dataframe for TCR data (optional, for downstream joining).}
+\item{metadata}{Metadata dataframe for TCR data (not used in current implementation - for future compatibility).}
 
 \item{resolutionParameter}{Resolution parameter for clustering. Default is 0.1.}
 
@@ -45,9 +45,12 @@ ClusterTcrs(
 \item{verbose}{Boolean indicating whether to print verbose debugging output. Default is FALSE.}
 }
 \value{
-A list containing single-chain and multi-chain Seurat objects with clustering results.
+A list containing single-chain and multi-chain Seurat objects with clustering results in their metadata.
+Users should perform clonotypic joins to transfer clustering information to their original Seurat object.
 }
 \description{
 This function clusters TCRs in a Seurat object using TcrClustR.
 It performs PCA or kernel PCA, computes distance matrices, and applies clustering algorithms.
+The clustering results are stored in the metadata of the returned Seurat objects.
+Users can join clustering results back to their original object using clonotypic metadata.
 }
