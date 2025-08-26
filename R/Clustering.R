@@ -28,9 +28,7 @@ utils::globalVariables(
 #' @export
 
 
-ClusterTcrs <- function(seuratObj = NULL,
-                        seuratObj_TCR = NULL,
-                        metadata = NULL,
+ClusterTcrs <- function(seuratObj_TCR = NULL,
                         resolutionParameter = 0.1,
                         pcaComponents = 50,
                         kpcaKernel = "rbfdot",

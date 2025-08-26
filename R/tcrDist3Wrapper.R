@@ -436,7 +436,7 @@ RunTcrdist3 <- function(seuratObj = NULL,
           seuratObj_joint <- Seurat::AddMetaData(seuratObj_joint, metadata = dual_chain_metadata)
 
           #merge with main object
-          seuratObj_TCR <- SeuratObject:::merge.Seurat(seuratObj_TCR, seuratObj_joint)
+          seuratObj_TCR <- merge(seuratObj_TCR, seuratObj_joint)
 
           if (verbose) message(paste("Created joint distance matrix:", joint_assay_name))
         }
