@@ -5,9 +5,7 @@
 \title{Cluster TCRs using TcrClustR}
 \usage{
 ClusterTcrs(
-  seuratObj = NULL,
   seuratObj_TCR = NULL,
-  metadata = NULL,
   resolutionParameter = 0.1,
   pcaComponents = 50,
   kpcaKernel = "rbfdot",
