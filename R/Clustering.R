@@ -76,6 +76,7 @@ ClusterTcrs <- function(seuratObj = NULL,
 #' @param resolutions Vector of resolution parameters for clustering. Default is c(0.1, 0.2, 0.3).
 #' @param seed Random seed for reproducibility. Default is 1234.
 #' @param computeMultiChain Boolean indicating whether to compute multi-chain graphs. Default is TRUE.
+#' @param verbose Boolean indicating whether to print verbose debugging output. Default is FALSE.
 #' @return Single Chain and multi-chain Seurat objects
 
 .DistanceMatrixToClusteredGraphs <- function(seuratObj_TCR = NULL,

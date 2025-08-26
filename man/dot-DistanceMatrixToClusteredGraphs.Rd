@@ -38,6 +38,8 @@
 \item{seed}{Random seed for reproducibility. Default is 1234.}
 
 \item{computeMultiChain}{Boolean indicating whether to compute multi-chain graphs. Default is TRUE.}
+
+\item{verbose}{Boolean indicating whether to print verbose debugging output. Default is FALSE.}
 }
 \value{
 Single Chain and multi-chain Seurat objects

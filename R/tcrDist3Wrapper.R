@@ -26,8 +26,11 @@ utils::globalVariables(
 #' @param verbose Boolean controlling whether to display processing steps. Default is FALSE.
 #' @import Matrix
 #' @importFrom methods as
-#'@examples
-#'\dontrun{
+#' @importFrom SeuratObject CreateSeuratObject Assays RenameAssays GetAssayData JoinLayers
+#' @importFrom Seurat AddMetaData
+#' @importFrom methods is
+#' @examples
+#' \dontrun{
 #'   RunTcrdist3(seuratObj = seuratObj,
 #'               metadata = NULL,
 #'               formatMetadata = T,
@@ -230,7 +233,7 @@ RunTcrdist3 <- function(seuratObj = NULL,
       seuratObj_TCR_CDR3 <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_CDR3, "dgCMatrix"),
                                                              assay = paste0(chain, "_cdr3"))
       seuratObj_TCR_CDR3 <- Seurat::AddMetaData(seuratObj_TCR_CDR3, metadata = formatted_metadata)
-      seuratObj_TCR <- SeuratObject:::merge.Seurat(seuratObj_TCR, seuratObj_TCR_CDR3)
+      seuratObj_TCR <- merge(seuratObj_TCR, seuratObj_TCR_CDR3)
     } else {
       seuratObj_TCR_subsequentChain <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_full_length, "dgCMatrix"),
                                                                         assay =  chain)
@@ -238,8 +241,8 @@ RunTcrdist3 <- function(seuratObj = NULL,
       seuratObj_TCR_CDR3_subsequentChain <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_CDR3, "dgCMatrix"),
                                                                              assay = paste0(chain, "_cdr3"))
       seuratObj_TCR_CDR3_subsequentChain <- Seurat::AddMetaData(seuratObj_TCR_CDR3_subsequentChain, metadata = formatted_metadata)
-      seuratObj_TCR_subsequentChain <- SeuratObject:::merge.Seurat(seuratObj_TCR_subsequentChain, seuratObj_TCR_CDR3_subsequentChain)
-      seuratObj_TCR <- SeuratObject:::merge.Seurat(seuratObj_TCR, seuratObj_TCR_subsequentChain)
+      seuratObj_TCR_subsequentChain <- merge(seuratObj_TCR_subsequentChain, seuratObj_TCR_CDR3_subsequentChain)
+      seuratObj_TCR <- merge(seuratObj_TCR, seuratObj_TCR_subsequentChain)
     }
   }
 

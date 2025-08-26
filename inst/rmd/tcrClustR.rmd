@@ -318,12 +318,12 @@ summarize_clusters <- function(obj, obj_name) {
   }
 }
 
-# Summarize main Seurat object
+#summarize main Seurat object
 if (exists("seuratObj_clustered") && !is.null(seuratObj_clustered)) {
   summarize_clusters(seuratObj_clustered, "Main Seurat Object")
 }
 
-# Summarize TCR-specific objects
+#summarize TCR-specific objects
 if (exists("clustered_tcr_objects") && !is.null(clustered_tcr_objects)) {
   print("## TCR-Specific Objects Clustering Summary")
   
