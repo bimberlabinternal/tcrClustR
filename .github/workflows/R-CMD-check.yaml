@@ -1,13 +1,12 @@
+name: R Build and Checks
+
 on:
   workflow_dispatch:
   push:
     branches: [ main, dev ]
   pull_request:
   schedule:
-    - cron: '0 17 11 * *'  #11th of the month at 5PM
-    - cron: '0 17 26 * *'  #26th of the month at 5PM
-
-name: R Build and Checks
+    - cron: "0 6 10 * *"
 
 jobs:
   R-CMD-check:
@@ -19,15 +18,41 @@ jobs:
       fail-fast: false
       matrix:
         config:
-        #note: the jammy OS is required to dodge issues relating to importing ctypes: "undefined symbol: _PyErr_SetLocaleString
-        #seems to be associated with GH action's specific python binary, but eventually this should get sorted out and we can bump to noble. 
-          - { os: 22.04, r: '4.4', bioc: '3.20', pkgdown: "true" } 
+          - { os: 24.04, r: '4.5', bioc: '3.21', pkgdown: "true" }
+
     env:
       R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Extra disk cleanup
+        run: |
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/ghc || true
+          # remove any large tool cache installed by earlier runs (safe if not present)
+          sudo rm -rf "${AGENT_TOOLSDIRECTORY:-/opt/hostedtoolcache}" || true
+          sudo apt-get clean || true
+          docker image prune -af || true || true
+          df -h || true
+          du -sh /usr/local || true
+
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          docker-images: false
+
+      - name: Configure pip cache to runner temp
+        run: |
+          echo "PIP_CACHE_DIR=${RUNNER_TEMP}/pip-cache" >> $GITHUB_ENV
+          mkdir -p "${RUNNER_TEMP}/pip-cache"
+          # show location and initial sizes
+          echo "PIP_CACHE_DIR set to ${RUNNER_TEMP}/pip-cache"
+          df -h
+          du -sh "${RUNNER_TEMP}" || true
 
       - uses: bimberlabinternal/DevOps/githubActions/r-gh-setup@master
         with:
@@ -37,23 +62,28 @@ jobs:
         env:
           GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install tcrClustR specific python packages
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install --user scikit-learn tqdm sympy pyyaml rpy2 pandas>=2.2.3 tcrdist3
-
       - uses: r-lib/actions/check-r-package@v2
         with:
           args: 'c("--no-manual")'
         env:
           _R_CHECK_CRAN_INCOMING_: false
+          PIP_CACHE_DIR: ${{ env.PIP_CACHE_DIR }}
+
+      - name: Show disk usage after checks
+        if: always()
+        run: |
+          echo "Disk usage after checks:"
+          df -h
+          du -sh "${RUNNER_TEMP}" || true
+          du -sh /home/runner || true
+          ls -lah "${RUNNER_TEMP}" || true
 
       - name: Install package
-        if: github.ref == 'refs/heads/main' && matrix.config.pkgdown == 'true'
+        if: github.ref == 'refs/heads/master' && matrix.config.pkgdown == 'true'
         run: R CMD INSTALL .
 
       - name: Deploy package
-        if: github.ref == 'refs/heads/main' && matrix.config.pkgdown == 'true'
+        if: github.ref == 'refs/heads/master' && matrix.config.pkgdown == 'true'
         run: |
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
