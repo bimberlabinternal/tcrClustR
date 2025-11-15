@@ -84,16 +84,73 @@ docker pull ghcr.io/bimberlabinternal/tcrclustr:latest
 
 ### Python Dependencies
 
-tcrClustR requires Python 3.8+ with tcrdist3:
+tcrClustR requires Python 3.8+ with tcrdist3 and related packages. The package includes tools to simplify setup.
+
+#### Automated Setup (Recommended)
+
+Use the built-in helper function to validate and install Python dependencies:
+
+```r
+library(tcrClustR)
+
+# Check and install Python dependencies automatically
+SetupPythonEnvironment()
+
+# Or just validate without installing
+SetupPythonEnvironment(installMissing = FALSE)
+
+# Use specific Python executable
+SetupPythonEnvironment(pythonExecutable = "/path/to/python3")
+```
+
+This function:
+- ✅ Validates Python installation (requires 3.8+)
+- ✅ Checks for required modules (tcrdist3, pandas, numpy, rpy2)
+- ✅ Installs missing packages from `pyproject.toml`
+- ✅ Provides clear error messages with troubleshooting steps
+
+#### Manual Setup
+
+If you prefer manual installation:
 
 ```bash
-pip install tcrdist3 pandas numpy scikit-learn
+# Modern approach (using pyproject.toml)
+pip install /path/to/tcrClustR/
+
+# Or install individual packages
+pip install pandas numpy scikit-learn rpy2
+pip install git+https://github.com/kmayerb/tcrdist3.git@0.2.2
 ```
 
 Set the Python path in R if needed:
 
 ```r
 Sys.setenv(RETICULATE_PYTHON = "/path/to/python3")
+```
+
+#### Troubleshooting Python Issues
+
+If you encounter Python-related errors:
+
+1. **Run the setup helper**: `SetupPythonEnvironment(verbose = TRUE)`
+2. **Check Python version**: Must be 3.8 or higher
+3. **Verify tcrdist3**: `python3 -c 'import tcrdist; print(tcrdist.__version__)'`
+4. **Check reticulate config**: `reticulate::py_config()`
+5. **Review error logs**: The package now captures and displays Python stderr/stdout
+
+Common error messages and solutions:
+
+```r
+# Error: "Missing required Python modules: tcrdist"
+# Solution: Run SetupPythonEnvironment() to install
+
+# Error: "No valid Python executable found"
+# Solution: Install Python 3.8+ or specify path:
+SetupPythonEnvironment(pythonExecutable = "/usr/bin/python3")
+
+# Error: "tcrdist3_gene_segments.txt generation failed"
+# Solution: Check Python dependencies with verbose mode:
+FormatMetadataForTcrDist3(..., verbose = TRUE)
 ```
 
 ## Usage Examples

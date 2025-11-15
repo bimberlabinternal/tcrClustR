@@ -512,6 +512,34 @@ FormatMetadataForTcrDist3 <- function(metadata,
       pythonExecutable <- Sys.which("python3")
     }
   }
+  
+  if (pythonExecutable == "" || !file.exists(pythonExecutable)) {
+    stop("No valid Python executable found. Please install Python 3.8+ or run SetupPythonEnvironment() to configure.")
+  }
+  
+  # Validate Python modules are available before proceeding
+  if (verbose) message("Validating Python dependencies...")
+  
+  required_modules <- c("tcrdist", "pandas")
+  missing_modules <- character(0)
+  
+  for (mod in required_modules) {
+    check_result <- system2(pythonExecutable, 
+                           c("-c", shQuote(paste0("import ", mod))),
+                           stdout = FALSE, 
+                           stderr = FALSE)
+    if (check_result != 0) {
+      missing_modules <- c(missing_modules, mod)
+    }
+  }
+  
+  if (length(missing_modules) > 0) {
+    stop("Missing required Python modules: ", paste(missing_modules, collapse = ", "),
+         "\n\nPlease run SetupPythonEnvironment() to install dependencies, or manually install with:\n",
+         pythonExecutable, " -m pip install ", paste(missing_modules, collapse = " "),
+         "\n\nFor tcrdist3, use: ", pythonExecutable, " -m pip install git+https://github.com/kmayerb/tcrdist3.git@0.2.2")
+  }
+  
   outputFilePath <- R.utils::getAbsolutePath(outputFilePath)
   template <- readr::read_file(system.file("scripts/PullTcrdist3Db.py", package = "tcrClustR"))
   script <- tempfile(fileext = ".py")
@@ -524,13 +552,70 @@ FormatMetadataForTcrDist3 <- function(metadata,
   #add execution permissions to script and parent directory
   Sys.chmod(script, mode = "755")
   system(paste("chmod 755", dirname(script)))
-  #execute
-  if (verbose) message("Python executable: ", pythonExecutable)
-  result <- system2(pythonExecutable, script, stdout = TRUE, stderr = TRUE)
-  if (verbose) cat(result)
-  #check that the gene segments file is created
+  
+  #execute with proper error capture
+  if (verbose) {
+    message("Python executable: ", pythonExecutable)
+    message("Python script: ", script)
+    message("Output path: ", outputFilePath)
+  }
+  
+  # Capture both stdout and stderr
+  stdout_file <- tempfile(fileext = ".stdout")
+  stderr_file <- tempfile(fileext = ".stderr")
+  
+  exit_code <- system2(pythonExecutable, 
+                      script, 
+                      stdout = stdout_file, 
+                      stderr = stderr_file)
+  
+  # Read captured output
+  stdout_content <- if (file.exists(stdout_file)) readLines(stdout_file, warn = FALSE) else character(0)
+  stderr_content <- if (file.exists(stderr_file)) readLines(stderr_file, warn = FALSE) else character(0)
+  
+  # Clean up temp files
+  unlink(c(stdout_file, stderr_file))
+  
+  # Display output if verbose or if there was an error
+  if (verbose || exit_code != 0) {
+    if (length(stdout_content) > 0) {
+      message("Python stdout:")
+      cat(paste(stdout_content, collapse = "\n"), "\n")
+    }
+    if (length(stderr_content) > 0) {
+      message("Python stderr:")
+      cat(paste(stderr_content, collapse = "\n"), "\n")
+    }
+  }
+  
+  # Check that the gene segments file is created
   if (!file.exists(outputFilePath)) {
-    stop("tcrdist3_gene_segments.txt generation failed. Check Python script execution.")
+    error_msg <- paste0(
+      "tcrdist3_gene_segments.txt generation failed.\n\n",
+      "Python executable: ", pythonExecutable, "\n",
+      "Exit code: ", exit_code, "\n\n"
+    )
+    
+    if (length(stderr_content) > 0) {
+      error_msg <- paste0(error_msg, "Python Error Output:\n", paste(stderr_content, collapse = "\n"), "\n\n")
+    }
+    
+    if (length(stdout_content) > 0) {
+      error_msg <- paste0(error_msg, "Python Standard Output:\n", paste(stdout_content, collapse = "\n"), "\n\n")
+    }
+    
+    error_msg <- paste0(error_msg,
+      "Troubleshooting steps:\n",
+      "1. Run SetupPythonEnvironment() to validate and install Python dependencies\n",
+      "2. Verify tcrdist3 is installed: ", pythonExecutable, " -c 'import tcrdist'\n",
+      "3. Check Python script: ", script, "\n"
+    )
+    
+    stop(error_msg)
+  }
+  
+  if (verbose) {
+    message("Successfully generated gene segments file: ", outputFilePath)
   }
 }
 

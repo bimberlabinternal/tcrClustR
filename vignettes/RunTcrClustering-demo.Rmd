@@ -161,13 +161,6 @@ cat("  Clusters found:", length(unique(results_single$TRB$cluster_assignments)),
 cat("  Clones after thresholding:", 
     sum(results_single$TRB$cluster_assignments != -1), "\n")
 ```
-  ```{r inspect_single_results}
-# Look at the clustering results
-cat("Single-chain clustering results:\n")
-cat("  Clusters found:", length(unique(results_single$TRB$cluster_assignments)), "\n")
-cat("  Clones after thresholding:", 
-    sum(results_single$TRB$cluster_assignments != -1), "\n")
-```
 
 ### Read and Inspect Single-Chain Output
 

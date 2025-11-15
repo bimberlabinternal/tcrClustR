@@ -62,6 +62,22 @@ jobs:
         env:
           GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Setup Python dependencies for tcrClustR
+        run: |
+          python3 --version
+          python3 -m pip install --upgrade pip
+          # Install from pyproject.toml
+          python3 -m pip install .
+        env:
+          PIP_CACHE_DIR: ${{ env.PIP_CACHE_DIR }}
+
+      - name: Verify Python dependencies
+        run: |
+          python3 -c "import tcrdist; print('tcrdist3 version:', tcrdist.__version__)"
+          python3 -c "import pandas; print('pandas version:', pandas.__version__)"
+          python3 -c "import numpy; print('numpy version:', numpy.__version__)"
+          python3 -c "import rpy2; print('rpy2 version:', rpy2.__version__)"
+
       - uses: r-lib/actions/check-r-package@v2
         with:
           args: 'c("--no-manual")'
