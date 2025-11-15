@@ -42,7 +42,7 @@ chains <- if(exists('chains')) chains else c("TRA", "TRB")
 cleanMetadata <- if(exists('cleanMetadata')) cleanMetadata else TRUE
 summarizeClones <- if(exists('summarizeClones')) summarizeClones else TRUE
 minimumClonesPerSubject <- if(exists('minimumClonesPerSubject')) minimumClonesPerSubject else 2
-resolutionParameter <- if(exists('resolutionParameter')) resolutionParameter else 0.1
+resolutionParameters <- if(exists('resolutionParameters')) resolutionParameters else c(0.1)
 pcaComponents <- if(exists('pcaComponents')) pcaComponents else 50
 usePCA <- if(exists('usePCA')) usePCA else TRUE
 verbose <- if(exists('verbose')) verbose else FALSE
@@ -171,7 +171,7 @@ tryCatch({
   clustering_result <- ClusterTcrs(
     seuratObj = seuratObj,
     seuratObj_TCR = seuratObj_TCR,
-    resolutionParameter = resolutionParameter,
+    resolutionParameters = resolutionParameters,
     usePCA = usePCA,
     pcaComponents = pcaComponents
   )
@@ -221,7 +221,7 @@ if (params$skipVisualization) {
     tryCatch({
       TCRDistanceHeatmaps(
         seuratObj_TCR = seuratObj_clustered,
-        resolution = resolutionParameter,
+        resolution = resolutionParameters[1],
         annotate_clusters = TRUE,
         verbose = verbose
       )
@@ -232,7 +232,7 @@ if (params$skipVisualization) {
     tryCatch({
       TCRDistanceHistograms(
         seuratObj_TCR = seuratObj_clustered,
-        resolution = resolutionParameter,
+        resolution = resolutionParameters[1],
         verbose = verbose
       )
     }, error = function(e){
@@ -252,7 +252,7 @@ if (params$skipVisualization) {
       tryCatch({
         TCRDistanceHeatmaps(
           seuratObj_TCR = tcr_obj,
-          resolution = resolutionParameter,
+          resolution = resolutionParameters[1],
           annotate_clusters = TRUE,
           verbose = verbose
         )
@@ -263,7 +263,7 @@ if (params$skipVisualization) {
       tryCatch({
         TCRDistanceHistograms(
           seuratObj_TCR = tcr_obj,
-          resolution = resolutionParameter,
+          resolution = resolutionParameters[1],
           verbose = verbose
         )
       }, error = function(e){

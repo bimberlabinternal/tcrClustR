@@ -455,6 +455,11 @@ FormatMetadataForTcrDist3 <- function(metadata,
 }
 
 .reverse_translate_cdr3 <- function(cdr3_aa_seq) {
+  # Handle DUMMY or invalid sequences
+  if (is.na(cdr3_aa_seq) || length(cdr3_aa_seq) == 0 || grepl("DUMMY", cdr3_aa_seq, fixed = TRUE)) {
+    return("AAA")  # Return dummy codon sequence
+  }
+  
   #codon table
   codon_table <- list(
     A = c("GCT", "GCC", "GCA", "GCG"),
@@ -482,7 +487,14 @@ FormatMetadataForTcrDist3 <- function(metadata,
 
   #sample a reverse translation at random for each AA
   cdr3_nuc_seq <- sapply(strsplit(as.character(cdr3_aa_seq), NULL)[[1]], function(aa) {
-    sample(codon_table[[aa]], 1)
+    # Check if amino acid exists in codon table
+    if (aa %in% names(codon_table) && length(codon_table[[aa]]) > 0) {
+      sample(codon_table[[aa]], 1)
+    } else {
+      # Return AAA for unknown amino acids
+      warning("Unknown amino acid '", aa, "' in CDR3 sequence '", cdr3_aa_seq, "'. Using AAA.")
+      "AAA"
+    }
   })
 
   #paste the sampled codons together

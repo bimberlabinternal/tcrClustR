@@ -1,4 +1,3 @@
-
 utils::globalVariables(
   names = c('matrix_rowname.x', 'matrix_rowname.y', '.data', '.', 'distanceMatrix', 'combined_matrix',
             'key', 'seed', 'seuratObj'),
@@ -14,41 +13,77 @@ utils::globalVariables(
 #' The clustering results are stored in the metadata of the returned Seurat objects.
 #' Users can join clustering results back to their original object using clonotypic metadata.
 #' @param seuratObj_TCR Seurat object with TCR distance matrices.
-#' @param resolutionParameter Resolution parameter for clustering. Default is 0.1.
+#' @param resolutionParameters Vector of resolution parameters for clustering. Use to iterate over multiple resolutions.
 #' @param pcaComponents Number of components for PCA or kernel PCA. Default is 50.
 #' @param kpcaKernel Kernel type for kernel PCA. Default is "rbfdot". Ignored if usePCA is TRUE.
-#' @param usePCA Boolean indicating whether to use standard PCA instead of kernel PCA. Default is TRUE.
+#' @param usePCA Boolean indicating whether to use standard PCA instead of kernel PCA. Default is FALSE.
+#' @param partitionType Type of Leiden partitioning algorithm to use. Default is "RBConfigurationVertexPartition".
 #' @param proportionOfGraphAsNeighbors Proportion of the graph to consider as neighbors. Default is 0.1.
 #' @param jaccardIndexThreshold Jaccard index threshold for pruning edges. Default is 0.1.
 #' @param seed Random seed for reproducibility. Default is 1234.
 #' @param computeMultiChain Boolean indicating whether to compute multi-chain graphs. Default is TRUE.
 #' @param verbose Boolean indicating whether to print verbose debugging output. Default is FALSE.
+#' @param neighborsK Fixed number of nearest neighbors for graph construction (Scanpy/Seurat style). Default is 15.
+#' @param rbfSigma Width for RBF kernel when converting distances to similarities for KernelPCA and edge weights. Default NULL (heuristic).
+#' @param useExactDistanceKNN Boolean indicating whether to build kNN directly from distances (skip KPCA for kNN step). Default is FALSE.
+#' @param edgeWeightMode Edge weighting mode: one of "jaccard" (SNN Jaccard), "rbf" (RBF similarity on SNN support), or "jaccard_x_rbf" (product). Default is "jaccard_x_rbf".
+#' @param useHdbscanTwoStage Boolean indicating whether to run two-stage HDBSCAN with silhouette-tuned minPts on selected assays. Default is FALSE.
+#' @param hdbscanAssays Character vector of assay names to run HDBSCAN on when useHdbscanTwoStage is TRUE. Default is c("TRB_cdr3").
+#' @param minPtsRangeNoise Integer vector of minPts values to scan for the noise-removal stage. Default is 2:20.
+#' @param minPtsRangeFidelity Integer vector of minPts values to scan for the fidelity stage. Default is 2:20.
 #' @return A list containing single-chain and multi-chain Seurat objects with clustering results in their metadata.
 #'   Users should perform clonotypic joins to transfer clustering information to their original Seurat object.
 #' @export
 
 
-ClusterTcrs <- function(seuratObj_TCR = NULL,
-                        resolutionParameter = 0.1,
+ClusterTcrs <- function(seuratObj = NULL,
+                        seuratObj_TCR = NULL,
+                        metadata = NULL,
+                        resolutionParameters = c(0.1, 0.2, 0.3),
                         pcaComponents = 50,
                         kpcaKernel = "rbfdot",
-                        usePCA = TRUE,
+                        usePCA = FALSE,
+                        partitionType = "RBConfigurationVertexPartition",
                         proportionOfGraphAsNeighbors = 0.1,
                         jaccardIndexThreshold = 0.1,
                         seed = 1234,
                         computeMultiChain = T,
-                        verbose = FALSE) {
+                        verbose = FALSE,
+                        neighborsK = 15,
+                        rbfSigma = NULL,
+                        useExactDistanceKNN = FALSE,
+                        edgeWeightMode = "jaccard_x_rbf",
+                        useHdbscanTwoStage = FALSE,
+                        hdbscanAssays = c("TRB_cdr3"),
+                        minPtsRangeNoise = 2:20,
+                        minPtsRangeFidelity = 2:20) {
+
+  # normalize resolution parameters (must be numeric vector)
+  resolutions_to_use <- as.numeric(resolutionParameters)
+  if (any(!is.finite(resolutions_to_use))) {
+    stop("resolutionParameters must be numeric.")
+  }
 
   #perform leiden clustering on the single chain distance matrices, create the multichain distance matrices, and cluster them.
   clusteredSeuratObjects <- .DistanceMatrixToClusteredGraphs(seuratObj_TCR = seuratObj_TCR,
                                                              pcaComponents = pcaComponents,
                                                              kpcaKernel = kpcaKernel,
                                                              usePCA = usePCA,
+                                                             partitionType = partitionType,
                                                              proportionOfGraphAsNeighbors = proportionOfGraphAsNeighbors,
                                                              jaccardIndexThreshold = jaccardIndexThreshold,
                                                              seed = seed,
                                                              computeMultiChain = computeMultiChain,
-                                                             verbose = verbose)
+                                                             verbose = verbose,
+                                                             neighborsK = neighborsK,
+                                                             rbfSigma = rbfSigma,
+                                                             useExactDistanceKNN = useExactDistanceKNN,
+                                                             edgeWeightMode = edgeWeightMode,
+                                                             resolutions = resolutions_to_use,
+                                                             useHdbscanTwoStage = useHdbscanTwoStage,
+                                                             hdbscanAssays = hdbscanAssays,
+                                                             minPtsRangeNoise = minPtsRangeNoise,
+                                                             minPtsRangeFidelity = minPtsRangeFidelity)
 
   #filter out NULL objects to prevent assay access errors when iterating
   clusteredSeuratObjects <- clusteredSeuratObjects[!sapply(clusteredSeuratObjects, is.null)]
@@ -67,27 +102,42 @@ ClusterTcrs <- function(seuratObj_TCR = NULL,
 #' @param seuratObj_TCR Seurat object containing TCR distance matrices.
 #' @param pcaComponents Number of components for PCA or kernel PCA. Default is 50.
 #' @param kpcaKernel Kernel type for kernel PCA. Default is "rbfdot". Ignored if usePCA is TRUE.
-#' @param usePCA Boolean indicating whether to use standard PCA instead of kernel PCA. Default is TRUE.
-#' @param partitionType Type of partitioning algorithm to use. Default is "CPMVertexPartition".
+#' @param usePCA Boolean indicating whether to use standard PCA instead of kernel PCA. Default is FALSE.
+#' @param partitionType Type of partitioning algorithm to use. Default is "RBConfigurationVertexPartition".
 #' @param proportionOfGraphAsNeighbors Proportion of the graph to consider as neighbors. Default is 0.1.
 #' @param jaccardIndexThreshold Jaccard index threshold for pruning edges. Default is 0.1.
 #' @param resolutions Vector of resolution parameters for clustering. Default is c(0.1, 0.2, 0.3).
 #' @param seed Random seed for reproducibility. Default is 1234.
 #' @param computeMultiChain Boolean indicating whether to compute multi-chain graphs. Default is TRUE.
-#' @param verbose Boolean indicating whether to print verbose debugging output. Default is FALSE.
+#' @param neighborsK Fixed number of nearest neighbors for graph construction (Scanpy/Seurat style). Default is 15.
+#' @param rbfSigma Width for RBF kernel when converting distances to similarities for KernelPCA and edge weights. Default NULL (heuristic).
+#' @param useExactDistanceKNN Boolean indicating whether to build kNN directly from distances (skip KPCA for kNN step). Default is FALSE.
+#' @param edgeWeightMode Edge weighting mode: one of "jaccard", "rbf", or "jaccard_x_rbf". Default is "jaccard_x_rbf".
+#' @param useHdbscanTwoStage Boolean indicating whether to run two-stage HDBSCAN with silhouette-tuned minPts on selected assays. Default is FALSE.
+#' @param hdbscanAssays Character vector of assay names to run HDBSCAN on when useHdbscanTwoStage is TRUE. Default is c("TRB_cdr3").
+#' @param minPtsRangeNoise Integer vector of minPts values to scan for the noise-removal stage. Default is 2:20.
+#' @param minPtsRangeFidelity Integer vector of minPts values to scan for the fidelity stage. Default is 2:20.
 #' @return Single Chain and multi-chain Seurat objects
 
 .DistanceMatrixToClusteredGraphs <- function(seuratObj_TCR = NULL,
                                              pcaComponents = 50,
                                              kpcaKernel = "rbfdot",
-                                             usePCA = TRUE,
-                                             partitionType = "CPMVertexPartition",
+                                             usePCA = FALSE,
+                                             partitionType = "RBConfigurationVertexPartition",
                                              proportionOfGraphAsNeighbors = 0.1,
                                              jaccardIndexThreshold = 0.1,
                                              resolutions = c(0.1, 0.2, 0.3),
                                              seed = 1234,
                                              computeMultiChain = T,
-                                             verbose = FALSE) {
+                                             verbose = FALSE,
+                                             neighborsK = 15,
+                                             rbfSigma = NULL,
+                                             useExactDistanceKNN = FALSE,
+                                             edgeWeightMode = "jaccard_x_rbf",
+                                             useHdbscanTwoStage = FALSE,
+                                             hdbscanAssays = c("TRB_cdr3"),
+                                             minPtsRangeNoise = 2:20,
+                                             minPtsRangeFidelity = 2:20) {
 
   #check the Assays in the Seurat Object and compute graphs
   assays <- Seurat::Assays(seuratObj_TCR)
@@ -128,8 +178,13 @@ ClusterTcrs <- function(seuratObj_TCR = NULL,
                                                pcaComponents = pcaComponents,
                                                kpcaKernel = kpcaKernel,
                                                usePCA = usePCA,
+                                               # proportionOfGraphAsNeighbors kept for b/c; neighborsK takes precedence
                                                proportionOfGraphAsNeighbors = proportionOfGraphAsNeighbors,
-                                               jaccardIndexThreshold = jaccardIndexThreshold)
+                                               jaccardIndexThreshold = jaccardIndexThreshold,
+                                               neighborsK = neighborsK,
+                                               rbfSigma = rbfSigma,
+                                               useExactDistanceKNN = useExactDistanceKNN,
+                                               edgeWeightMode = edgeWeightMode)
     pruned_graph <- graph_and_pca_results$graph
     if (verbose) print(assay)
     single_chain_graphs[[assay]] <- pruned_graph
@@ -137,11 +192,11 @@ ClusterTcrs <- function(seuratObj_TCR = NULL,
       partition <- leidenbase::leiden_find_partition(pruned_graph,
                                                      partition_type = partitionType,
                                                      initial_membership = NULL,
-                                                     edge_weights = NULL,
+                                                     edge_weights = igraph::E(pruned_graph)$weight,
                                                      node_sizes = NULL,
                                                      seed = seed,
                                                      resolution_parameter = resolution,
-                                                     num_iter = 2,
+                                                     num_iter = 10,
                                                      verbose = verbose)
       #add the partition to the seurat object's metadata
       partition_metadata <- data.frame(partition$membership)
@@ -158,8 +213,24 @@ ClusterTcrs <- function(seuratObj_TCR = NULL,
                                                   pca_result,
                                                   reductionName = reductionName,
                                                   assayName = assay,
-                                                  distanceMatrix = distanceMatrix
+                                                  distanceMatrix = distanceMatrix,
+                                                  neighborsK = neighborsK
     )
+    #TODO: do a better job on integrating HDBSCAN two-stage into the main clustering flow.
+    #consider adding exhausitive clustering methods. Run according to a vector of options?
+    if (isTRUE(useHdbscanTwoStage) && assay %in% hdbscanAssays) {
+      hdb_res <- .AddHdbscanTwoStageFiltering(
+        seuratObj_TCR = seuratObj_TCR,
+        assay = assay,
+        layer = "counts",
+        minPtsRangeNoise = minPtsRangeNoise,
+        minPtsRangeFidelity = minPtsRangeFidelity,
+        rbfSigma = rbfSigma,
+        seed = seed,
+        verbose = verbose
+      )
+      seuratObj_TCR <- hdb_res$seuratObj_TCR
+    }
   }
 
   #TODO: this seems stylistically poor. A more upfront nested elif is probably better.
@@ -263,8 +334,13 @@ ClusterTcrs <- function(seuratObj_TCR = NULL,
                                                    pcaComponents = pcaComponents,
                                                    kpcaKernel = kpcaKernel,
                                                    usePCA = usePCA,
+                                                   # proportionOfGraphAsNeighbors kept for b/c; neighborsK takes precedence
                                                    proportionOfGraphAsNeighbors = proportionOfGraphAsNeighbors,
-                                                   jaccardIndexThreshold = jaccardIndexThreshold)
+                                                   jaccardIndexThreshold = jaccardIndexThreshold,
+                                                   neighborsK = neighborsK,
+                                                   rbfSigma = rbfSigma,
+                                                   useExactDistanceKNN = useExactDistanceKNN,
+                                                   edgeWeightMode = edgeWeightMode)
         combined_graph <- graph_and_pca_results$graph
 
         multi_chain_graphs[[joint_graph]] <- combined_graph
@@ -287,18 +363,20 @@ ClusterTcrs <- function(seuratObj_TCR = NULL,
                                                                 pca_result,
                                                                 reductionName,
                                                                 assayName = joint_graph,
-                                                                distanceMatrix = combined_matrix
+                                                                distanceMatrix = combined_matrix,
+                                                                neighborsK = neighborsK
         )
 
+        #TODO: add HDBSCAN two-stage here as well.
         for (resolution in resolutions) {
           partition <- leidenbase::leiden_find_partition(combined_graph,
-                                                         partition_type = c("CPMVertexPartition", "ModularityVertexPartition", "RBConfigurationVertexPartition", "RBERVertexPartition", "SignificanceVertexPartition", "SurpriseVertexPartition"),
+                                                         partition_type = partitionType,
                                                          initial_membership = NULL,
-                                                         edge_weights = NULL,
+                                                         edge_weights = igraph::E(combined_graph)$weight,
                                                          node_sizes = NULL,
                                                          seed = seed,
                                                          resolution_parameter = resolution,
-                                                         num_iter = 2,
+                                                         num_iter = 10,
                                                          verbose = verbose)
           #add the partition to the seurat object's metadata
           partition_metadata <- data.frame(partition$membership)
@@ -327,9 +405,13 @@ ClusterTcrs <- function(seuratObj_TCR = NULL,
 .PcaAndClustering <- function(distanceMatrix = distanceMatrix,
                               pcaComponents = pcaComponents,
                               kpcaKernel = kpcaKernel,
-                              usePCA = TRUE,
+                              usePCA = FALSE,
                               proportionOfGraphAsNeighbors = proportionOfGraphAsNeighbors,
-                              jaccardIndexThreshold = jaccardIndexThreshold){
+                              jaccardIndexThreshold = jaccardIndexThreshold,
+                              neighborsK = 15,
+                              rbfSigma = NULL,
+                              useExactDistanceKNN = FALSE,
+                              edgeWeightMode = "jaccard_x_rbf"){
 
   #validate distance matrix dimensions
   if (any(dim(distanceMatrix) == 0)) {
@@ -342,8 +424,19 @@ ClusterTcrs <- function(seuratObj_TCR = NULL,
    pcaComponents <- ncol(distanceMatrix)
   }
 
+  #determine k using fixed neighborsK (Scanpy/Seurat style). Fallback to proportion if provided.
+  n <- nrow(distanceMatrix)
+  k <- suppressWarnings(as.integer(neighborsK))
+  if (is.na(k) || k < 1) {
+    #fallback to proportion
+    k <-  round(proportionOfGraphAsNeighbors * ncol(distanceMatrix))
+  }
+  if (k < 1) k <- 1
+  if (k >= n) k <- max(1, n - 1)
+
   if (usePCA) {
     #use standard PCA
+    #NOTE: applying PCA to a distance matrix is not recommended; consider usePCA = FALSE for KernelPCA from distances.
     pca_result <- stats::prcomp(distanceMatrix, center = TRUE, scale. = TRUE)
 
     #create a compatible object structure similar to kernlab::kpca, so downstream parsing can be identical
@@ -357,8 +450,31 @@ ClusterTcrs <- function(seuratObj_TCR = NULL,
     attr(pca_result_obj, "rotated") <- pca_result$x
 
   } else {
-    #otherwise, kernel PCA.
-    pca_result_obj <- kernlab::kpca(x = distanceMatrix, kernel = kpcaKernel)
+    #otherwise, kernel PCA from distances.
+    #convert distances to an RBF kernel matrix; if rbfSigma is NULL, use median non-zero distance as heuristic
+    d <- distanceMatrix
+    #ensure symmetry
+    if (!isTRUE(all.equal(d, t(d)))) {
+      warning("Distance matrix is not symmetric; forcing symmetry by averaging with transpose.")
+      d <- (d + t(d)) / 2
+    }
+    if (is.null(rbfSigma)) {
+      #compute heuristic sigma
+      upper <- d[upper.tri(d)]
+      upper <- upper[is.finite(upper) & upper > 0]
+      if (length(upper) == 0) {
+        rbfSigma <- 1
+      } else {
+        rbfSigma <- stats::median(upper, na.rm = TRUE)
+        if (!is.finite(rbfSigma) || rbfSigma <= 0) rbfSigma <- 1
+      }
+    }
+    #compute kernel: K_ij = exp(-(d_ij^2)/(2*sigma^2))
+    K <- exp(-(d^2) / (2 * (rbfSigma^2)))
+    #construct kernel matrix for kernlab
+    K <- kernlab::as.kernelMatrix(K)
+    #kpca with precomputed kernel (kernel = "matrix")
+    pca_result_obj <- kernlab::kpca(x = K, kernel = "matrix")
   }
 
   #get the rotated data from the kernlab compatible object
@@ -372,27 +488,66 @@ ClusterTcrs <- function(seuratObj_TCR = NULL,
   n_components <- min(c(pcaComponents, nrow(distanceMatrix), ncol(rotated_data)))
   reduced_data <- rotated_data[, 1:n_components, drop = FALSE]
 
-  #take 10% of the graph as nearest neighbors, in the style of conga by default
-  k <-  round(proportionOfGraphAsNeighbors * ncol(distanceMatrix))
-  #validate the number of neighbors
-  if (k < 1) k <- 1
-  if (k >= nrow(distanceMatrix)) k <- max(1, nrow(distanceMatrix) - 1)
+  #build kNN
+  if (useExactDistanceKNN) {
+    #build neighbors directly from the distance matrix
+    #exclude self by removing the diagonal index
+    nn.index <- matrix(NA_integer_, nrow = n, ncol = k)
+    for (i in seq_len(n)) {
+      #order by increasing distance; remove self
+      ord <- order(distanceMatrix[i, ], decreasing = FALSE)
+      ord <- ord[ord != i]
+      nn.index[i, ] <- utils::head(ord, k)
+    }
+  } else {
+    #use kNN on the KPCA-reduced data
+    knn_result <- FNN::get.knn(reduced_data, k = k)
+    nn.index <- knn_result$nn.index
+  }
 
-  knn_result <- FNN::get.knn(reduced_data, k = k)
-
-  #make graph
-  edges <- cbind(rep(seq_len(nrow(distanceMatrix)), each = k), c(knn_result$nn.index))
-  g <- igraph::graph_from_edgelist(edges, directed = FALSE)
+  #make initial kNN graph
+  edges <- cbind(rep(seq_len(n), each = k), c(nn.index))
+  g_knn <- igraph::graph_from_edgelist(edges, directed = FALSE)
   #remove loops
-  g <- igraph::simplify(g)
-  #prune graph using jaccard index thresholding on the snn graph, similar to Seurat.
-  jaccard_index <- igraph::similarity(g, vids = igraph::V(g), mode = 'all')
-  adj_matrix <- igraph::as_adjacency_matrix(g)
-  #prune edges below the jaccard index threshold
-  adj_matrix[jaccard_index < jaccardIndexThreshold] <- 0
+  g_knn <- igraph::simplify(g_knn)
 
-  #TODO: evaluate some of these parameters in different contexts ('barnyard' experiment on TCRs?)
-  pruned_graph <- igraph::graph_from_adjacency_matrix(adj_matrix, mode = 'undirected')
+  #compute SNN Jaccard weights explicitly and keep weights
+  #NOTE: igraph::similarity returns a dense matrix; for large n this may be memory-intensive. TODO: switch to a sparse SNN builder if needed.
+  jaccard_index <- igraph::similarity(g_knn, vids = igraph::V(g_knn), mode = 'all', method = 'jaccard')
+  jaccard_index[!is.finite(jaccard_index)] <- 0
+  diag(jaccard_index) <- 0
+  #prune edges below the jaccard index threshold
+  jaccard_index[jaccard_index < jaccardIndexThreshold] <- 0
+
+  #distance-based weighting options
+  adj <- jaccard_index
+  if (edgeWeightMode != "jaccard") {
+    d <- as.matrix(distanceMatrix)
+    if (!isTRUE(all.equal(d, t(d)))) {
+      d <- (d + t(d)) / 2
+    }
+    # derive sigma if needed
+    sigma_use <- rbfSigma
+    if (is.null(sigma_use) || !is.finite(sigma_use) || sigma_use <= 0) {
+      upper <- d[upper.tri(d)]
+      upper <- upper[is.finite(upper) & upper > 0]
+      sigma_use <- if (length(upper) == 0) 1 else stats::median(upper, na.rm = TRUE)
+      if (!is.finite(sigma_use) || sigma_use <= 0) sigma_use <- 1
+    }
+    sim <- exp(-(d^2) / (2 * (sigma_use^2)))
+    diag(sim) <- 0
+    if (edgeWeightMode == "rbf") {
+      #restrict to SNN support after thresholding
+      mask <- (jaccard_index > 0)
+      adj <- sim * mask
+    } else if (edgeWeightMode == "jaccard_x_rbf") {
+      adj <- jaccard_index * sim
+    }
+  }
+
+  #build weighted graph from chosen adjacency
+  pruned_graph <- igraph::graph_from_adjacency_matrix(adj, mode = 'undirected', weighted = TRUE, diag = FALSE)
+
   return(list(graph = pruned_graph, pca_result = pca_result_obj))
 }
 
@@ -665,7 +820,8 @@ ClusterTcrs <- function(seuratObj_TCR = NULL,
                                          kpcaKernel = 'rbfdot',
                                          proportionOfGraphAsNeighbors = 0.1,
                                          jaccardIndexThreshold = 0.1,
-                                         distanceMatrix = NULL) {
+                                         distanceMatrix = NULL,
+                                         neighborsK = 15) {
   #add PCA/KPCA components and make UMAP
   # Handle both PCA and kernel PCA results
   if (inherits(pca_result, "pca_result")) {
@@ -678,11 +834,16 @@ ClusterTcrs <- function(seuratObj_TCR = NULL,
   seuratObj[[reductionName]] <-  Seurat::CreateDimReducObject(embeddings = embeddings,
                                                               assay = assayName,
                                                               key = paste0(reductionName, "_"))
-  #take 10% of the graph as nearest neighbors, in the style of conga by default
-  k.param <-  round(proportionOfGraphAsNeighbors * ncol(distanceMatrix))
+  #use fixed k for neighbors (Scanpy/Seurat style)
+  k.param <-  as.integer(neighborsK)
+  if (is.na(k.param) || k.param < 1) {
+    #fallback to proportion-based if needed for b/c
+    k.param <-  round(proportionOfGraphAsNeighbors * ncol(distanceMatrix))
+  }
+  k.param <- max(1, min(k.param, nrow(embeddings) - 1))
 
   #TODO: compute a cutoff for the number of components used, but I'm not sure what these distributions look like yet.
-  # Handle both PCA and kernel PCA for getting number of components
+  #handle both PCA and kernel PCA for getting number of components
   if (inherits(pca_result, "pca_result")) {
     n_components = min(c(pcaComponents, nrow(embeddings), ncol(pca_result$rotated)))
   } else {
@@ -697,7 +858,434 @@ ClusterTcrs <- function(seuratObj_TCR = NULL,
                                dims = 1:n_components,
                                reduction = reductionName,
                                umap.method = "uwot",
-                               n.neighbors = min(c(nrow(embeddings),30)),
+                               n.neighbors = max(15, min(c(nrow(embeddings), k.param))),
                                reduction.name = paste0(reductionName, "_umap"))
   return(seuratObj)
+}
+
+.AddHdbscanTwoStageFiltering <- function(seuratObj_TCR,
+                                         assay = "TRB_cdr3",
+                                         layer = "counts",
+                                         minPtsRangeNoise = 2:20,
+                                         minPtsRangeFidelity = 2:20,
+                                         rbfSigma = NULL,
+                                         seed = 1234,
+                                         verbose = FALSE) {
+  #get distance matrix with Seurat v5 fallbacks
+  distance_matrix <- tryCatch({
+    as.matrix(Seurat::GetAssayData(seuratObj_TCR, assay = assay, layer = layer))
+  }, error = function(e1) {
+    tryCatch({
+      as.matrix(Seurat::GetAssayData(seuratObj_TCR, assay = assay))
+    }, error = function(e2) {
+      tryCatch({
+        as.matrix(Seurat::GetAssayData(seuratObj_TCR, assay = assay, slot = "data"))
+      }, error = function(e3) {
+        stop("Could not extract distance matrix from assay ", assay, ": ", e3$message)
+      })
+    })
+  })
+
+  if (!is.matrix(distance_matrix) || any(dim(distance_matrix) == 0)) {
+    stop("Distance matrix is empty or not a matrix for assay: ", assay)
+  }
+
+  #ensure symmetry
+  symmetric_distance_matrix <- as.matrix(distance_matrix)
+  if (!isTRUE(all.equal(symmetric_distance_matrix, t(symmetric_distance_matrix)))) {
+    if (verbose) message("Enforcing symmetry on distance matrix by averaging with transpose.")
+    symmetric_distance_matrix <- (symmetric_distance_matrix + t(symmetric_distance_matrix)) / 2
+  }
+
+  # derive sigma if needed
+  if (is.null(rbfSigma) || !is.finite(rbfSigma) || rbfSigma <= 0) {
+    upper_triangle_values <- symmetric_distance_matrix[upper.tri(symmetric_distance_matrix)]
+    upper_triangle_values <- upper_triangle_values[is.finite(upper_triangle_values) & upper_triangle_values > 0]
+    rbfSigma <- if (length(upper_triangle_values) == 0) 1 else stats::median(upper_triangle_values, na.rm = TRUE)
+    if (!is.finite(rbfSigma) || rbfSigma <= 0) rbfSigma <- 1
+  }
+
+  # RBF similarity kernel from distances
+  kernel_matrix <- exp(-(symmetric_distance_matrix^2) / (2 * (rbfSigma^2)))
+  kernel_matrix <- kernlab::as.kernelMatrix(kernel_matrix)
+
+  #compute Kernel PCA features from the RBF kernel
+  kpca_basis <- kernlab::kpca(x = kernel_matrix, kernel = "matrix")
+  kpca_features <- kernlab::rotated(kpca_basis)
+  if (is.null(rownames(kpca_features))) {
+    if (!is.null(colnames(symmetric_distance_matrix))) {
+      rownames(kpca_features) <- colnames(symmetric_distance_matrix)
+    } else if (!is.null(rownames(symmetric_distance_matrix))) {
+      rownames(kpca_features) <- rownames(symmetric_distance_matrix)
+    } else {
+      rownames(kpca_features) <- paste0("idx_", seq_len(nrow(kpca_features)))
+    }
+  }
+  #map IDs once for both passes
+  distance_ids <- if (!is.null(colnames(symmetric_distance_matrix))) colnames(symmetric_distance_matrix) else rownames(symmetric_distance_matrix)
+  if (is.null(distance_ids)) distance_ids <- rownames(kpca_features)
+  cells_all_distance_ids <- distance_ids
+
+  #TODO: remove and depend on this.
+  if (!requireNamespace("clusterCrit", quietly = TRUE)) {
+    stop("Package 'clusterCrit' is required for silhouette optimization. Please install it.")
+  }
+
+  # helper function to compute silhouette on non-noise subset; returns NA when invalid
+  .silhouette_for_labels <- function(labels, distance_mat) {
+    non_noise_idx <- which(labels != 0)
+    if (length(non_noise_idx) < 3) return(NA_real_)
+    labels_non_noise <- labels[non_noise_idx]
+    if (length(unique(labels_non_noise)) < 2) return(NA_real_)
+    labels_reindexed <- as.integer(factor(labels_non_noise))
+    crit <- try(clusterCrit::intCriteria(as.matrix(distance_mat[non_noise_idx, non_noise_idx, drop = FALSE]),
+                                         labels_reindexed,
+                                         c("Silhouette")), silent = TRUE)
+    if (inherits(crit, "try-error") || is.null(crit$silhouette)) return(NA_real_)
+    as.numeric(crit$silhouette)
+  }
+  #TODO: set seed higher up the stack
+  set.seed(seed)
+
+  #first pass: tune minPts for noise removal on full KPCA features
+  if (verbose) message("Tuning HDBSCAN minPts for Stage 1 (noise removal) over ", paste(range(minPtsRangeNoise), collapse = ":"))
+  silhouette_scores_noise <- sapply(minPtsRangeNoise, function(mp) {
+    res <- dbscan::hdbscan(kpca_features, minPts = mp, cluster_selection_epsilon = 0)
+    .silhouette_for_labels(res$cluster, symmetric_distance_matrix)
+  })
+  silhouette_scores_noise_clean <- ifelse(is.na(silhouette_scores_noise), -Inf, silhouette_scores_noise)
+  selected_minPts_noise <- minPtsRangeNoise[which.max(silhouette_scores_noise_clean)]
+  if (verbose) message("Selected minPts (Stage 1) = ", selected_minPts_noise)
+
+  hdbscan_stage1 <- dbscan::hdbscan(kpca_features, minPts = selected_minPts_noise, cluster_selection_epsilon = 0)
+
+  #optional heatmap for stage 1
+  try({
+    stage1_cluster_labels <- hdbscan_stage1$cluster
+    unique_stage1_clusters <- sort(unique(stage1_cluster_labels[stage1_cluster_labels != 0]))
+    cluster_palette_stage1 <- if (length(unique_stage1_clusters) > 0) tryCatch({ NatParksPalettes::natparks.pals("Charmonix", length(unique_stage1_clusters)) }, error = function(e) { grDevices::rainbow(length(unique_stage1_clusters)) }) else character(0)
+    names(cluster_palette_stage1) <- as.character(unique_stage1_clusters)
+    # include noise (0) color if present
+    if (any(stage1_cluster_labels == 0)) {
+      cluster_palette_stage1 <- c(`0` = "#BDBDBD", cluster_palette_stage1)
+    }
+    heatmap_stage1 <- tcrClustR:::.TCRDistanceHeatmap(
+      seuratObj_TCR = seuratObj_TCR,
+      assay = assay,
+      cluster_info = stage1_cluster_labels,
+      cluster_colors = cluster_palette_stage1
+    )
+    ComplexHeatmap::draw(heatmap_stage1)
+  }, silent = TRUE)
+
+  #write first-pass clusters to metadata for current assay cells only
+  assay_cells <- colnames(seuratObj_TCR[[assay]])
+  stage1_mapped_cells <- gsub("-", "_", cells_all_distance_ids)
+  cells_to_write_stage1 <- intersect(stage1_mapped_cells, assay_cells)
+  if (length(cells_to_write_stage1) == 0) {
+    warning("No matching cell names found for Stage 1 between distance IDs and current assay cells; no first-pass HDBSCAN clusters were added.")
+  } else {
+    idx_in_all <- match(cells_to_write_stage1, stage1_mapped_cells)
+    labels_to_write_stage1 <- hdbscan_stage1$cluster[idx_in_all]
+    metadata_col_name_stage1 <- paste0("hdbscan_", assay, "_primary")
+    metadata_to_add_stage1 <- data.frame(value = labels_to_write_stage1, row.names = cells_to_write_stage1)
+    seuratObj_TCR <- Seurat::AddMetaData(seuratObj_TCR, metadata = metadata_to_add_stage1, col.name = metadata_col_name_stage1)
+  }
+
+  #filter non-noise points (for refinement) is replaced by rescue logic on noise-only points
+  noise_indices <- which(hdbscan_stage1$cluster == 0)
+
+  #if no noise, write rescue column identical to primary and exit
+  if (length(noise_indices) == 0) {
+    assay_cells <- colnames(seuratObj_TCR[[assay]])
+    all_mapped_cells <- stage1_mapped_cells
+    cells_to_write_rescue <- intersect(all_mapped_cells, assay_cells)
+    if (length(cells_to_write_rescue) == 0) {
+      warning("No matching cell names found between distance IDs and current assay cells; rescue column mirrors primary but nothing matched.")
+    } else {
+      idx_all <- match(cells_to_write_rescue, all_mapped_cells)
+      rescue_labels_to_write <- hdbscan_stage1$cluster[idx_all]
+      metadata_col_name_rescue <- paste0("hdbscan_", assay, "_rescue")
+      metadata_to_add_rescue <- data.frame(value = rescue_labels_to_write, row.names = cells_to_write_rescue)
+      seuratObj_TCR <- Seurat::AddMetaData(seuratObj_TCR, metadata = metadata_to_add_rescue, col.name = metadata_col_name_rescue)
+    }
+
+    return(list(
+      seuratObj_TCR = seuratObj_TCR,
+      kept_cells = character(0),
+      stage1_minPts = selected_minPts_noise,
+      stage2_minPts = NA_integer_,
+      stage1_silhouette_scores = silhouette_scores_noise,
+      stage2_silhouette_scores = NA
+    ))
+  }
+
+  #rescue pass: run HDBSCAN only on Stage-1 noise
+  kpca_features_noise <- kpca_features[noise_indices, , drop = FALSE]
+  cells_noise_distance_ids <- distance_ids[noise_indices]
+
+  if (verbose) message("Tuning HDBSCAN minPts for Rescue over ", paste(range(minPtsRangeFidelity), collapse = ":"))
+  silhouette_scores_rescue <- sapply(minPtsRangeFidelity, function(mp) {
+    res <- dbscan::hdbscan(kpca_features_noise, minPts = mp, cluster_selection_epsilon = 0)
+    .silhouette_for_labels(res$cluster, symmetric_distance_matrix[noise_indices, noise_indices, drop = FALSE])
+  })
+  silhouette_scores_rescue_clean <- ifelse(is.na(silhouette_scores_rescue), -Inf, silhouette_scores_rescue)
+  selected_minPts_rescue <- minPtsRangeFidelity[which.max(silhouette_scores_rescue_clean)]
+  if (verbose) message("Selected minPts (Rescue) = ", selected_minPts_rescue)
+
+  hdbscan_rescue <- dbscan::hdbscan(kpca_features_noise, minPts = selected_minPts_rescue, cluster_selection_epsilon = 0)
+  rescue_labels_noise <- hdbscan_rescue$cluster
+
+  #merge rescue labels back onto all cells (appending to the end of the 1st pass labels)
+  merged_labels_all <- hdbscan_stage1$cluster
+  max_primary <- ifelse(any(merged_labels_all > 0), max(merged_labels_all), 0)
+  rescue_pos <- which(rescue_labels_noise > 0)
+  if (length(rescue_pos) > 0) {
+    merged_labels_all[noise_indices[rescue_pos]] <- rescue_labels_noise[rescue_pos] + max_primary
+  }
+
+  #map merged rescue labels back to metadata for current assay cells only
+  assay_cells <- colnames(seuratObj_TCR[[assay]])
+  all_mapped_cells <- stage1_mapped_cells
+  cells_to_write_rescue <- intersect(all_mapped_cells, assay_cells)
+  if (length(cells_to_write_rescue) == 0) {
+    warning("No matching cell names found between distance IDs and current assay cells; no HDBSCAN rescue clusters were added.")
+  } else {
+    idx_all <- match(cells_to_write_rescue, all_mapped_cells)
+    labels_to_write_rescue <- merged_labels_all[idx_all]
+    metadata_col_name_rescue <- paste0("hdbscan_", assay, "_rescue")
+    metadata_to_add_rescue <- data.frame(value = labels_to_write_rescue, row.names = cells_to_write_rescue)
+    seuratObj_TCR <- Seurat::AddMetaData(seuratObj_TCR, metadata = metadata_to_add_rescue, col.name = metadata_col_name_rescue)
+  }
+
+  #optional heatmap for rescue subset only (1st pass's 'noise' cells)
+  try({
+    noise_mapped_cells <- gsub("-", "_", cells_noise_distance_ids)
+    subset_cells_metadata <- intersect(noise_mapped_cells, assay_cells)
+    subset_features <- gsub("_", "-", subset_cells_metadata)
+
+    unique_rescue_clusters <- sort(unique(rescue_labels_noise[rescue_labels_noise != 0]))
+    cluster_palette_rescue <- if (length(unique_rescue_clusters) > 0) tryCatch({ NatParksPalettes::natparks.pals("Charmonix", length(unique_rescue_clusters)) }, error = function(e) { grDevices::rainbow(length(unique_rescue_clusters)) }) else character(0)
+    names(cluster_palette_rescue) <- as.character(unique_rescue_clusters)
+    if (any(rescue_labels_noise == 0)) {
+      cluster_palette_rescue <- c(`0` = "#BDBDBD", cluster_palette_rescue)
+    }
+
+    match_idx <- match(subset_cells_metadata, noise_mapped_cells)
+    cluster_info_subset <- rescue_labels_noise[match_idx]
+
+    heatmap_rescue <- tcrClustR:::.TCRDistanceHeatmap(
+      seuratObj_TCR = subset(seuratObj_TCR, cells = subset_cells_metadata, features = subset_features),
+      assay = assay,
+      cluster_info = cluster_info_subset,
+      cluster_colors = cluster_palette_rescue
+    )
+    ComplexHeatmap::draw(heatmap_rescue)
+  }, silent = TRUE)
+
+  return(list(
+    seuratObj_TCR = seuratObj_TCR,
+    kept_cells = gsub("-", "_", cells_noise_distance_ids),
+    stage1_minPts = selected_minPts_noise,
+    stage2_minPts = selected_minPts_rescue,
+    stage1_silhouette_scores = silhouette_scores_noise,
+    stage2_silhouette_scores = silhouette_scores_rescue
+  ))
+}
+
+
+#' @title .DianaClustering
+#' @description Internal function to perform DIANA (Divisive Analysis) hierarchical clustering
+#' on a distance matrix and cut the dendrogram at a specified height.
+#' @param distanceMatrix Distance matrix (as matrix or dist object)
+#' @param cutHeight Height at which to cut the dendrogram. Default is 20.
+#' @param verbose Boolean indicating whether to print verbose output. Default is FALSE.
+#' @return A list containing the clustering assignments and dendrogram object
+#' @keywords internal
+.DianaClustering <- function(distanceMatrix, cutHeight = 20, verbose = FALSE) {
+  if (verbose) {
+    message("Running DIANA clustering with cutHeight = ", cutHeight)
+  }
+  
+  #convert to dist object if necessary
+  if (is.matrix(distanceMatrix)) {
+    distObj <- stats::as.dist(distanceMatrix)
+  } else {
+    distObj <- distanceMatrix
+  }
+  
+  #run DIANA clustering
+  diana_result <- cluster::diana(distObj, diss = TRUE)
+  
+  #cut dendrogram at specified height
+  cluster_assignments <- stats::cutree(stats::as.hclust(diana_result), h = cutHeight)
+  
+  if (verbose) {
+    message("DIANA clustering produced ", length(unique(cluster_assignments)), " clusters")
+  }
+  
+  return(list(
+    clustering = cluster_assignments,
+    diana_object = diana_result,
+    cutHeight = cutHeight
+  ))
+}
+
+
+#' @title .ThresholdClustersBySize
+#' @description Internal function to filter clusters by minimum number of unique clones
+#' @param clusterAssignments Named vector of cluster assignments (names are cell/clone IDs)
+#' @param minClusterSize Minimum number of unique clones required to keep a cluster. Default is 2.
+#' @param verbose Boolean indicating whether to print verbose output. Default is FALSE.
+#' @return Named vector of cluster assignments with singletons/small clusters removed (set to 0)
+#' @keywords internal
+.ThresholdClustersBySize <- function(clusterAssignments, minClusterSize = 2, verbose = FALSE) {
+  if (verbose) {
+    message("Thresholding clusters with minimum size = ", minClusterSize)
+  }
+  
+  #count cluster sizes
+  cluster_sizes <- table(clusterAssignments)
+  
+  #identify clusters below threshold
+  small_clusters <- names(cluster_sizes[cluster_sizes < minClusterSize])
+  
+  #set small clusters to 0 (noise/unassigned)
+  filtered_assignments <- clusterAssignments
+  filtered_assignments[clusterAssignments %in% small_clusters] <- 0
+  
+  if (verbose) {
+    n_removed <- sum(clusterAssignments %in% small_clusters)
+    message("Removed ", length(small_clusters), " clusters with < ", minClusterSize, " clones")
+    message("Total clones removed: ", n_removed)
+    message("Remaining clusters: ", length(unique(filtered_assignments[filtered_assignments != 0])))
+  }
+  
+  return(filtered_assignments)
+}
+
+
+#' @title .WriteClusteringResultsToParquet
+#' @description Internal function to write clustering results in columnar format to parquet file
+#' @param metadata Data frame containing TCR metadata with columns for chains and gene segments
+#' @param clusterAssignments Named vector of cluster assignments
+#' @param assayName Name of the assay used for clustering
+#' @param groupingVariable Name of the metadata column used for grouping (e.g., "tissue")
+#' @param variableValue Value of the grouping variable for this batch (e.g., "lung")
+#' @param clusterSizeThreshold Minimum cluster size threshold used
+#' @param clusteringMethod Name of the clustering method used (e.g., "DIANA", "Leiden")
+#' @param clusteringParams List of additional clustering parameters
+#' @param outputPath Path to write the parquet file
+#' @param chains Vector of chain names to include (e.g., c("TRA", "TRB"))
+#' @param verbose Boolean indicating whether to print verbose output. Default is FALSE.
+#' @return Path to the written parquet file
+#' @keywords internal
+.WriteClusteringResultsToParquet <- function(metadata,
+                                              clusterAssignments,
+                                              assayName,
+                                              groupingVariable = NULL,
+                                              variableValue = NULL,
+                                              clusterSizeThreshold,
+                                              clusteringMethod,
+                                              clusteringParams = list(),
+                                              outputPath,
+                                              chains = c("TRA", "TRB"),
+                                              verbose = FALSE) {
+  if (verbose) {
+    message("Writing clustering results to parquet: ", outputPath)
+  }
+  
+  n_rows <- length(clusterAssignments)
+  
+  #determine which chains are actually used in this assay (for multi-chain analysis)
+  #parse assay name to detect multi-chain combinations
+  assay_normalized <- gsub("CDR3", "_cdr3", assayName)
+  assay_parts <- strsplit(assay_normalized, "_")[[1]]
+  
+  #identify which chains are present in the assay name
+  all_possible_chains <- c("TRA", "TRB", "TRG", "TRD")
+  chains_in_assay <- all_possible_chains[sapply(all_possible_chains, function(chain) {
+    any(grepl(chain, assay_parts, ignore.case = FALSE))
+  })]
+  
+  #determine if this is a multi-chain assay (more than one chain type)
+  is_multichain <- length(chains_in_assay) > 1
+  
+  if (is_multichain) {
+    chains_used <- paste(sort(chains_in_assay), collapse = "+")
+  } else if (length(chains_in_assay) == 1) {
+    chains_used <- chains_in_assay[1]
+  } else {
+    #fallback if we can't parse the assay name
+    chains_used <- "unknown"
+  }
+  
+  if (verbose) {
+    message("  Assay: ", assayName)
+    message("  Detected chains: ", paste(chains_in_assay, collapse = ", "))
+    message("  Multi-chain: ", is_multichain)
+    message("  chains_used: ", chains_used)
+  }
+  
+  #create results data frame with correct number of rows
+  results_df <- data.frame(
+    grouping_variable = rep(groupingVariable, n_rows),
+    variable_value = rep(variableValue, n_rows),
+    assay = rep(assayName, n_rows),
+    chains_used = rep(chains_used, n_rows),
+    stringsAsFactors = FALSE
+  )
+  
+  #add ALL possible chain columns (TRA, TRB, TRG, TRD) with V, J, and CDR3
+  #This ensures consistent schema across all outputs
+  for (chain in all_possible_chains) {
+    v_col <- paste0(chain, "_V")
+    j_col <- paste0(chain, "_J")
+    cdr3_col <- chain
+    
+    #check if columns exist in metadata AND if this chain is used in the assay
+    #if chain is not used in assay, force to NA regardless of metadata
+    chain_is_used <- chain %in% chains_in_assay
+    
+    if (chain_is_used && v_col %in% colnames(metadata)) {
+      results_df[[v_col]] <- metadata[[v_col]][match(names(clusterAssignments), rownames(metadata))]
+    } else {
+      results_df[[v_col]] <- rep(NA_character_, n_rows)
+    }
+    
+    if (chain_is_used && j_col %in% colnames(metadata)) {
+      results_df[[j_col]] <- metadata[[j_col]][match(names(clusterAssignments), rownames(metadata))]
+    } else {
+      results_df[[j_col]] <- rep(NA_character_, n_rows)
+    }
+    
+    if (chain_is_used && cdr3_col %in% colnames(metadata)) {
+      results_df[[cdr3_col]] <- metadata[[cdr3_col]][match(names(clusterAssignments), rownames(metadata))]
+    } else {
+      results_df[[cdr3_col]] <- rep(NA_character_, n_rows)
+    }
+  }
+  
+  #add cluster assignments
+  results_df$Cluster <- as.character(clusterAssignments)
+  
+  #add clustering parameters
+  results_df$Cluster_Size_Threshold <- rep(clusterSizeThreshold, n_rows)
+  results_df$Clustering_Method <- rep(clusteringMethod, n_rows)
+  
+  #add additional clustering parameters as JSON string or separate columns
+  if (length(clusteringParams) > 0) {
+    for (param_name in names(clusteringParams)) {
+      results_df[[paste0("param_", param_name)]] <- rep(as.character(clusteringParams[[param_name]]), n_rows)
+    }
+  }
+  
+  #write to parquet
+  arrow::write_parquet(results_df, outputPath)
+  
+  if (verbose) {
+    message("Wrote ", nrow(results_df), " rows to ", outputPath)
+  }
+  
+  return(outputPath)
 }

@@ -5,28 +5,41 @@
 \title{Cluster TCRs using TcrClustR}
 \usage{
 ClusterTcrs(
+  seuratObj = NULL,
   seuratObj_TCR = NULL,
-  resolutionParameter = 0.1,
+  metadata = NULL,
+  resolutionParameters = c(0.1, 0.2, 0.3),
   pcaComponents = 50,
   kpcaKernel = "rbfdot",
-  usePCA = TRUE,
+  usePCA = FALSE,
+  partitionType = "RBConfigurationVertexPartition",
   proportionOfGraphAsNeighbors = 0.1,
   jaccardIndexThreshold = 0.1,
   seed = 1234,
   computeMultiChain = T,
-  verbose = FALSE
+  verbose = FALSE,
+  neighborsK = 15,
+  rbfSigma = NULL,
+  useExactDistanceKNN = FALSE,
+  edgeWeightMode = "jaccard_x_rbf",
+  useHdbscanTwoStage = FALSE,
+  hdbscanAssays = c("TRB_cdr3"),
+  minPtsRangeNoise = 2:20,
+  minPtsRangeFidelity = 2:20
 )
 }
 \arguments{
 \item{seuratObj_TCR}{Seurat object with TCR distance matrices.}
 
-\item{resolutionParameter}{Resolution parameter for clustering. Default is 0.1.}
+\item{resolutionParameters}{Vector of resolution parameters for clustering. Use to iterate over multiple resolutions.}
 
 \item{pcaComponents}{Number of components for PCA or kernel PCA. Default is 50.}
 
 \item{kpcaKernel}{Kernel type for kernel PCA. Default is "rbfdot". Ignored if usePCA is TRUE.}
 
-\item{usePCA}{Boolean indicating whether to use standard PCA instead of kernel PCA. Default is TRUE.}
+\item{usePCA}{Boolean indicating whether to use standard PCA instead of kernel PCA. Default is FALSE.}
+
+\item{partitionType}{Type of Leiden partitioning algorithm to use. Default is "RBConfigurationVertexPartition".}
 
 \item{proportionOfGraphAsNeighbors}{Proportion of the graph to consider as neighbors. Default is 0.1.}
 
@@ -37,6 +50,22 @@ ClusterTcrs(
 \item{computeMultiChain}{Boolean indicating whether to compute multi-chain graphs. Default is TRUE.}
 
 \item{verbose}{Boolean indicating whether to print verbose debugging output. Default is FALSE.}
+
+\item{neighborsK}{Fixed number of nearest neighbors for graph construction (Scanpy/Seurat style). Default is 15.}
+
+\item{rbfSigma}{Width for RBF kernel when converting distances to similarities for KernelPCA and edge weights. Default NULL (heuristic).}
+
+\item{useExactDistanceKNN}{Boolean indicating whether to build kNN directly from distances (skip KPCA for kNN step). Default is FALSE.}
+
+\item{edgeWeightMode}{Edge weighting mode: one of "jaccard" (SNN Jaccard), "rbf" (RBF similarity on SNN support), or "jaccard_x_rbf" (product). Default is "jaccard_x_rbf".}
+
+\item{useHdbscanTwoStage}{Boolean indicating whether to run two-stage HDBSCAN with silhouette-tuned minPts on selected assays. Default is FALSE.}
+
+\item{hdbscanAssays}{Character vector of assay names to run HDBSCAN on when useHdbscanTwoStage is TRUE. Default is c("TRB_cdr3").}
+
+\item{minPtsRangeNoise}{Integer vector of minPts values to scan for the noise-removal stage. Default is 2:20.}
+
+\item{minPtsRangeFidelity}{Integer vector of minPts values to scan for the fidelity stage. Default is 2:20.}
 }
 \value{
 A list containing single-chain and multi-chain Seurat objects with clustering results in their metadata.
