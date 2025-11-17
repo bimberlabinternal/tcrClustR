@@ -54,7 +54,7 @@ jobs:
           df -h
           du -sh "${RUNNER_TEMP}" || true
 
-      - uses: bimberlabinternal/DevOps/githubActions/r-gh-setup@master
+      - uses: GWMcElfresh/DevOps/githubActions/r-gh-setup@master
         with:
           r_version: ${{ matrix.config.r }}
           bioc_version: ${{ matrix.config.bioc }}
