@@ -55,7 +55,7 @@ SetupPythonEnvironment <- function(pythonExecutable = NULL,
                                     installMissing = TRUE,
                                     useRequirementsTxt = TRUE,
                                     verbose = TRUE) {
-  # Determine Python executable
+  #determine python executable
   if (is.null(pythonExecutable)) {
     pythonExecutable <- tryCatch({
       reticulate::py_exe()
@@ -77,7 +77,7 @@ SetupPythonEnvironment <- function(pythonExecutable = NULL,
     message("Using Python executable: ", pythonExecutable)
   }
   
-  # Check Python version
+  #check python version
   version_output <- tryCatch({
     system2(pythonExecutable, "--version", stdout = TRUE, stderr = TRUE)
   }, error = function(e) {
@@ -90,7 +90,7 @@ SetupPythonEnvironment <- function(pythonExecutable = NULL,
   
   required_modules <- c("tcrdist", "pandas", "numpy", "rpy2")
   
-  # Check which modules are missing
+  #check which modules are missing
   missing_modules <- character(0)
   for (mod in required_modules) {
     result <- system2(pythonExecutable, 
@@ -200,7 +200,7 @@ SetupPythonEnvironment <- function(pythonExecutable = NULL,
         }
       }
       
-      # Re-check modules after installation
+      #re-check modules after installation
       still_missing <- character(0)
       for (mod in required_modules) {
         result <- system2(pythonExecutable, 

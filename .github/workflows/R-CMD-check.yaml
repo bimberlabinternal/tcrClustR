@@ -54,7 +54,7 @@ jobs:
           df -h
           du -sh "${RUNNER_TEMP}" || true
 
-      - uses: GWMcElfresh/DevOps/githubActions/r-gh-setup@master
+      - uses: bimberlabinternal/DevOps/githubActions/r-gh-setup@master
         with:
           r_version: ${{ matrix.config.r }}
           bioc_version: ${{ matrix.config.bioc }}
@@ -66,8 +66,8 @@ jobs:
         run: |
           python3 --version
           python3 -m pip install --upgrade pip
-          # Install from pyproject.toml
-          python3 -m pip install .
+          # Install from requirements.txt
+          python3 -m pip install -r requirements.txt
         env:
           PIP_CACHE_DIR: ${{ env.PIP_CACHE_DIR }}
 
