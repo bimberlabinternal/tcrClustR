@@ -7,7 +7,7 @@
 SetupPythonEnvironment(
   pythonExecutable = NULL,
   installMissing = TRUE,
-  usePyprojectToml = TRUE,
+  useRequirementsTxt = TRUE,
   verbose = TRUE
 )
 }
@@ -18,8 +18,9 @@ use reticulate::py_exe() or fall back to system Python3.}
 \item{installMissing}{Logical. If TRUE (default), will attempt to install missing
 Python packages. If FALSE, will only validate and report missing packages.}
 
-\item{usePyprojectToml}{Logical. If TRUE (default), will install dependencies
-from the package's pyproject.toml file. If FALSE, will install individual packages.}
+\item{useRequirementsTxt}{Logical. If TRUE (default), will attempt to install
+dependencies from requirements.txt if available. If FALSE, will install
+individual packages.}
 
 \item{verbose}{Logical. If TRUE, will display detailed progress messages.}
 }
@@ -40,8 +41,8 @@ This function performs the following steps:
 \item Returns status of dependency availability
 }
 
-The function uses pyproject.toml (PEP 621 standard) for dependency management,
-which replaces the older requirements.txt format.
+The function uses requirements.txt for dependency management when available,
+and falls back to individual package installation if not found.
 }
 \examples{
 \dontrun{

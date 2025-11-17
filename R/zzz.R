@@ -19,8 +19,9 @@
 #'   use reticulate::py_exe() or fall back to system Python3.
 #' @param installMissing Logical. If TRUE (default), will attempt to install missing
 #'   Python packages. If FALSE, will only validate and report missing packages.
-#' @param usePyprojectToml Logical. If TRUE (default), will install dependencies
-#'   from the package's pyproject.toml file. If FALSE, will install individual packages.
+#' @param useRequirementsTxt Logical. If TRUE (default), will attempt to install
+#'   dependencies from requirements.txt if available. If FALSE, will install
+#'   individual packages.
 #' @param verbose Logical. If TRUE, will display detailed progress messages.
 #'
 #' @return Invisible logical: TRUE if all dependencies are available, FALSE otherwise.
@@ -34,8 +35,8 @@
 #'   \item Returns status of dependency availability
 #' }
 #'
-#' The function uses pyproject.toml (PEP 621 standard) for dependency management,
-#' which replaces the older requirements.txt format.
+#' The function uses requirements.txt for dependency management when available,
+#' and falls back to individual package installation if not found.
 #'
 #' @examples
 #' \dontrun{
@@ -52,7 +53,7 @@
 #' @export
 SetupPythonEnvironment <- function(pythonExecutable = NULL,
                                     installMissing = TRUE,
-                                    usePyprojectToml = TRUE,
+                                    useRequirementsTxt = TRUE,
                                     verbose = TRUE) {
   # Determine Python executable
   if (is.null(pythonExecutable)) {
@@ -87,7 +88,6 @@ SetupPythonEnvironment <- function(pythonExecutable = NULL,
     message("Python version: ", paste(version_output, collapse = " "))
   }
   
-  # Required modules
   required_modules <- c("tcrdist", "pandas", "numpy", "rpy2")
   
   # Check which modules are missing
@@ -113,33 +113,31 @@ SetupPythonEnvironment <- function(pythonExecutable = NULL,
         message("Installing missing Python dependencies...")
       }
       
-      if (usePyprojectToml) {
-        # Install from pyproject.toml
-        pyproject_path <- system.file("pyproject.toml", package = "tcrClustR")
+      if (useRequirementsTxt) {
+        # Locate requirements.txt
+        requirements_path <- system.file("requirements.txt", package = "tcrClustR")
         
-        # If not installed yet, try from package root
-        if (pyproject_path == "" || !file.exists(pyproject_path)) {
-          # Try to find it in the package source directory
+        # If not found in installed package, look in source directory
+        if (requirements_path == "" || !file.exists(requirements_path)) {
           pkg_root <- system.file(package = "tcrClustR")
           if (pkg_root != "") {
-            pyproject_path <- file.path(dirname(pkg_root), "pyproject.toml")
+            requirements_path <- file.path(dirname(pkg_root), "requirements.txt")
           }
           
-          # If still not found, try one level up from inst
-          if (!file.exists(pyproject_path)) {
+          if (!file.exists(requirements_path)) {
             inst_dir <- system.file("inst", package = "tcrClustR")
             if (inst_dir != "") {
-              pyproject_path <- file.path(dirname(inst_dir), "pyproject.toml")
+              requirements_path <- file.path(dirname(inst_dir), "requirements.txt")
             }
           }
         }
         
-        if (file.exists(pyproject_path)) {
+        if (file.exists(requirements_path)) {
           if (verbose) {
-            message("Installing from pyproject.toml: ", pyproject_path)
+            message("Installing from requirements.txt: ", requirements_path)
           }
           
-          # Install using pip with pyproject.toml
+          # Upgrade pip
           install_result <- system2(
             pythonExecutable,
             c("-m", "pip", "install", "--upgrade", "pip"),
@@ -151,10 +149,10 @@ SetupPythonEnvironment <- function(pythonExecutable = NULL,
             cat(install_result, sep = "\n")
           }
           
-          # Install package in editable mode from pyproject.toml location
+          # Install from requirements.txt
           install_result <- system2(
             pythonExecutable,
-            c("-m", "pip", "install", shQuote(dirname(pyproject_path))),
+            c("-m", "pip", "install", "-r", shQuote(requirements_path)),
             stdout = TRUE,
             stderr = TRUE
           )
@@ -163,16 +161,16 @@ SetupPythonEnvironment <- function(pythonExecutable = NULL,
             cat(install_result, sep = "\n")
           }
         } else {
-          warning("pyproject.toml not found. Falling back to individual package installation.")
-          usePyprojectToml <- FALSE
+          warning("requirements.txt not found. Falling back to individual package installation.")
+          useRequirementsTxt <- FALSE
         }
       }
       
-      if (!usePyprojectToml) {
+      if (!useRequirementsTxt) {
         # Install individual packages
         packages_to_install <- c()
         if ("tcrdist" %in% missing_modules) {
-          packages_to_install <- c(packages_to_install, "git+https://github.com/kmayerb/tcrdist3.git@0.2.2")
+          packages_to_install <- c(packages_to_install, "tcrdist3>=0.2.2")
         }
         if ("pandas" %in% missing_modules) {
           packages_to_install <- c(packages_to_install, "pandas>=1.1.0")
@@ -202,7 +200,7 @@ SetupPythonEnvironment <- function(pythonExecutable = NULL,
         }
       }
       
-      # Re-check after installation
+      # Re-check modules after installation
       still_missing <- character(0)
       for (mod in required_modules) {
         result <- system2(pythonExecutable, 
