@@ -254,7 +254,7 @@ print(results_single$summary)
 
 ### Read and Inspect Single-Chain Output
 
-```{r read_single_chain}
+```{r read_single_chain_output}
 # Read the parquet file
 single_chain_data <- arrow::read_parquet(results_single$parquet_files[1])
 

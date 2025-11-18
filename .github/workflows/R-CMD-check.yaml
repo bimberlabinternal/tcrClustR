@@ -59,19 +59,34 @@ jobs:
         with:
           r-version: ${{ matrix.config.r }}
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
       - name: Setup Python dependencies for tcrClustR
         run: |
-          python3 --version
-          python3 -m pip install --upgrade pip
-          #install from requirements.txt before r-gh-setup runs
-          python3 -m pip install -r requirements.txt
+          python --version
+          python -m pip install --upgrade pip
+          # Install from requirements.txt
+          python -m pip install -r requirements.txt
           # Verify installations
-          python3 -c "import tcrdist; print('tcrdist3 imported successfully')"
-          python3 -c "import pandas; print('pandas version:', pandas.__version__)"
-          python3 -c "import numpy; print('numpy version:', numpy.__version__)"
-          python3 -c "import rpy2; print('rpy2 imported successfully')"
+          python -c "import tcrdist; print('tcrdist3 imported successfully')"
+          python -c "import pandas; print('pandas version:', pandas.__version__)"
+          python -c "import numpy; print('numpy version:', numpy.__version__)"
+          python -c "import rpy2; print('rpy2 imported successfully')"
         env:
           PIP_CACHE_DIR: ${{ env.PIP_CACHE_DIR }}
+
+      - name: Configure reticulate to use Actions Python
+        run: |
+          PYTHON_PATH=$(which python)
+          echo "RETICULATE_PYTHON=${PYTHON_PATH}" >> $GITHUB_ENV
+          echo "Python path for reticulate: ${PYTHON_PATH}"
+          # Verify it's the correct Python
+          ${PYTHON_PATH} --version
+          ${PYTHON_PATH} -c "import sys; print('Python executable:', sys.executable)"
 
       - uses: r-lib/actions/check-r-package@v2
         with:
@@ -79,6 +94,7 @@ jobs:
         env:
           _R_CHECK_CRAN_INCOMING_: false
           PIP_CACHE_DIR: ${{ env.PIP_CACHE_DIR }}
+          RETICULATE_PYTHON: ${{ env.RETICULATE_PYTHON }}
 
       - name: Show disk usage after checks
         if: always()
