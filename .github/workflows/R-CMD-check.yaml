@@ -73,14 +73,6 @@ jobs:
         env:
           PIP_CACHE_DIR: ${{ env.PIP_CACHE_DIR }}
 
-      - uses: bimberlabinternal/DevOps/githubActions/r-gh-setup@master
-        with:
-          r_version: ${{ matrix.config.r }}
-          bioc_version: ${{ matrix.config.bioc }}
-          cache_version: ${{ secrets.CACHE_VERSION }}
-        env:
-          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
-
       - uses: r-lib/actions/check-r-package@v2
         with:
           args: 'c("--no-manual")'
