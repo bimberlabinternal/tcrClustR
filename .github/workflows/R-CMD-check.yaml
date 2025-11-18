@@ -54,6 +54,20 @@ jobs:
           df -h
           du -sh "${RUNNER_TEMP}" || true
 
+      - name: Setup Python dependencies for tcrClustR
+        run: |
+          python3 --version
+          python3 -m pip install --upgrade pip
+          # Install from requirements.txt BEFORE r-gh-setup runs
+          python3 -m pip install -r requirements.txt
+          # Verify installations
+          python3 -c "import tcrdist; print('tcrdist3 imported successfully')"
+          python3 -c "import pandas; print('pandas version:', pandas.__version__)"
+          python3 -c "import numpy; print('numpy version:', numpy.__version__)"
+          python3 -c "import rpy2; print('rpy2 imported successfully')"
+        env:
+          PIP_CACHE_DIR: ${{ env.PIP_CACHE_DIR }}
+
       - uses: bimberlabinternal/DevOps/githubActions/r-gh-setup@master
         with:
           r_version: ${{ matrix.config.r }}
@@ -61,22 +75,6 @@ jobs:
           cache_version: ${{ secrets.CACHE_VERSION }}
         env:
           GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup Python dependencies for tcrClustR
-        run: |
-          python3 --version
-          python3 -m pip install --upgrade pip
-          # Install from requirements.txt
-          python3 -m pip install -r "${GITHUB_WORKSPACE}/requirements.txt"
-        env:
-          PIP_CACHE_DIR: ${{ env.PIP_CACHE_DIR }}
-
-      - name: Verify Python dependencies
-        run: |
-          python3 -c "import tcrdist; print('tcrdist3 imported successfully')"
-          python3 -c "import pandas; print('pandas version:', pandas.__version__)"
-          python3 -c "import numpy; print('numpy version:', numpy.__version__)"
-          python3 -c "import rpy2; print('rpy2 imported successfully')"
 
       - uses: r-lib/actions/check-r-package@v2
         with:
