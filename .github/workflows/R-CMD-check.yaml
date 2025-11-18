@@ -54,11 +54,16 @@ jobs:
           df -h
           du -sh "${RUNNER_TEMP}" || true
 
+      - name: Setup R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: ${{ matrix.config.r }}
+
       - name: Setup Python dependencies for tcrClustR
         run: |
           python3 --version
           python3 -m pip install --upgrade pip
-          # Install from requirements.txt BEFORE r-gh-setup runs
+          #install from requirements.txt before r-gh-setup runs
           python3 -m pip install -r requirements.txt
           # Verify installations
           python3 -c "import tcrdist; print('tcrdist3 imported successfully')"
