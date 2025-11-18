@@ -88,6 +88,9 @@ jobs:
           ${PYTHON_PATH} --version
           ${PYTHON_PATH} -c "import sys; print('Python executable:', sys.executable)"
 
+      - name: Install rcmdcheck
+        run: Rscript -e 'install.packages("rcmdcheck")'
+
       - uses: r-lib/actions/check-r-package@v2
         with:
           args: 'c("--no-manual")'
