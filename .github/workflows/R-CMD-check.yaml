@@ -67,7 +67,7 @@ jobs:
           python3 --version
           python3 -m pip install --upgrade pip
           # Install from requirements.txt
-          python3 -m pip install -r "$GITHUB_WORKSPACE/requirements.txt"
+          python3 -m pip install -r "${GITHUB_WORKSPACE}/requirements.txt"
         env:
           PIP_CACHE_DIR: ${{ env.PIP_CACHE_DIR }}
 
