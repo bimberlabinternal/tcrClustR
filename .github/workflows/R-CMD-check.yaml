@@ -68,20 +68,6 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
 
-      - name: Setup Python dependencies for tcrClustR
-        run: |
-          python --version
-          python -m pip install --upgrade pip
-          # Install from requirements.txt
-          python -m pip install -r requirements.txt
-          # Verify installations
-          python -c "import tcrdist; print('tcrdist3 imported successfully')"
-          python -c "import pandas; print('pandas version:', pandas.__version__)"
-          python -c "import numpy; print('numpy version:', numpy.__version__)"
-          python -c "import rpy2; print('rpy2 imported successfully')"
-        env:
-          PIP_CACHE_DIR: ${{ env.PIP_CACHE_DIR }}
-
       - name: Configure reticulate to use Actions Python
         run: |
           PYTHON_PATH=$(which python)
@@ -90,6 +76,26 @@ jobs:
           # Verify it's the correct Python
           ${PYTHON_PATH} --version
           ${PYTHON_PATH} -c "import sys; print('Python executable:', sys.executable)"
+          ${PYTHON_PATH} -c "import sys; print('sys.path:', sys.path)"
+
+      - name: Setup Python dependencies for tcrClustR
+        run: |
+          python --version
+          python -m pip install --upgrade pip
+          # Install from requirements.txt
+          python -m pip install -r requirements.txt
+          # Verify installations
+          # NOTE: Package installed as 'tcrdist3' but imported as 'tcrdist'
+          python -c "import tcrdist; print('tcrdist3 imported successfully')"
+          python -c "import pandas; print('pandas version:', pandas.__version__)"
+          python -c "import numpy; print('numpy version:', numpy.__version__)"
+          python -c "import rpy2; print('rpy2 imported successfully')"
+          # Show where packages are installed
+          python -c "import tcrdist, sys; print('tcrdist location:', tcrdist.__file__)"
+          python -c "import site; print('site-packages:', site.getsitepackages())"
+        env:
+          PIP_CACHE_DIR: ${{ env.PIP_CACHE_DIR }}
+          RETICULATE_PYTHON: ${{ env.RETICULATE_PYTHON }}
 
       - name: Install BiocManager and set Bioconductor version
         run: Rscript -e "install.packages('BiocManager'); BiocManager::install(version = '${{ matrix.config.bioc }}', ask = FALSE)"
@@ -99,6 +105,12 @@ jobs:
 
       - name: Install CRAN R dependencies
         run: Rscript -e "install.packages('rcmdcheck');install.packages('knitr');install.packages(c('Seurat', 'SeuratObject', 'R.utils', 'dplyr', 'reticulate', 'readr', 'plyr', 'leidenbase', 'igraph', 'kernlab', 'FNN', 'magrittr', 'ggplot2', 'RColorBrewer', 'patchwork', 'clusterCrit', 'arrow'))"
+
+      - name: Verify R can use Python via reticulate
+        run: |
+          Rscript -e "Sys.setenv(RETICULATE_PYTHON = Sys.getenv('RETICULATE_PYTHON')); library(reticulate); cat('RETICULATE_PYTHON:', Sys.getenv('RETICULATE_PYTHON'), '\n'); cat('Python config:\n'); py_config(); cat('\nTesting module imports:\n'); tcr <- import('tcrdist'); cat('tcrdist imported successfully\n'); pd <- import('pandas'); cat('pandas version:', pd[['__version__']], '\n'); cat('All Python modules accessible from R!\n')"
+        env:
+          RETICULATE_PYTHON: ${{ env.RETICULATE_PYTHON }}
 
       - uses: r-lib/actions/check-r-package@v2
         with:
