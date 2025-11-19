@@ -88,6 +88,7 @@ SetupPythonEnvironment <- function(pythonExecutable = NULL,
     message("Python version: ", paste(version_output, collapse = " "))
   }
   
+  # NOTE: The package is installed as 'tcrdist3' but imported as 'tcrdist'
   required_modules <- c("tcrdist", "pandas", "numpy", "rpy2")
   
   #check which modules are missing
@@ -114,10 +115,10 @@ SetupPythonEnvironment <- function(pythonExecutable = NULL,
       }
       
       if (useRequirementsTxt) {
-        # Locate requirements.txt
+        #locate requirements.txt
         requirements_path <- system.file("requirements.txt", package = "tcrClustR")
         
-        # If not found in installed package, look in source directory
+        #if not found in installed package, look in source directory
         if (requirements_path == "" || !file.exists(requirements_path)) {
           pkg_root <- system.file(package = "tcrClustR")
           if (pkg_root != "") {
@@ -137,7 +138,7 @@ SetupPythonEnvironment <- function(pythonExecutable = NULL,
             message("Installing from requirements.txt: ", requirements_path)
           }
           
-          # Upgrade pip
+          #upgrade pip
           install_result <- system2(
             pythonExecutable,
             c("-m", "pip", "install", "--upgrade", "pip"),
@@ -167,9 +168,9 @@ SetupPythonEnvironment <- function(pythonExecutable = NULL,
       }
       
       if (!useRequirementsTxt) {
-        # Install individual packages
+        #install individual packages
         packages_to_install <- c()
-        if ("tcrdist" %in% missing_modules) {
+        if ("tcrdist3" %in% missing_modules) {
           packages_to_install <- c(packages_to_install, "tcrdist3>=0.2.2")
         }
         if ("pandas" %in% missing_modules) {
