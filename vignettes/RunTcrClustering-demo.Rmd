@@ -154,17 +154,18 @@ results <- RunTcrClustering(
 )
 ```
 
-```{r inspect_single_results}
-# Look at the clustering results
-cat("Single-chain clustering results:\n")
-cat("  Clusters found:", length(unique(results_single$TRB$cluster_assignments)), "\n")
-cat("  Clones after thresholding:", 
-    sum(results_single$TRB$cluster_assignments != -1), "\n")
+```{r inspect_single_output}
+# Check what was created
+cat("\nParquet files created:\n")
+print(results$parquet_files)
+
+cat("\nSummary:\n")
+print(results$summary)
 ```
 
 ### Read and Inspect Single-Chain Output
 
-The parquet file will have the **single-chain schema**: `chain`, `v_gene`, `j_gene`, `CDR3`, `Cluster`, `Cluster_Size`, `Clustering_Method`
+The parquet file will have the **single-chain schema**: `chain`, `v_gene`, `j_gene`, `CDR3`, `Cluster`, `Cluster_Size_Threshold`, `Clustering_Method`
 
 ```{r read_single_chain}
 # Find the parquet file
@@ -184,11 +185,9 @@ print(head(single_chain_data, 5))
 ```
 
 ```{r analyze_single_clusters}
-library(dplyr)
-
 # Analyze cluster distribution
 cluster_summary <- single_chain_data %>%
-  filter(Cluster != -1) %>%  # Exclude noise cluster
+  filter(Cluster != "0") %>%  # Exclude noise cluster (stored as "0" string)
   group_by(Cluster) %>%
   summarize(
     n_clones = n(),
@@ -227,69 +226,10 @@ For this simple demo, we'll show what the paired schema looks like conceptually:
 | CDR3 columns | `CDR3` | `CDR3_1`, `CDR3_2` |
 | Use case | Single-chain analysis (TRB-only, TRA-only) | Multi-chain analysis (TRA+TRB paired) |
 
-# Session Info
-
-```{r session_info}
-sessionInfo()
-```
-
-# Cleanup
-
-```{r cleanup, include=FALSE}
-# Clean up temporary files
-unlink(output_dir, recursive = TRUE)
-```
-
-```
-```
-
-```{r inspect_single_output}
-# Check what was created
-cat("\nParquet files created:\n")
-print(results_single$parquet_files)
-
-cat("\nSummary:\n")
-print(results_single$summary)
-```
-
-### Read and Inspect Single-Chain Output
-
-```{r read_single_chain_output}
-# Read the parquet file
-single_chain_data <- arrow::read_parquet(results_single$parquet_files[1])
-
-cat("\nSingle-chain output schema:\n")
-cat("Columns:", paste(colnames(single_chain_data), collapse = ", "), "\n")
-cat("Dimensions:", nrow(single_chain_data), "rows x", ncol(single_chain_data), "columns\n")
-
-# Show first few rows
-cat("\nFirst 5 rows:\n")
-print(head(single_chain_data, 5))
-```
-
-```{r analyze_single_clusters}
-# Analyze cluster distribution
-cluster_summary <- single_chain_data %>%
-  filter(Cluster != "0") %>%
-  group_by(Cluster) %>%
-  summarize(
-    n_clones = n(),
-    unique_v_genes = n_distinct(v_gene, na.rm = TRUE),
-    unique_j_genes = n_distinct(j_gene, na.rm = TRUE)
-  ) %>%
-  arrange(desc(n_clones))
-
-cat("\nCluster sizes (excluding noise/singletons):\n")
-print(cluster_summary)
-cat("\nTotal clusters:", nrow(cluster_summary), "\n")
-cat("Total clones in clusters:", sum(cluster_summary$n_clones), "\n")
-cat("Noise/singleton clones:", sum(single_chain_data$Cluster == "0"), "\n")
-```
-
 ## Example 2: Paired-Chain Clustering (TRA + TRB) {#paired-example}
 
 ```{r cluster_paired_chain}
-# Create output directory
+# Create output directory for paired chains
 output_dir_paired <- file.path(tempdir(), "paired_chain_example")
 dir.create(output_dir_paired, showWarnings = FALSE, recursive = TRUE)
 
@@ -299,13 +239,13 @@ if (length(paired_assays) > 0) {
   cat("Found paired assay:", paired_assays[1], "\n")
   
   results_paired <- RunTcrClustering(
-    seuratObj_TCR = tcr_obj,
-    assaysToCluster = paired_assays[1],  # Multi-chain assay
+    seuratObj = tcr_obj,
+    assays = paired_assays[1],  # Multi-chain assay
     clusteringMethod = "DIANA",
     dianaHeight = 25,  # Slightly higher threshold for paired
     clusterSizeThreshold = 2,
     outputDir = output_dir_paired,
-    maxChainsToRecord = 2,
+    outputPrefix = "TRA_TRB_demo",
     verbose = TRUE
   )
   
@@ -360,18 +300,19 @@ if (length(paired_assays) > 0 && length(results_paired$parquet_files) > 0) {
 You can also cluster all assays in one call:
 
 ```{r cluster_all_assays}
-# Create output directory
+# Create output directory for all assays
 output_dir_all <- file.path(tempdir(), "all_assays_example")
 dir.create(output_dir_all, showWarnings = FALSE, recursive = TRUE)
 
 # Cluster all available assays
 results_all <- RunTcrClustering(
-  seuratObj_TCR = tcr_obj,
-  assaysToCluster = NULL,  # NULL means all assays
+  seuratObj = tcr_obj,
+  assays = NULL,  # NULL means all assays
   clusteringMethod = "DIANA",
   dianaHeight = 20,
   clusterSizeThreshold = 2,
   outputDir = output_dir_all,
+  outputPrefix = "all_assays",
   verbose = FALSE
 )
 
@@ -426,7 +367,7 @@ Since each assay creates a separate parquet file, you can read and combine them:
 # Read all parquet files from a directory
 all_files <- list.files(output_dir_all, pattern = "\\.parquet$", full.names = TRUE)
 
-# For single-chain files, you can rbind them
+# For single-chain files, you can rbind them (if they have the same schema)
 single_files <- grep("_single\\.parquet$", all_files, value = TRUE)
 if (length(single_files) > 0) {
   combined_single <- do.call(rbind, lapply(single_files, arrow::read_parquet))
@@ -489,7 +430,7 @@ sessionInfo()
 
 ```{r cleanup, include=FALSE}
 # Clean up temporary files
-unlink(output_dir_single, recursive = TRUE)
-unlink(output_dir_paired, recursive = TRUE)
-unlink(output_dir_all, recursive = TRUE)
+unlink(output_dir, recursive = TRUE)
+if (exists("output_dir_paired")) unlink(output_dir_paired, recursive = TRUE)
+if (exists("output_dir_all")) unlink(output_dir_all, recursive = TRUE)
 ```
