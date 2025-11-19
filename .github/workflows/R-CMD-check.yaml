@@ -55,7 +55,7 @@ jobs:
           du -sh "${RUNNER_TEMP}" || true
           
       - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libpng-dev libssl-dev libxml2-dev
+        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libpng-dev libssl-dev libxml2-dev pandoc
         
       - name: Setup R
         uses: r-lib/actions/setup-r@v2
