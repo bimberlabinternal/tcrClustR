@@ -90,7 +90,7 @@ jobs:
           ${PYTHON_PATH} -c "import sys; print('Python executable:', sys.executable)"
 
       - name: Install rcmdcheck
-        run: Rscript -e 'install.packages("rcmdcheck")'
+        run: Rscript -e 'install.packages("rcmdcheck");install.packages("knitr")'
 
       - uses: r-lib/actions/check-r-package@v2
         with:
