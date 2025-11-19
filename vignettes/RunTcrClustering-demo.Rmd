@@ -286,7 +286,7 @@ cat("Total clones in clusters:", sum(cluster_summary$n_clones), "\n")
 cat("Noise/singleton clones:", sum(single_chain_data$Cluster == "0"), "\n")
 ```
 
-## Example 2: Paired-Chain Clustering (TRA + TRB)
+## Example 2: Paired-Chain Clustering (TRA + TRB) {#paired-example}
 
 ```{r cluster_paired_chain}
 # Create output directory
@@ -336,7 +336,7 @@ if (length(paired_assays) > 0 && length(results_paired$parquet_files) > 0) {
 }
 ```
 
-```{r analyze_paired_clusters, eval=length(paired_assays) > 0}
+```{r analyze_paired_clusters_summary, eval=length(paired_assays) > 0}
 if (length(paired_assays) > 0 && length(results_paired$parquet_files) > 0) {
   # Analyze cluster distribution
   cluster_summary_paired <- paired_chain_data %>%
