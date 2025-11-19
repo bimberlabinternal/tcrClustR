@@ -112,6 +112,7 @@ RunTcrdist3 <- function(seuratObj = NULL,
   #validate Python environment and required packages
   print(paste("Using Python executable:", pythonExecutable))
 
+  # NOTE: The package is installed as 'tcrdist3' but imported as 'tcrdist'
   #test if required packages are available
   testCmd <- paste0(pythonExecutable, " -c \"import tcrdist; import rpy2; print('Python environment OK')\"")
   testResult <- tryCatch({
