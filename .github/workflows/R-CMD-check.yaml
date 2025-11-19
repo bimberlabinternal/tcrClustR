@@ -89,8 +89,8 @@ jobs:
           ${PYTHON_PATH} --version
           ${PYTHON_PATH} -c "import sys; print('Python executable:', sys.executable)"
 
-      - name: Install rcmdcheck
-        run: Rscript -e 'install.packages("rcmdcheck");install.packages("knitr")'
+      - name: Install R deps
+        run: Rscript -e "install.packages('rcmdcheck');install.packages('knitr');install.packages(c('Seurat', 'SeuratObject', 'R.utils', 'dplyr', 'reticulate', 'readr', 'plyr', 'leidenbase', 'igraph', 'kernlab', 'FNN', 'magrittr', 'ggplot2', 'RColorBrewer', 'patchwork', 'ComplexHeatmap', 'clusterCrit', 'arrow'))"
 
       - uses: r-lib/actions/check-r-package@v2
         with:
