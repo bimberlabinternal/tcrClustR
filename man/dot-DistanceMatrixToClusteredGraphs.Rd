@@ -47,6 +47,8 @@
 
 \item{computeMultiChain}{Boolean indicating whether to compute multi-chain graphs. Default is TRUE.}
 
+\item{verbose}{Boolean indicating whether to print verbose debugging output. Default is FALSE.}
+
 \item{neighborsK}{Fixed number of nearest neighbors for graph construction (Scanpy/Seurat style). Default is 15.}
 
 \item{rbfSigma}{Width for RBF kernel when converting distances to similarities for KernelPCA and edge weights. Default NULL (heuristic).}

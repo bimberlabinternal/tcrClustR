@@ -31,7 +31,9 @@ Imports:
     grid, 
     clusterCrit,
     arrow,
-    cluster
+    cluster,
+    NatParksPalettes,
+    dbscan
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 Suggests: 

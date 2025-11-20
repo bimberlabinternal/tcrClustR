@@ -29,7 +29,11 @@ ClusterTcrs(
 )
 }
 \arguments{
+\item{seuratObj}{(Deprecated) Legacy parameter, use seuratObj_TCR instead.}
+
 \item{seuratObj_TCR}{Seurat object with TCR distance matrices.}
+
+\item{metadata}{(Deprecated) Legacy parameter, not currently used.}
 
 \item{resolutionParameters}{Vector of resolution parameters for clustering. Use to iterate over multiple resolutions.}
 

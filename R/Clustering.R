@@ -12,7 +12,9 @@ utils::globalVariables(
 #' It performs PCA or kernel PCA, computes distance matrices, and applies clustering algorithms.
 #' The clustering results are stored in the metadata of the returned Seurat objects.
 #' Users can join clustering results back to their original object using clonotypic metadata.
+#' @param seuratObj (Deprecated) Legacy parameter, use seuratObj_TCR instead.
 #' @param seuratObj_TCR Seurat object with TCR distance matrices.
+#' @param metadata (Deprecated) Legacy parameter, not currently used.
 #' @param resolutionParameters Vector of resolution parameters for clustering. Use to iterate over multiple resolutions.
 #' @param pcaComponents Number of components for PCA or kernel PCA. Default is 50.
 #' @param kpcaKernel Kernel type for kernel PCA. Default is "rbfdot". Ignored if usePCA is TRUE.
@@ -109,6 +111,7 @@ ClusterTcrs <- function(seuratObj = NULL,
 #' @param resolutions Vector of resolution parameters for clustering. Default is c(0.1, 0.2, 0.3).
 #' @param seed Random seed for reproducibility. Default is 1234.
 #' @param computeMultiChain Boolean indicating whether to compute multi-chain graphs. Default is TRUE.
+#' @param verbose Boolean indicating whether to print verbose debugging output. Default is FALSE.
 #' @param neighborsK Fixed number of nearest neighbors for graph construction (Scanpy/Seurat style). Default is 15.
 #' @param rbfSigma Width for RBF kernel when converting distances to similarities for KernelPCA and edge weights. Default NULL (heuristic).
 #' @param useExactDistanceKNN Boolean indicating whether to build kNN directly from distances (skip KPCA for kNN step). Default is FALSE.

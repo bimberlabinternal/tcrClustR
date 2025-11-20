@@ -1,3 +1,4 @@
+
 name: R Build and Checks
 
 on:
@@ -53,10 +54,10 @@ jobs:
           echo "PIP_CACHE_DIR set to ${RUNNER_TEMP}/pip-cache"
           df -h
           du -sh "${RUNNER_TEMP}" || true
-          
+
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libpng-dev libssl-dev libxml2-dev pandoc
-        
+
       - name: Setup R
         uses: r-lib/actions/setup-r@v2
         with:
@@ -104,7 +105,8 @@ jobs:
         run: Rscript -e "BiocManager::install(c('ComplexHeatmap'), ask = FALSE, update = FALSE)"
 
       - name: Install CRAN R dependencies
-        run: Rscript -e "install.packages('rcmdcheck');install.packages('knitr');install.packages(c('Seurat', 'SeuratObject', 'R.utils', 'dplyr', 'reticulate', 'readr', 'plyr', 'leidenbase', 'igraph', 'kernlab', 'FNN', 'magrittr', 'ggplot2', 'RColorBrewer', 'patchwork', 'clusterCrit', 'arrow'))"
+        run: Rscript -e "install.packages('rcmdcheck');install.packages('knitr');install.packages('testthat');install.packages(c('Seurat', 'SeuratObject', 'R.utils', 'dplyr', 'reticulate', 'readr', 'plyr', 'leidenbase', 'igraph', 'kernlab', 'FNN', 'magrittr', 'ggplot2', 'RColorBrewer', 'patchwork', 'clusterCrit', 'arrow', 'NatParksPalettes', 'dbscan'))"
+
 
       - name: Verify R can use Python via reticulate
         run: |
