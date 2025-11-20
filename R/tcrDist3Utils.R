@@ -517,9 +517,10 @@ FormatMetadataForTcrDist3 <- function(metadata,
     stop("No valid Python executable found. Please install Python 3.8+ or run SetupPythonEnvironment() to configure.")
   }
   
-  # Validate Python modules are available before proceeding
+  #validate Python modules are available before proceeding
   if (verbose) message("Validating Python dependencies...")
   
+  # NOTE: The package is installed as 'tcrdist3' but imported as 'tcrdist'
   required_modules <- c("tcrdist", "pandas")
   missing_modules <- character(0)
   
@@ -588,7 +589,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
     }
   }
   
-  # Check that the gene segments file is created
+  #check that the gene segments file is created
   if (!file.exists(outputFilePath)) {
     error_msg <- paste0(
       "tcrdist3_gene_segments.txt generation failed.\n\n",
