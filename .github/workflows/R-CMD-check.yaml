@@ -116,7 +116,7 @@ jobs:
       - uses: r-lib/actions/check-r-package@v2
         with:
           build_args: "--no-manual --no-build-vignettes"
-          args: --no-manual --ignore-vignettes
+          args: "--no-manual --ignore-vignettes"
         env:
           _R_CHECK_CRAN_INCOMING_: false
           PIP_CACHE_DIR: ${{ env.PIP_CACHE_DIR }}
