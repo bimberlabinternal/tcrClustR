@@ -111,14 +111,16 @@ jobs:
           Rscript -e "Sys.setenv(RETICULATE_PYTHON = Sys.getenv('RETICULATE_PYTHON')); library(reticulate); cat('RETICULATE_PYTHON:', Sys.getenv('RETICULATE_PYTHON'), '\n'); cat('Python config:\n'); py_config(); cat('\nTesting module imports:\n'); tcr <- import('tcrdist'); cat('tcrdist imported successfully\n'); pd <- import('pandas'); cat('pandas version:', pd[['__version__']], '\n'); cat('All Python modules accessible from R!\n')"
         env:
           RETICULATE_PYTHON: ${{ env.RETICULATE_PYTHON }}
-          
+
+
       - uses: r-lib/actions/check-r-package@v2
         with:
-          args: 'c("--no-manual", "--no-build-vignettes", "--ignore-vignettes")'
+          build_args: "--no-manual --no-build-vignettes"
+          args: 'c("--no-manual", "--ignore-vignettes")'
         env:
           _R_CHECK_CRAN_INCOMING_: false
           PIP_CACHE_DIR: ${{ env.PIP_CACHE_DIR }}
-          RETICULATE_PYTHON: ${{ env.RETICULATE_PYTHON }}
+          RETICULATE_PYTHON: ${{ env.RETICULATE_PYTHON }}    
 
       - name: Show disk usage after checks
         if: always()
