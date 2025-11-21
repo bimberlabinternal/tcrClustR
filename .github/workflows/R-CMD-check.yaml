@@ -34,6 +34,7 @@ jobs:
         R CMD build . && \
         R CMD check *.tar.gz --no-manual
       push-images: ${{ github.ref == 'refs/heads/main' }}
+      push-runtime: true
     permissions:
       contents: read
       packages: write
