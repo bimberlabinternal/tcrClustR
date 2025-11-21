@@ -74,8 +74,17 @@ jobs:
           PYTHON_PATH=$(which python)
           echo "RETICULATE_PYTHON=${PYTHON_PATH}" >> $GITHUB_ENV
           echo "Python path for reticulate: ${PYTHON_PATH}"
-          # Verify it's the correct Python
-          ${PYTHON_PATH} --version
+          
+          # Create python3 symlink if it doesn't exist (for test compatibility)
+          if ! command -v python3 &> /dev/null; then
+            PYTHON_DIR=$(dirname "${PYTHON_PATH}")
+            sudo ln -s "${PYTHON_PATH}" "${PYTHON_DIR}/python3"
+            echo "Created python3 symlink at ${PYTHON_DIR}/python3"
+          fi
+          
+          # Verify both python and python3 work
+          python --version
+          python3 --version
           ${PYTHON_PATH} -c "import sys; print('Python executable:', sys.executable)"
           ${PYTHON_PATH} -c "import sys; print('sys.path:', sys.path)"
 
@@ -111,6 +120,15 @@ jobs:
       - name: Verify R can use Python via reticulate
         run: |
           Rscript -e "Sys.setenv(RETICULATE_PYTHON = Sys.getenv('RETICULATE_PYTHON')); library(reticulate); cat('RETICULATE_PYTHON:', Sys.getenv('RETICULATE_PYTHON'), '\n'); cat('Python config:\n'); py_config(); cat('\nTesting module imports:\n'); tcr <- import('tcrdist'); cat('tcrdist imported successfully\n'); pd <- import('pandas'); cat('pandas version:', pd[['__version__']], '\n'); cat('All Python modules accessible from R!\n')"
+        env:
+          RETICULATE_PYTHON: ${{ env.RETICULATE_PYTHON }}
+
+      - name: Configure R environment for tests
+        run: |
+          # Create .Renviron file to ensure RETICULATE_PYTHON is available during R CMD check
+          echo "RETICULATE_PYTHON=${RETICULATE_PYTHON}" > ~/.Renviron
+          cat ~/.Renviron
+          echo "Created ~/.Renviron with RETICULATE_PYTHON"
         env:
           RETICULATE_PYTHON: ${{ env.RETICULATE_PYTHON }}
 

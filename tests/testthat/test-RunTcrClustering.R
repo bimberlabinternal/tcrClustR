@@ -3,7 +3,7 @@ library(Seurat)
 library(arrow)
 
 test_that("RunTcrClustering filters invalid clones correctly", {
-  skip_if_not(file.exists(Sys.which("python3")), "Python3 not available")
+  skip_if_not(nzchar(Sys.getenv("RETICULATE_PYTHON")) || nzchar(Sys.which("python3")) || nzchar(Sys.which("python")), "Python not available")
   
   set.seed(123)
   
@@ -56,7 +56,7 @@ test_that("RunTcrClustering filters invalid clones correctly", {
 })
 
 test_that("RunTcrClustering strips alleles correctly", {
-  skip_if_not(file.exists(Sys.which("python3")), "Python3 not available")
+  skip_if_not(nzchar(Sys.getenv("RETICULATE_PYTHON")) || nzchar(Sys.which("python3")) || nzchar(Sys.which("python")), "Python not available")
   
   set.seed(456)
   
@@ -147,7 +147,7 @@ test_that(".filter_clones_for_assay handles single vs multi-chain correctly", {
 })
 
 test_that("RunTcrClustering respects outputPrefix parameter", {
-  skip_if_not(file.exists(Sys.which("python3")), "Python3 not available")
+  skip_if_not(nzchar(Sys.getenv("RETICULATE_PYTHON")) || nzchar(Sys.which("python3")) || nzchar(Sys.which("python")), "Python not available")
   
   set.seed(789)
   
