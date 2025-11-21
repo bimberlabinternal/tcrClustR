@@ -6,45 +6,52 @@
 # ============================================================================
 # Stage 1: Base - System dependencies
 # ============================================================================
-FROM rocker/r-base:4.4.2 AS base
+ARG BASE_IMAGE=rocker/r-base:4.4.2
+FROM ${BASE_IMAGE} AS base
 
 ARG DEBIAN_FRONTEND=noninteractive
+ARG SKIP_BASE_DEPS=false
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    libcurl4-openssl-dev \
-    libssl-dev \
-    uuid-dev \
-    libxml2-dev \
-    libgpgme11-dev \
-    squashfs-tools \
-    libseccomp-dev \
-    r-cran-devtools \
-    libsqlite3-dev \
-    libgit2-dev \
-    pkg-config \
-    git-all \
-    wget \
-    libbz2-dev \
-    zlib1g-dev \
-    python3-dev \
-    libffi-dev \
-    libfontconfig1-dev \
-    libharfbuzz-dev \
-    libfribidi-dev \
-    libfreetype6-dev \
-    libpng-dev \
-    libtiff5-dev \
-    libjpeg-dev \
-    libmbedtls-dev \
-    cargo \
-    libmagick++-dev \
-    libudunits2-dev \
-    libgsl-dev \
-    libtbb-dev \
-    cmake \
-    && rm -rf /var/lib/apt/lists/*
+# Install system dependencies (skipped if using pre-built base image)
+# To use a pre-built base: --build-arg BASE_IMAGE=ghcr.io/.../base-deps:tag --build-arg SKIP_BASE_DEPS=true
+RUN if [ "$SKIP_BASE_DEPS" = "false" ]; then \
+    apt-get update && apt-get install -y \
+        build-essential \
+        libcurl4-openssl-dev \
+        libssl-dev \
+        uuid-dev \
+        libxml2-dev \
+        libgpgme11-dev \
+        squashfs-tools \
+        libseccomp-dev \
+        r-cran-devtools \
+        libsqlite3-dev \
+        libgit2-dev \
+        pkg-config \
+        git-all \
+        wget \
+        libbz2-dev \
+        zlib1g-dev \
+        python3-dev \
+        libffi-dev \
+        libfontconfig1-dev \
+        libharfbuzz-dev \
+        libfribidi-dev \
+        libfreetype6-dev \
+        libpng-dev \
+        libtiff5-dev \
+        libjpeg-dev \
+        libmbedtls-dev \
+        cargo \
+        libmagick++-dev \
+        libudunits2-dev \
+        libgsl-dev \
+        libtbb-dev \
+        cmake \
+        && rm -rf /var/lib/apt/lists/*; \
+    else \
+        echo "Skipping base dependency installation (using pre-built base image)"; \
+    fi
 
 # ============================================================================
 # Stage 2: Deps - Install R and Python dependencies
@@ -86,6 +93,7 @@ RUN apt-get update && apt-get install -y r-base r-base-dev && \
     fi && \
     Rscript -e "install.packages(c('remotes', 'devtools', 'BiocManager', 'pryr', 'rmdformats', 'knitr', 'logger', 'Matrix', 'kernlab', 'tidyverse', 'Seurat', 'leidenbase', 'igraph', 'FNN'), lib='/usr/local/lib/R/site-library', dependencies=TRUE, ask = FALSE, upgrade = 'always')" && \
     echo "local({options(repos = BiocManager::repositories())})" >> ~/.Rprofile && \
+    Rscript -e "BiocManager::install('ComplexHeatmap', ask = FALSE, update = TRUE)" && \
     rm -rf /var/lib/apt/lists/* /tmp/downloaded_packages/ /tmp/*.rds
 
 # ============================================================================
