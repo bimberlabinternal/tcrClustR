@@ -1,10 +1,16 @@
-FROM rocker/r-base:4.4.2
+# Multi-stage Dockerfile for tcrClustR
+# Stage 1: Base - System dependencies and base tools
+# Stage 2: Deps - R packages and Python packages (cached layer)
+# Stage 3: Runtime - Final application build
+
+# ============================================================================
+# Stage 1: Base - System dependencies
+# ============================================================================
+FROM rocker/r-base:4.4.2 AS base
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG GH_PAT='NOT_SET'
 
-ADD . /tcrClustR
-
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
     libcurl4-openssl-dev \
@@ -37,8 +43,19 @@ RUN apt-get update && apt-get install -y \
     libudunits2-dev \
     libgsl-dev \
     libtbb-dev \
-    cmake && \
-    mkdir /TCR_Python && \
+    cmake \
+    && rm -rf /var/lib/apt/lists/*
+
+# ============================================================================
+# Stage 2: Deps - Install R and Python dependencies
+# ============================================================================
+FROM base AS deps
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG GH_PAT='NOT_SET'
+
+# Install custom Python 3.8.10
+RUN mkdir /TCR_Python && \
     cd /TCR_Python && \
     wget https://github.com/python/cpython/archive/refs/tags/v3.8.10.tar.gz && \
     tar -zxvf v3.8.10.tar.gz && \
@@ -58,23 +75,31 @@ RUN apt-get update && apt-get install -y \
     cd ../ && \
     /TCR_Python/bin/pip3 install -e . && \
     cd / && \
-    chmod -R 777 /TCR_Python
+    chmod -R 777 /TCR_Python && \
+    rm -rf /TCR_Python/cpython-3.8.10 /TCR_Python/v3.8.10.tar.gz
 
-
-#install R and dependencies
+# Install R dependencies
 RUN apt-get update && apt-get install -y r-base r-base-dev && \
     if [ "${GH_PAT}" != 'NOT_SET' ]; then \
         echo 'Setting GH_PAT'; \
         export GITHUB_PAT="${GH_PAT}"; \
     fi && \
     Rscript -e "install.packages(c('remotes', 'devtools', 'BiocManager', 'pryr', 'rmdformats', 'knitr', 'logger', 'Matrix', 'kernlab', 'tidyverse', 'Seurat', 'leidenbase', 'igraph', 'FNN'), lib='/usr/local/lib/R/site-library', dependencies=TRUE, ask = FALSE, upgrade = 'always')" && \
-    echo "local({options(repos = BiocManager::repositories())})" >> ~/.Rprofile
+    echo "local({options(repos = BiocManager::repositories())})" >> ~/.Rprofile && \
+    rm -rf /var/lib/apt/lists/* /tmp/downloaded_packages/ /tmp/*.rds
 
-RUN Rscript -e ".libPaths()"
+# ============================================================================
+# Stage 3: Runtime - Build and install tcrClustR package
+# ============================================================================
+FROM deps AS runtime
 
-#build tcrClustR
-#it's unclear to me why, but devtools doesn't seem to be sticking between the previous command and current command. 
-#for now, I'm forcing an install after R CMD build . 
+ARG DEBIAN_FRONTEND=noninteractive
+ARG GH_PAT='NOT_SET'
+
+# Copy application code
+ADD . /tcrClustR
+
+# Build and install tcrClustR
 RUN cd /tcrClustR && \
     R CMD build . && \
     Rscript -e "BiocManager::install(ask = F, upgrade = 'always');" && \
