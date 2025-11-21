@@ -61,14 +61,16 @@ FROM base AS deps
 ARG DEBIAN_FRONTEND=noninteractive
 ARG GH_PAT='NOT_SET'
 
-# Install Python packages using system Python
+# Install Python packages in a virtual environment
 RUN apt-get update && \
     apt-get install -y python3-pip python3-venv && \
-    python3 -m pip install --upgrade pip && \
-    python3 -m pip install --no-cache-dir \
+    python3 -m venv /opt/venv && \
+    . /opt/venv/bin/activate && \
+    pip install --upgrade pip && \
+    pip install --no-cache-dir \
         numpy scipy scikit-learn scikit-misc matplotlib tqdm sympy \
         setuptools pandas pyyaml scanpy rpy2 && \
-    python3 -m pip install --no-cache-dir git+https://github.com/kmayerb/tcrdist3.git@0.2.2 && \
+    pip install --no-cache-dir git+https://github.com/kmayerb/tcrdist3.git@0.2.2 && \
     # Install conga
     mkdir -p /conga && \
     cd /conga && \
@@ -76,9 +78,12 @@ RUN apt-get update && \
     cd conga/tcrdist_cpp && \
     make && \
     cd ../ && \
-    python3 -m pip install -e . && \
+    pip install -e . && \
     cd / && \
     rm -rf /var/lib/apt/lists/*
+
+# Add virtual environment to PATH so Python scripts can find packages
+ENV PATH="/opt/venv/bin:$PATH"
 
 # Install R dependencies
 RUN apt-get update && apt-get install -y r-base r-base-dev && \
