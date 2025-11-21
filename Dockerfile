@@ -61,29 +61,24 @@ FROM base AS deps
 ARG DEBIAN_FRONTEND=noninteractive
 ARG GH_PAT='NOT_SET'
 
-# Install custom Python 3.8.10
-RUN mkdir /TCR_Python && \
-    cd /TCR_Python && \
-    wget https://github.com/python/cpython/archive/refs/tags/v3.8.10.tar.gz && \
-    tar -zxvf v3.8.10.tar.gz && \
-    cd cpython-3.8.10 && \
-    ./configure --prefix=/TCR_Python && \
-    cd /TCR_Python/cpython-3.8.10 && \
-    make && \
-    make install && \
-    /TCR_Python/bin/pip3 --no-cache-dir install numpy scipy scikit-learn scikit-misc matplotlib tqdm sympy setuptools pandas pyyaml scanpy rpy2 && \
-    /TCR_Python/bin/pip3 --no-cache-dir install git+https://github.com/kmayerb/tcrdist3.git@0.2.2 && \
-    # Install conga:
-    mkdir /conga  && \
+# Install Python packages using system Python
+RUN apt-get update && \
+    apt-get install -y python3-pip python3-venv && \
+    python3 -m pip install --upgrade pip && \
+    python3 -m pip install --no-cache-dir \
+        numpy scipy scikit-learn scikit-misc matplotlib tqdm sympy \
+        setuptools pandas pyyaml scanpy rpy2 && \
+    python3 -m pip install --no-cache-dir git+https://github.com/kmayerb/tcrdist3.git@0.2.2 && \
+    # Install conga
+    mkdir -p /conga && \
     cd /conga && \
     git clone https://github.com/phbradley/conga.git && \
     cd conga/tcrdist_cpp && \
     make && \
     cd ../ && \
-    /TCR_Python/bin/pip3 install -e . && \
+    python3 -m pip install -e . && \
     cd / && \
-    chmod -R 777 /TCR_Python && \
-    rm -rf /TCR_Python/cpython-3.8.10 /TCR_Python/v3.8.10.tar.gz
+    rm -rf /var/lib/apt/lists/*
 
 # Install R dependencies
 RUN apt-get update && apt-get install -y r-base r-base-dev && \
