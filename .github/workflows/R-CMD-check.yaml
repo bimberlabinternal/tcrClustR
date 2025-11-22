@@ -33,8 +33,8 @@ jobs:
         Rscript -e "devtools::test()" && \
         R CMD build . && \
         R CMD check *.tar.gz --no-manual
-      push-images: ${{ github.ref == 'refs/heads/main' }}
-      push-runtime: true
+      push-images: true #updates the dependency cache images on branches
+      push-runtime: ${{ github.ref == 'refs/heads/main' }} #only push runtime image on main branch
     permissions:
       contents: read
       packages: write
