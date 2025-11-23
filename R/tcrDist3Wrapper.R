@@ -26,8 +26,11 @@ utils::globalVariables(
 #' @param verbose Boolean controlling whether to display processing steps. Default is FALSE.
 #' @import Matrix
 #' @importFrom methods as
-#'@examples
-#'\dontrun{
+#' @importFrom SeuratObject CreateSeuratObject Assays RenameAssays GetAssayData JoinLayers
+#' @importFrom Seurat AddMetaData
+#' @importFrom methods is
+#' @examples
+#' \dontrun{
 #'   RunTcrdist3(seuratObj = seuratObj,
 #'               metadata = NULL,
 #'               formatMetadata = T,
@@ -109,6 +112,7 @@ RunTcrdist3 <- function(seuratObj = NULL,
   #validate Python environment and required packages
   print(paste("Using Python executable:", pythonExecutable))
 
+  # NOTE: The package is installed as 'tcrdist3' but imported as 'tcrdist'
   #test if required packages are available
   testCmd <- paste0(pythonExecutable, " -c \"import tcrdist; import rpy2; print('Python environment OK')\"")
   testResult <- tryCatch({
@@ -230,7 +234,7 @@ RunTcrdist3 <- function(seuratObj = NULL,
       seuratObj_TCR_CDR3 <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_CDR3, "dgCMatrix"),
                                                              assay = paste0(chain, "_cdr3"))
       seuratObj_TCR_CDR3 <- Seurat::AddMetaData(seuratObj_TCR_CDR3, metadata = formatted_metadata)
-      seuratObj_TCR <- SeuratObject:::merge.Seurat(seuratObj_TCR, seuratObj_TCR_CDR3)
+      seuratObj_TCR <- merge(seuratObj_TCR, seuratObj_TCR_CDR3)
     } else {
       seuratObj_TCR_subsequentChain <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_full_length, "dgCMatrix"),
                                                                         assay =  chain)
@@ -238,8 +242,8 @@ RunTcrdist3 <- function(seuratObj = NULL,
       seuratObj_TCR_CDR3_subsequentChain <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_CDR3, "dgCMatrix"),
                                                                              assay = paste0(chain, "_cdr3"))
       seuratObj_TCR_CDR3_subsequentChain <- Seurat::AddMetaData(seuratObj_TCR_CDR3_subsequentChain, metadata = formatted_metadata)
-      seuratObj_TCR_subsequentChain <- SeuratObject:::merge.Seurat(seuratObj_TCR_subsequentChain, seuratObj_TCR_CDR3_subsequentChain)
-      seuratObj_TCR <- SeuratObject:::merge.Seurat(seuratObj_TCR, seuratObj_TCR_subsequentChain)
+      seuratObj_TCR_subsequentChain <- merge(seuratObj_TCR_subsequentChain, seuratObj_TCR_CDR3_subsequentChain)
+      seuratObj_TCR <- merge(seuratObj_TCR, seuratObj_TCR_subsequentChain)
     }
   }
 
@@ -270,8 +274,8 @@ RunTcrdist3 <- function(seuratObj = NULL,
       }
 
       #get distance matrices for both chains
-      dist_matrix1 <- SeuratObject::GetAssayData(seuratObj_TCR, assay = chain1, slot = "counts")
-      dist_matrix2 <- SeuratObject::GetAssayData(seuratObj_TCR, assay = chain2, slot = "counts")
+      dist_matrix1 <- SeuratObject::GetAssayData(seuratObj_TCR, assay = chain1, layer = "counts")
+      dist_matrix2 <- SeuratObject::GetAssayData(seuratObj_TCR, assay = chain2, layer = "counts")
 
       if (verbose) {
         message(paste("Matrix dimensions for", chain1, ":", nrow(dist_matrix1), "x", ncol(dist_matrix1)))
@@ -369,11 +373,11 @@ RunTcrdist3 <- function(seuratObj = NULL,
       cdr3_assay2 <- paste0(chain2, "_cdr3")
 
       if (cdr3_assay1 %in% SeuratObject::Assays(seuratObj_TCR)) {
-        chain1_matrices[[paste0(chain1, "_cdr3")]] <- SeuratObject::GetAssayData(seuratObj_TCR, assay = cdr3_assay1, slot = "counts")
+        chain1_matrices[[paste0(chain1, "_cdr3")]] <- SeuratObject::GetAssayData(seuratObj_TCR, assay = cdr3_assay1, layer = "counts")
       }
 
       if (cdr3_assay2 %in% SeuratObject::Assays(seuratObj_TCR)) {
-        chain2_matrices[[paste0(chain2, "_cdr3")]] <- SeuratObject::GetAssayData(seuratObj_TCR, assay = cdr3_assay2, slot = "counts")
+        chain2_matrices[[paste0(chain2, "_cdr3")]] <- SeuratObject::GetAssayData(seuratObj_TCR, assay = cdr3_assay2, layer = "counts")
       }
 
       #create joint matrices for all combinations
@@ -433,7 +437,7 @@ RunTcrdist3 <- function(seuratObj = NULL,
           seuratObj_joint <- Seurat::AddMetaData(seuratObj_joint, metadata = dual_chain_metadata)
 
           #merge with main object
-          seuratObj_TCR <- SeuratObject:::merge.Seurat(seuratObj_TCR, seuratObj_joint)
+          seuratObj_TCR <- merge(seuratObj_TCR, seuratObj_joint)
 
           if (verbose) message(paste("Created joint distance matrix:", joint_assay_name))
         }

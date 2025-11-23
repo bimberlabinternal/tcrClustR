@@ -1,60 +1,41 @@
+
+name: R Build and Checks
+
 on:
   workflow_dispatch:
   push:
     branches: [ main, dev ]
   pull_request:
   schedule:
-    - cron: '0 17 11 * *'  #11th of the month at 5PM
-    - cron: '0 17 26 * *'  #26th of the month at 5PM
-
-name: R Build and Checks
+    - cron: "0 6 10 * *"
 
 jobs:
-  R-CMD-check:
-    runs-on: ubuntu-${{ matrix.config.os }}
-
-    name: ubuntu-${{ matrix.config.os }} (${{ matrix.config.r }} / ${{ matrix.config.bioc }})
-
-    strategy:
-      fail-fast: false
-      matrix:
-        config:
-        #note: the jammy OS is required to dodge issues relating to importing ctypes: "undefined symbol: _PyErr_SetLocaleString
-        #seems to be associated with GH action's specific python binary, but eventually this should get sorted out and we can bump to noble. 
-          - { os: 22.04, r: '4.4', bioc: '3.20', pkgdown: "true" } 
-    env:
-      R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
-      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: bimberlabinternal/DevOps/githubActions/r-gh-setup@master
-        with:
-          r_version: ${{ matrix.config.r }}
-          bioc_version: ${{ matrix.config.bioc }}
-          cache_version: ${{ secrets.CACHE_VERSION }}
-        env:
-          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install tcrClustR specific python packages
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install --user scikit-learn tqdm sympy pyyaml rpy2 pandas>=2.2.3 tcrdist3
-
-      - uses: r-lib/actions/check-r-package@v2
-        with:
-          args: 'c("--no-manual")'
-        env:
-          _R_CHECK_CRAN_INCOMING_: false
-
-      - name: Install package
-        if: github.ref == 'refs/heads/main' && matrix.config.pkgdown == 'true'
-        run: R CMD INSTALL .
-
-      - name: Deploy package
-        if: github.ref == 'refs/heads/main' && matrix.config.pkgdown == 'true'
-        run: |
-          git config --local user.email "actions@github.com"
-          git config --local user.name "GitHub Actions"
-          Rscript -e 'pkgdown::deploy_to_branch(new_process = FALSE, clean = TRUE)'
+  # Build base image monthly (uses shared workflow from dockerDependencies)
+  build-base:
+    uses: GWMcElfresh/dockerDependencies/.github/workflows/build-base-image.yml@main
+    permissions:
+      contents: read
+      packages: write
+    secrets: inherit
+  
+  # Build and test with Docker caching (uses shared workflow from dockerDependencies)
+  docker-build-and-test:
+    needs: build-base
+    if: always()  # Run even if base build is skipped 
+    uses: GWMcElfresh/dockerDependencies/.github/workflows/docker-cache.yml@main
+    with:
+      r-version: '4.4.2'
+      bioc-version: '3.20'
+      python-version: '3.8.10'
+      use-base-image: true
+      test-command: |
+        Rscript -e "devtools::install_deps(dependencies = TRUE, upgrade = \"never\")" && \
+        Rscript -e "devtools::test()" && \
+        R CMD build . && \
+        R CMD check *.tar.gz --no-manual
+      push-images: true #updates the dependency cache images on branches
+      push-runtime: ${{ github.ref == 'refs/heads/main' }} #only push runtime image on main branch
+    permissions:
+      contents: read
+      packages: write
+    secrets: inherit

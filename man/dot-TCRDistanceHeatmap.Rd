@@ -9,7 +9,8 @@
   assay = NULL,
   cluster_info = NULL,
   cluster_colors = NULL,
-  annotate_clusters = TRUE
+  annotate_clusters = TRUE,
+  verbose = FALSE
 )
 }
 \arguments{
@@ -22,6 +23,8 @@
 \item{cluster_colors}{Named character vector of colors corresponding to cluster levels.}
 
 \item{annotate_clusters}{Boolean specifying whether to display clustering information.}
+
+\item{verbose}{Boolean controlling whether to display processing steps. Default is FALSE.}
 }
 \value{
 A ComplexHeatmap object ready for drawing.
@@ -36,7 +39,8 @@ Internal utility to generate a ComplexHeatmap for a single TCR distance assay.
   assay = "TCRAssay",
   cluster_info = info_df,
   cluster_colors = color_list,
-  annotate_clusters = TRUE
+  annotate_clusters = TRUE,
+  verbose = TRUE
 )
 }
 }
