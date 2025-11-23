@@ -29,8 +29,8 @@ jobs:
       python-version: '3.8.10'
       use-base-image: true
       test-command: |
-        Rscript -e \"devtools::install_deps(dependencies = TRUE, upgrade = 'never')\" && \
-        Rscript -e \"devtools::test()\" && \
+        Rscript -e "devtools::install_deps(dependencies = TRUE, upgrade = 'never')" && \
+        Rscript -e "devtools::test()" && \
         R CMD build . && \
         R CMD check *.tar.gz --no-manual
       push-images: true #updates the dependency cache images on branches
