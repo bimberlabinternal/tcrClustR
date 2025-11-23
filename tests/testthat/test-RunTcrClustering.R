@@ -50,9 +50,9 @@ test_that("RunTcrClustering filters invalid clones correctly", {
   # Should have 4 valid clones (S1, S2, S6, S7)
   expect_equal(nrow(df), 4)
   expect_false(any(is.na(df$CDR3)))
-  expect_false(any(grepl(",|;", df$v_gene, na.rm = TRUE)))
-  expect_false(any(grepl(",|;", df$j_gene, na.rm = TRUE)))
-  expect_false(any(grepl(",|;", df$CDR3, na.rm = TRUE)))
+  expect_false(any(grepl(",|;", df$v_gene)))
+  expect_false(any(grepl(",|;", df$j_gene)))
+  expect_false(any(grepl(",|;", df$CDR3)))
 })
 
 test_that("RunTcrClustering strips alleles correctly", {
@@ -93,8 +93,8 @@ test_that("RunTcrClustering strips alleles correctly", {
   )
   
   df_stripped <- read_parquet(results_stripped$parquet_files[1])
-  expect_false(any(grepl("\\*", df_stripped$v_gene, na.rm = TRUE)))
-  expect_false(any(grepl("\\*", df_stripped$j_gene, na.rm = TRUE)))
+  expect_false(any(grepl("\\*", df_stripped$v_gene)))
+  expect_false(any(grepl("\\*", df_stripped$j_gene)))
   
   # Without allele stripping
   output_dir_with <- file.path(tempdir(), "test_with_alleles")
@@ -114,8 +114,8 @@ test_that("RunTcrClustering strips alleles correctly", {
   )
   
   df_with <- read_parquet(results_with$parquet_files[1])
-  expect_true(all(grepl("\\*", df_with$v_gene, na.rm = TRUE)))
-  expect_true(all(grepl("\\*", df_with$j_gene, na.rm = TRUE)))
+  expect_true(all(grepl("\\*", df_with$v_gene)))
+  expect_true(all(grepl("\\*", df_with$j_gene)))
 })
 
 test_that(".filter_clones_for_assay handles single vs multi-chain correctly", {
@@ -133,17 +133,17 @@ test_that(".filter_clones_for_assay handles single vs multi-chain correctly", {
   # Single-chain TRA: should keep clones 1, 3 (have complete TRA)
   keep_tra <- .filter_clones_for_assay(test_metadata, c("TRA"), verbose = FALSE)
   expect_equal(sum(keep_tra), 2)
-  expect_equal(which(keep_tra), c(1, 3))
+  expect_equal(unname(which(keep_tra)), c(1, 3))
   
   # Single-chain TRB: should keep clones 1, 2 (have complete TRB)
   keep_trb <- .filter_clones_for_assay(test_metadata, c("TRB"), verbose = FALSE)
   expect_equal(sum(keep_trb), 2)
-  expect_equal(which(keep_trb), c(1, 2))
+  expect_equal(unname(which(keep_trb)), c(1, 2))
   
   # Multi-chain TRA+TRB: should keep clones 1,2,3 (at least one chain complete)
   keep_multi <- .filter_clones_for_assay(test_metadata, c("TRA", "TRB"), verbose = FALSE)
   expect_equal(sum(keep_multi), 3)
-  expect_equal(which(keep_multi), c(1, 2, 3))
+  expect_equal(unname(which(keep_multi)), c(1, 2, 3))
 })
 
 test_that("RunTcrClustering respects outputPrefix parameter", {

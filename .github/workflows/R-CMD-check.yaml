@@ -10,155 +10,32 @@ on:
     - cron: "0 6 10 * *"
 
 jobs:
-  R-CMD-check:
-    runs-on: ubuntu-${{ matrix.config.os }}
-
-    name: ubuntu-${{ matrix.config.os }} (${{ matrix.config.r }} / ${{ matrix.config.bioc }})
-
-    strategy:
-      fail-fast: false
-      matrix:
-        config:
-          - { os: 24.04, r: '4.5', bioc: '3.21', pkgdown: "true" }
-
-    env:
-      R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
-      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Extra disk cleanup
-        run: |
-          sudo rm -rf /usr/local/lib/android || true
-          sudo rm -rf /usr/share/dotnet || true
-          sudo rm -rf /opt/ghc || true
-          # remove any large tool cache installed by earlier runs (safe if not present)
-          sudo rm -rf "${AGENT_TOOLSDIRECTORY:-/opt/hostedtoolcache}" || true
-          sudo apt-get clean || true
-          docker image prune -af || true || true
-          df -h || true
-          du -sh /usr/local || true
-
-      - name: Free Disk Space (Ubuntu)
-        uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: false
-          docker-images: false
-
-      - name: Configure pip cache to runner temp
-        run: |
-          echo "PIP_CACHE_DIR=${RUNNER_TEMP}/pip-cache" >> $GITHUB_ENV
-          mkdir -p "${RUNNER_TEMP}/pip-cache"
-          # show location and initial sizes
-          echo "PIP_CACHE_DIR set to ${RUNNER_TEMP}/pip-cache"
-          df -h
-          du -sh "${RUNNER_TEMP}" || true
-
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libpng-dev libssl-dev libxml2-dev pandoc
-
-      - name: Setup R
-        uses: r-lib/actions/setup-r@v2
-        with:
-          r-version: ${{ matrix.config.r }}
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: 'pip'
-
-      - name: Configure reticulate to use Actions Python
-        run: |
-          PYTHON_PATH=$(which python)
-          echo "RETICULATE_PYTHON=${PYTHON_PATH}" >> $GITHUB_ENV
-          echo "Python path for reticulate: ${PYTHON_PATH}"
-          
-          # Create python3 symlink if it doesn't exist (for test compatibility)
-          if ! command -v python3 &> /dev/null; then
-            PYTHON_DIR=$(dirname "${PYTHON_PATH}")
-            sudo ln -s "${PYTHON_PATH}" "${PYTHON_DIR}/python3"
-            echo "Created python3 symlink at ${PYTHON_DIR}/python3"
-          fi
-          
-          # Verify both python and python3 work
-          python --version
-          python3 --version
-          ${PYTHON_PATH} -c "import sys; print('Python executable:', sys.executable)"
-          ${PYTHON_PATH} -c "import sys; print('sys.path:', sys.path)"
-
-      - name: Setup Python dependencies for tcrClustR
-        run: |
-          python --version
-          python -m pip install --upgrade pip
-          # Install from requirements.txt
-          python -m pip install -r requirements.txt
-          # Verify installations
-          # NOTE: Package installed as 'tcrdist3' but imported as 'tcrdist'
-          python -c "import tcrdist; print('tcrdist3 imported successfully')"
-          python -c "import pandas; print('pandas version:', pandas.__version__)"
-          python -c "import numpy; print('numpy version:', numpy.__version__)"
-          python -c "import rpy2; print('rpy2 imported successfully')"
-          # Show where packages are installed
-          python -c "import tcrdist, sys; print('tcrdist location:', tcrdist.__file__)"
-          python -c "import site; print('site-packages:', site.getsitepackages())"
-        env:
-          PIP_CACHE_DIR: ${{ env.PIP_CACHE_DIR }}
-          RETICULATE_PYTHON: ${{ env.RETICULATE_PYTHON }}
-
-      - name: Install BiocManager and set Bioconductor version
-        run: Rscript -e "install.packages('BiocManager'); BiocManager::install(version = '${{ matrix.config.bioc }}', ask = FALSE)"
-
-      - name: Install Bioconductor packages
-        run: Rscript -e "BiocManager::install(c('ComplexHeatmap'), ask = FALSE, update = FALSE)"
-
-      - name: Install CRAN R dependencies
-        run: Rscript -e "install.packages('rcmdcheck');install.packages('knitr');install.packages('testthat');install.packages(c('Seurat', 'SeuratObject', 'R.utils', 'dplyr', 'reticulate', 'readr', 'plyr', 'leidenbase', 'igraph', 'kernlab', 'FNN', 'magrittr', 'ggplot2', 'RColorBrewer', 'patchwork', 'clusterCrit', 'arrow', 'NatParksPalettes', 'dbscan'))"
-
-
-      - name: Verify R can use Python via reticulate
-        run: |
-          Rscript -e "Sys.setenv(RETICULATE_PYTHON = Sys.getenv('RETICULATE_PYTHON')); library(reticulate); cat('RETICULATE_PYTHON:', Sys.getenv('RETICULATE_PYTHON'), '\n'); cat('Python config:\n'); py_config(); cat('\nTesting module imports:\n'); tcr <- import('tcrdist'); cat('tcrdist imported successfully\n'); pd <- import('pandas'); cat('pandas version:', pd[['__version__']], '\n'); cat('All Python modules accessible from R!\n')"
-        env:
-          RETICULATE_PYTHON: ${{ env.RETICULATE_PYTHON }}
-
-      - name: Configure R environment for tests
-        run: |
-          # Create .Renviron file to ensure RETICULATE_PYTHON is available during R CMD check
-          echo "RETICULATE_PYTHON=${RETICULATE_PYTHON}" > ~/.Renviron
-          cat ~/.Renviron
-          echo "Created ~/.Renviron with RETICULATE_PYTHON"
-        env:
-          RETICULATE_PYTHON: ${{ env.RETICULATE_PYTHON }}
-
-      - uses: r-lib/actions/check-r-package@v2
-        with:
-          args: 'c("--no-manual", "--ignore-vignettes")'
-          build_args: 'c("--no-manual", "--no-build-vignettes")'
-        env:
-          _R_CHECK_CRAN_INCOMING_: "false"
-          _R_CHECK_FORCE_SUGGESTS_: "false"
-          NOT_CRAN: "true"
-          PIP_CACHE_DIR: ${{ env.PIP_CACHE_DIR }}
-          RETICULATE_PYTHON: ${{ env.RETICULATE_PYTHON }}
-
-      - name: Show disk usage after checks
-        if: always()
-        run: |
-          echo "Disk usage after checks:"
-          df -h
-          du -sh "${RUNNER_TEMP}" || true
-          du -sh /home/runner || true
-          ls -lah "${RUNNER_TEMP}" || true
-
-      - name: Install package
-        if: github.ref == 'refs/heads/master' && matrix.config.pkgdown == 'true'
-        run: R CMD INSTALL .
-
-      - name: Deploy package
-        if: github.ref == 'refs/heads/master' && matrix.config.pkgdown == 'true'
-        run: |
-          git config --local user.email "actions@github.com"
-          git config --local user.name "GitHub Actions"
-          Rscript -e 'pkgdown::deploy_to_branch(new_process = FALSE, clean = TRUE)'
+  # Build base image monthly (uses shared workflow from dockerDependencies)
+  build-base:
+    uses: GWMcElfresh/dockerDependencies/.github/workflows/build-base-image.yml@main
+    permissions:
+      contents: read
+      packages: write
+    secrets: inherit
+  
+  # Build and test with Docker caching (uses shared workflow from dockerDependencies)
+  docker-build-and-test:
+    needs: build-base
+    if: always()  # Run even if base build is skipped 
+    uses: GWMcElfresh/dockerDependencies/.github/workflows/docker-cache.yml@main
+    with:
+      r-version: '4.4.2'
+      bioc-version: '3.20'
+      python-version: '3.8.10'
+      use-base-image: true
+      test-command: |
+        Rscript -e "devtools::install_deps(dependencies = TRUE, upgrade = \"never\")" && \
+        Rscript -e "devtools::test()" && \
+        R CMD build . && \
+        R CMD check *.tar.gz --no-manual
+      push-images: true #updates the dependency cache images on branches
+      push-runtime: ${{ github.ref == 'refs/heads/main' }} #only push runtime image on main branch
+    permissions:
+      contents: read
+      packages: write
+    secrets: inherit
