@@ -274,8 +274,8 @@ RunTcrdist3 <- function(seuratObj = NULL,
       }
 
       #get distance matrices for both chains
-      dist_matrix1 <- SeuratObject::GetAssayData(seuratObj_TCR, assay = chain1, slot = "counts")
-      dist_matrix2 <- SeuratObject::GetAssayData(seuratObj_TCR, assay = chain2, slot = "counts")
+      dist_matrix1 <- SeuratObject::GetAssayData(seuratObj_TCR, assay = chain1, layer = "counts")
+      dist_matrix2 <- SeuratObject::GetAssayData(seuratObj_TCR, assay = chain2, layer = "counts")
 
       if (verbose) {
         message(paste("Matrix dimensions for", chain1, ":", nrow(dist_matrix1), "x", ncol(dist_matrix1)))
@@ -373,11 +373,11 @@ RunTcrdist3 <- function(seuratObj = NULL,
       cdr3_assay2 <- paste0(chain2, "_cdr3")
 
       if (cdr3_assay1 %in% SeuratObject::Assays(seuratObj_TCR)) {
-        chain1_matrices[[paste0(chain1, "_cdr3")]] <- SeuratObject::GetAssayData(seuratObj_TCR, assay = cdr3_assay1, slot = "counts")
+        chain1_matrices[[paste0(chain1, "_cdr3")]] <- SeuratObject::GetAssayData(seuratObj_TCR, assay = cdr3_assay1, layer = "counts")
       }
 
       if (cdr3_assay2 %in% SeuratObject::Assays(seuratObj_TCR)) {
-        chain2_matrices[[paste0(chain2, "_cdr3")]] <- SeuratObject::GetAssayData(seuratObj_TCR, assay = cdr3_assay2, slot = "counts")
+        chain2_matrices[[paste0(chain2, "_cdr3")]] <- SeuratObject::GetAssayData(seuratObj_TCR, assay = cdr3_assay2, layer = "counts")
       }
 
       #create joint matrices for all combinations

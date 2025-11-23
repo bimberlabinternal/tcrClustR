@@ -549,7 +549,7 @@ ClusterTcrs <- function(seuratObj = NULL,
   }
 
   #build weighted graph from chosen adjacency
-  pruned_graph <- igraph::graph_from_adjacency_matrix(adj, mode = 'undirected', weighted = TRUE, diag = FALSE)
+  pruned_graph <- igraph::graph_from_adjacency_matrix(adj, mode = 'max', weighted = TRUE, diag = FALSE)
 
   return(list(graph = pruned_graph, pca_result = pca_result_obj))
 }

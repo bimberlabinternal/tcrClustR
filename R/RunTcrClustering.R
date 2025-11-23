@@ -385,6 +385,12 @@ RunTcrClustering <- function(seuratObj_TCR = NULL,
   return(keep)
 }
 
+# Helper function to detect concatenated values (comma or semicolon separated)
+.is_concatenated <- function(value) {
+  if (is.na(value) || length(value) == 0) return(FALSE)
+  grepl(",|;", as.character(value))
+}
+
 # Helper function to strip allele suffixes from gene names
 .strip_allele_suffix <- function(gene_name) {
   if (is.na(gene_name) || length(gene_name) == 0) return(gene_name)
