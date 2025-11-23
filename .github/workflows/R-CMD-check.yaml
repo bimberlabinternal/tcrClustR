@@ -21,7 +21,7 @@ jobs:
   # Build and test with Docker caching (uses shared workflow from dockerDependencies)
   docker-build-and-test:
     needs: build-base
-    if: always()  # Run even if base build is skipped (already exists)
+    if: always()  # Run even if base build is skipped 
     uses: GWMcElfresh/dockerDependencies/.github/workflows/docker-cache.yml@main
     with:
       r-version: '4.4.2'
@@ -29,8 +29,8 @@ jobs:
       python-version: '3.8.10'
       use-base-image: true
       test-command: |
-        Rscript -e "devtools::install_deps(dependencies = TRUE, upgrade = 'never')" && \
-        Rscript -e "devtools::test()" && \
+        Rscript -e \"devtools::install_deps(dependencies = TRUE, upgrade = 'never')\" && \
+        Rscript -e \"devtools::test()\" && \
         R CMD build . && \
         R CMD check *.tar.gz --no-manual
       push-images: true #updates the dependency cache images on branches
