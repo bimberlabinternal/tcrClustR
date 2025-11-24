@@ -106,7 +106,11 @@ RUN apt-get update && apt-get install -y r-base r-base-dev && \
 # ============================================================================
 # Stage 3: Runtime - Build and install tcrClustR package
 # ============================================================================
-FROM deps AS runtime
+# Use a pre-built deps image when provided to dramatically speed up runtime builds
+# Fallback to the local `deps` stage if DEPS_IMAGE is not set (e.g., local builds)
+# Note: Dockerfile variable expansion doesn't support ${VAR:-default} reliably; set default at ARG.
+ARG DEPS_IMAGE=deps
+FROM ${DEPS_IMAGE} AS runtime
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG GH_PAT='NOT_SET'
