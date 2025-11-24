@@ -3,10 +3,26 @@
 # Stage 2: Deps - R packages and Python packages (cached layer)
 # Stage 3: Runtime - Final application build
 
+# NOTE: Any ARG used in a FROM instruction must be declared before the first FROM.
+# Declare DEPS_IMAGE here so it can be substituted in the runtime stage's FROM.
+# Default "deps" allows local multi-stage fallback when no external deps image is supplied.
+ARG DEPS_IMAGE=deps
+ARG BASE_IMAGE=rocker/r-base:4.4.2
+
 # ============================================================================
 # Stage 1: Base - System dependencies
 # ============================================================================
-ARG BASE_IMAGE=rocker/r-base:4.4.2
+
+# Build args used by workflows:
+# - BASE_IMAGE: When the workflow finds a monthly base image, it builds the deps
+#   stage with `--build-arg BASE_IMAGE=ghcr.io/<owner>/<repo>/base-deps:<TIME_BUCKET>`.
+#   Otherwise this defaults to `rocker/r-base:4.4.2`.
+# - SKIP_BASE_DEPS: Set to `true` by the workflow when using a prebuilt base image, so
+#   the heavy apt-get install below is skipped. When building from scratch locally or
+#   when no base image exists, leave as `false` to install system dependencies.
+# - Cache hint: The workflow also provides `--cache-from <base-image>` when available
+#   to accelerate this stage if it does run.
+
 FROM ${BASE_IMAGE} AS base
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -60,6 +76,16 @@ RUN if [ "$SKIP_BASE_DEPS" = "false" ]; then \
 # ============================================================================
 # Stage 2: Deps - Install R and Python dependencies
 # ============================================================================
+
+# Build args and control flow:
+# - This stage is built when producing the dependency image (`--target deps`).
+# - During runtime builds, if the workflow passes an external deps image via
+#   `--build-arg DEPS_IMAGE=ghcr.io/<owner>/<repo>/deps:<HASH>-<TIME_BUCKET>` and
+#   targets the runtime stage, Docker will not build this `deps` stage at all.
+# - Fallback: If no DEPS_IMAGE is supplied, DEPS_IMAGE defaults to `deps`, so
+#   `FROM deps` in the runtime stage will resolve to this local stage; Docker will
+#   build Base -> Deps first, then proceed to Runtime.
+# - GH_PAT: Optional token for R installs. If provided by callers, it is honored here.
 FROM base AS deps
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -106,7 +132,20 @@ RUN apt-get update && apt-get install -y r-base r-base-dev && \
 # ============================================================================
 # Stage 3: Runtime - Build and install tcrClustR package
 # ============================================================================
-FROM deps AS runtime
+# Build args and control flow:
+# - DEPS_IMAGE (declared before any FROM):
+#   * Workflow runtime build passes `--build-arg DEPS_IMAGE=<deps image tag>` and
+#     `--target runtime`. Docker resolves `FROM ${DEPS_IMAGE}` and skips building
+#     Base/Deps stages entirely.
+#   * Local fallback: If DEPS_IMAGE is unset, it defaults to `deps` and the runtime
+#     stage inherits from the locally built `deps` stage (Base -> Deps will be built
+#     as needed).
+# - Intent: Keep all heavy dependency installation in the deps image; the runtime
+#   stage should only add application code and minimal work.
+# - Testing note: In workflows where the runtime image is skipped, tests run against
+#   the deps image directly; this Dockerfile remains compatible with that flow.
+
+FROM ${DEPS_IMAGE} AS runtime
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG GH_PAT='NOT_SET'
