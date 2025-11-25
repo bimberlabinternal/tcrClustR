@@ -153,6 +153,9 @@ ARG GH_PAT='NOT_SET'
 # Copy application code
 ADD . /tcrClustR
 
+# Set working directory so tests running with '.' can locate DESCRIPTION
+WORKDIR /tcrClustR
+
 # Build and install tcrClustR
 # upgrade = 'never' is specified because the dependencies install/upgrading is already handled in the deps stage
 RUN cd /tcrClustR && \
@@ -166,4 +169,4 @@ RUN cd /tcrClustR && \
 ENV NUMBA_CACHE_DIR=/work/numba_cache
 ENV MPLCONFIGDIR=/work/mpl_cache
 
-ENTRYPOINT ["/bin/bash"]
+CMD ["/bin/bash"]
