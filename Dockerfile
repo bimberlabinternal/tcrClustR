@@ -166,4 +166,4 @@ RUN cd /tcrClustR && \
 ENV NUMBA_CACHE_DIR=/work/numba_cache
 ENV MPLCONFIGDIR=/work/mpl_cache
 
-ENTRYPOINT ["/bin/bash"]
+CMD ["/bin/bash"]
