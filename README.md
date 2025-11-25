@@ -1,10 +1,8 @@
-![R Build and Checks](https://github.com/bimberlabinternal/tcrclustr/workflows/R%20Build%20and%20Checks/badge.svg)
-
 # tcrClustR
 
 An R package for clustering and analyzing T-cell receptor (TCR) sequences to identify 'TCR families' via sequence similarity. This package uses [tcrdist3](https://github.com/kmayerb/tcrdist3) for TCR distance calculations and provides flexible clustering algorithms to identify groups of functionally related TCRs. Similar in concept to GLIPH and CoNGA, but with more direct control over clustering parameters.
 
-[📚 Full Documentation](https://bimberlabinternal.github.io/tcrClustR/)
+Full documentation: https://bimberlabinternal.github.io/tcrClustR/
 
 ## Table of Contents
 * [Quick Start](#quick-start)
@@ -12,6 +10,7 @@ An R package for clustering and analyzing T-cell receptor (TCR) sequences to ide
 * [Installation](#installation)
 * [Usage Examples](#usage-examples)
 * [Workflows](#workflows)
+* [Output Schemas](#output-file-formats)
 * [Known Issues](#issues)
 * [Development Guidelines](#developers)
 
@@ -22,24 +21,30 @@ The fastest way to cluster TCR data:
 ```r
 library(tcrClustR)
 
-# Step 1: Compute TCR distance matrices
+#Step 1: compute TCR distance matrices (stored as Seurat assays)
 seuratObj_TCR <- RunTcrdist3(
   seuratObj = seuratObj,
   chains = c("TRA", "TRB"),
   minimumClonesPerSubject = 2
 )
 
-# Step 2: Cluster and export results to parquet files
+#Step 2: cluster and export results to parquet files
 results <- RunTcrClustering(
   seuratObj_TCR = seuratObj_TCR,
   clusteringMethod = "DIANA",
-  outputDir = "./tcr_clusters/"
+  outputDir = "./tcrclustering_output/"
 )
 
-# Output: Compact parquet files with cluster assignments
-# Output: Compact parquet files with cluster assignments
-# - Single-chain: chain, v_gene, j_gene, CDR3, Cluster, ...
-# - Paired-chain: chain_1/2, v_gene_1/2, j_gene_1/2, CDR3_1/2, Cluster, ...
+#Step 3: join parquet clustering results back to the original Seurat object
+seurat_with_families <- JoinClusteringResults(
+  seuratObj = seuratObj,
+  parquetFiles = results$parquet_files,
+  metadataColumnPrefix = "TcrFamily"
+)
+
+#Parquet outputs contain cluster assignments for single and paired assays.
+#Single-chain: chain, v_gene, j_gene, CDR3, Cluster, ...
+#Paired-chain: chain_1/2, v_gene_1/2, j_gene_1/2, CDR3_1/2, Cluster, ...
 ```
 
 ## Overview
@@ -93,33 +98,33 @@ Use the built-in helper function to validate and install Python dependencies:
 ```r
 library(tcrClustR)
 
-# Check and install Python dependencies automatically
+#check and install Python dependencies automatically
 SetupPythonEnvironment()
 
-# Or just validate without installing
+#or just validate without installing
 SetupPythonEnvironment(installMissing = FALSE)
 
-# Use specific Python executable
+#use specific Python executable
 SetupPythonEnvironment(pythonExecutable = "/path/to/python3")
 ```
 
 This function:
-- ✅ Validates Python installation (requires 3.8+)
-- ✅ Checks for required modules (tcrdist3, pandas, numpy, rpy2)
-- ✅ Installs missing packages from `pyproject.toml`
-- ✅ Provides clear error messages with troubleshooting steps
+- Validates Python installation (requires 3.8+)
+- Checks for required modules (tcrdist3, pandas, numpy, rpy2)
+- Installs missing packages from `requirements.txt`
+
 
 #### Manual Setup
 
 If you prefer manual installation:
 
 ```bash
-# Modern approach (using pyproject.toml)
-pip install /path/to/tcrClustR/
-
-# Or install individual packages
+# install individual packages
 pip install pandas numpy scikit-learn rpy2
 pip install git+https://github.com/kmayerb/tcrdist3.git@0.2.2
+
+#optional: install from requirements.txt in this repo
+pip install -r requirements.txt
 ```
 
 Set the Python path in R if needed:
@@ -155,21 +160,21 @@ FormatMetadataForTcrDist3(..., verbose = TRUE)
 
 ## Usage Examples
 
-### Example 1: Simple Clustering (Primary Workflow)
+### Example 1: Primary Workflow (RunTcrClustering -> JoinClusteringResults)
 
 **`RunTcrClustering()`** is the recommended function for most users who have already subset their data:
 
 ```r
 library(tcrClustR)
 
-# Compute distances
+#Compute distances
 seuratObj_TCR <- RunTcrdist3(
   seuratObj = seuratObj,
   chains = c("TRA", "TRB"),
   minimumClonesPerSubject = 2
 )
 
-# Cluster with automatic filtering and allele stripping
+#Cluster with automatic filtering and allele stripping
 results <- RunTcrClustering(
   seuratObj_TCR = seuratObj_TCR,
   clusteringMethod = "DIANA",       # or "Leiden"
@@ -180,25 +185,33 @@ results <- RunTcrClustering(
   outputDir = "./clustering_output/"
 )
 
-# Read results
+#Join results back to the original Seurat object
+seurat_with_families <- JoinClusteringResults(
+  seuratObj = seuratObj,
+  parquetFiles = results$parquet_files,
+  metadataColumnPrefix = "TcrFamily",
+  stripAlleles = TRUE
+)
+
+#Read parquet directly if desired
 library(arrow)
 clusters <- read_parquet(results$parquet_files[1])
 head(clusters)
 ```
 
-### Example 2: Advanced Clustering with ClusterTcrs
+### Example 2: Advanced Clustering with ClusterTcrs (Seurat-integrated)
 
 For interactive analysis with full Seurat integration:
 
 ```r
-# Compute distances
+#Compute distances
 seuratObj_TCR <- RunTcrdist3(
   seuratObj = seuratObj,
   chains = c("TRA", "TRB"),
   minimumClonesPerSubject = 2
 )
 
-# Cluster with multiple resolutions
+#Cluster with multiple resolutions
 clustered_results <- ClusterTcrs(
   seuratObj_TCR = seuratObj_TCR,
   resolutionParameters = c(0.1, 0.2, 0.5),
@@ -251,7 +264,7 @@ formatted <- FormatMetadataForTcrDist3(
   minimumClonesPerSubject = 2
 )
 
-# 2. Compute distances  
+# 2. Compute distances
 tcr_obj <- RunTcrdist3(
   seuratObj = seuratObj,
   chains = c("TRA", "TRB"),
@@ -289,10 +302,10 @@ Clustering results stored as columns in metadata:
 
 ## <a name="issues">Known Issues</a>
 
-- **Memory**: tcrdist3 switches to sparse matrices for n > 10,000 clones
-- **Python path**: Set `RETICULATE_PYTHON` environment variable if tcrdist3 fails
-- **Seurat v5**: Always call `JoinLayers()` before accessing assay data in v5 objects
-- **Gene alleles**: Current implementation can optionally strip allele notation (e.g., `TRBV7-9*01` → `TRBV7-9`)
+- Memory: tcrdist3 switches to sparse matrices for n > 10,000 clones
+- Python path: set `RETICULATE_PYTHON` environment variable if tcrdist3 fails
+- Seurat v5: always call `JoinLayers()` before accessing assay data in v5 objects
+- Gene alleles: current implementation can optionally strip allele notation (e.g., `TRBV7-9*01` → `TRBV7-9`)
 
 ## <a name="developers">Development Guidelines</a>
 
