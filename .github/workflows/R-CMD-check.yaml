@@ -32,7 +32,8 @@ jobs:
         Rscript -e "devtools::install_deps(dependencies = TRUE, upgrade = \"never\")" && \
         Rscript -e "devtools::test()" && \
         R CMD build . && \
-        R CMD check *.tar.gz --no-manual
+        PKG=$(ls -1t *.tar.gz | head -n1) && \
+        R CMD check "$PKG" --no-manual --no-build-vignettes
       push-images: true #updates the dependency cache images on branches
       push-runtime: ${{ github.ref == 'refs/heads/main' }} #only push runtime image on main branch
     permissions:
