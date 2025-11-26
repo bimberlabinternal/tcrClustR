@@ -1,6 +1,6 @@
 ---
 title: "tcrClustR Workflow: TCR Clustering and Analysis"
-author: "Bimber Lab"
+author: "GW McElfresh, Sebastian Benjamin, & Bimber Lab"
 date: "`r Sys.Date()`"
 output: 
   rmarkdown::html_vignette:
@@ -37,6 +37,7 @@ First, we load the required libraries and set up the analysis parameters:
 library(tcrClustR)
 library(dplyr)
 library(Seurat)
+library(arrow)
 
 # Set analysis parameters
 chains <- c("TRA", "TRB")
@@ -74,7 +75,7 @@ print(paste0("Available TCR columns: ", paste(available_tcr_cols, collapse = ", 
 
 ## Primary Workflow
 
-### Step 1: Format TCR Metadata
+### 1: Format TCR Metadata (Optional)
 
 The first step is to format the TCR metadata for downstream analysis:
 
@@ -99,9 +100,13 @@ print(paste0("Chains included: ", paste(chains, collapse = ", ")))
 knitr::kable(head(formatted_metadata, n = 5), caption = "First 5 rows of formatted metadata")
 ```
 
-### Step 2: Compute TCR Distance Matrices
+### 2: Compute TCR Distance Matrices
+
+Note: You may start at the `RunTcrdist3` step and set `formatMetadata = TRUE`.
 
 Next, we compute distance matrices between TCRs using tcrdist3:
+
+
 
 ```{r computeDistances}
 seuratObj_TCR <- RunTcrdist3(
@@ -119,41 +124,37 @@ print(paste0("Available assays: ", paste(SeuratObject::Assays(seuratObj_TCR), co
 print(paste0("Number of cells in TCR object: ", ncol(seuratObj_TCR)))
 ```
 
-Optionally, you may start at the `RunTcrdist3` step and set `formatMetadata = TRUE`.
 
-### Step 3: Cluster TCRs
+### 3: Cluster TCRs
 
 Now we cluster the TCRs based on their similarity using DIANA (hierarchical) or Leiden (network-based) methods.
 
 ```{r clusterTCRs}
-clustering_result <- ClusterTcrs(
+clustering_result <- RunTcrClustering(
   seuratObj_TCR = seuratObj_TCR,
+  assaysToCluster = "TRB",
   resolutionParameters = resolutionParameters,
   usePCA = usePCA,
-  pcaComponents = pcaComponents
+  dianaHeight = 20, 
+  clusterSizeThreshold = 3,
+  clusteringMethod = "DIANA",
+  pcaComponents = pcaComponents, 
+  outputDir = file.path(outputPath, "tcrclustering_output"),
+  pythonExecutable = pythonExecutable,
+  verbose = verbose
 )
 
 print("TCR clustering completed successfully!")
 
-# The clustering result is a list containing clustered TCR objects
-print(paste0("Number of clustered TCR objects: ", length(clustering_result)))
+# View intermediate TCR Clustering files
+clustering_result$parquet_files
+parquet_summary <- head(arrow::read_parquet(clustering_result$parquet_files[[1]]))
+print("Preview of clustering parquet file:")
+knitr::kable(parquet_summary, caption = "First 5 rows of clustering parquet file")
 
-# Check clustering columns in the single-chain object
-single_chain_obj <- clustering_result$singleChainSeuratObject
-if (!is.null(single_chain_obj)) {
-  cluster_cols <- grep("TcrClustR_", colnames(single_chain_obj@meta.data), value = TRUE)
-  print(paste0("Clustering columns in single-chain object: ", paste(cluster_cols, collapse = ", ")))
-  
-  # Show sample clustering results
-  if (length(cluster_cols) > 0) {
-    print("Sample clustering assignments:")
-    sample_data <- single_chain_obj@meta.data[1:5, c("cdr3_b_aa", "cdr3_b_aa", cluster_cols[1]), drop = FALSE]
-    print(sample_data)
-  }
-}
 ```
 
-### Step 4: Join Clustering Results to Original Seurat Object
+### 4: Join Clustering Results to Original Seurat Object
 
 The parquet files are created during the RunTcrClustering step. You control their location using the `outputDir` argument, which defaults to `"./tcrclustering_output/"`. Point `JoinClusteringResults()` at this same directory or pass the explicit parquet file paths returned from `RunTcrClustering()`.
 
@@ -162,23 +163,11 @@ The parquet files are created during the RunTcrClustering step. You control thei
 #Use the packaged helper to join parquet clustering outputs back to the original Seurat object
 library(tcrClustR)
 
-#If you ran RunTcrClustering() earlier in this workflow and kept track of the parquet file paths:
-#seurat_with_families <- JoinClusteringResults(
-#  seuratObj = seuratObj,
-#  parquetFiles = clustering_output$parquet_files,
-#  metadataColumnPrefix = "TcrFamily",
-#  stripAlleles = TRUE,
-#  overwriteExisting = TRUE,
-#  verbose = TRUE
-#)
-
-"#Alternatively, detect parquet files from the clustering output directory used by RunTcrClustering():"
-
 #By default, RunTcrClustering writes parquet files to "./tcrclustering_output/".
 #If you set a custom outputDir in RunTcrClustering(outputDir = "./my_output/"), use that here.
 seurat_with_families <- JoinClusteringResults(
   seuratObj = seuratObj,
-  parquetDir = "./tcrclustering_output/",
+  parquetDir = file.path(outputPath, "tcrclustering_output"),
   filePattern = "\\.parquet$",
   metadataColumnPrefix = "TcrFamily",
   stripAlleles = TRUE,
@@ -186,8 +175,6 @@ seurat_with_families <- JoinClusteringResults(
   verbose = TRUE
 )
 
-#Tip: if you ran RunTcrClustering() earlier in this vignette, you can also pass
-#the explicit list of parquet files returned in clustering_output$parquet_files.
 
 #Preview newly added metadata columns
 new_cols <- grep("^TcrFamily_", colnames(seurat_with_families@meta.data), value = TRUE)
@@ -195,71 +182,141 @@ print(new_cols)
 head(seurat_with_families@meta.data[, new_cols, drop = FALSE])
 ```
 
-The `clustering_result` object contains clustered TCR Seurat objects:
-- `singleChainSeuratObject` - TCRs clustered using individual chain distances (e.g. TRA, TRB, TRA_cdr3, TRB_cdr3). Each clone is indexed by subject + individual chain sequence.
-- `multiChainSeuratObject` - TCRs clustered using combined multi-chain distances (e.g. TRA + TRB, TRA_cdr3 + TRB_cdr3). Each clone represents a paired TCR combination.
+```{r}
+#Assign a negative class for un-joined cells
+seurat_with_families@meta.data[is.na(seurat_with_families$TRB), new_cols] <- "No_TCR_Data"
+seurat_with_families@meta.data[!is.na(seurat_with_families$TRB) & 
+      is.na(seurat_with_families@meta.data[,new_cols]) , new_cols] <- "Singletons"
 
-The clustering results are stored in the metadata of these objects with column names starting with "TcrClustR_". 
-For single-chain results, the clonotypic join matches on subject + individual chain sequence (TRA or TRB).
-For multi-chain results, the join would use the full TCR pair information.
+#check that you have a UMAP-able number of classes: 
+unique_classes <- length(unique(seurat_with_families@meta.data[, new_cols]))
+print(paste0("Number of unique TCR families (including No_TCR_Data and Singletons): ", unique_classes))
+
+if (unique_classes > 20) {
+  stop("Too many unique TCR families for effective UMAP visualization. Consider subsetting or using a different visualization approach.")
+}
+
+#Visualize
+DimPlot(
+  seurat_with_families,
+  reduction = "umap",
+  group.by = new_cols,
+  label = TRUE,
+  pt.size = 1,
+)
+```
+
+
+The `clustering_result` object contains:
+- `parquet_files` - Vector of file paths to the parquet files written to disk
+- `summary` - Data frame with clustering summary per assay (number of clones, clusters, etc.)
+
+These parquet files contain the clustering assignments and can be joined back to your original Seurat object using `JoinClusteringResults()` (shown in step 4 above).
 
 ## Explore Clustering Results
 
-Now that we have clustering results joined to our original Seurat object, let's explore the results:
+After joining clustering results back to the original Seurat object (step 4), explore the cluster assignments:
 
 ```{r exploreResults}
+# Summary of cluster assignments (from the joined metadata columns)
+# The column name depends on the metadataColumnPrefix used in JoinClusteringResults()
+cluster_cols <- grep("^TcrFamily_", colnames(seurat_with_families@meta.data), value = TRUE)
 
-# Summary of cluster assignments
-cluster_table <- table(seuratObj@meta.data[["TcrClustR_TRA_0.1"]], useNA = "always")
-print(cluster_table)
-```
-
-## Visualize Results
-
-Generate visualizations of the TCR clustering results using the clustered TCR objects:
-
-```{r visualizations, fig.width=12, fig.height=8}
-# Heatmaps - may have issues with current data structure
-tryCatch({
-  TCRDistanceHeatmaps(
-    seuratObj_TCR = single_chain_obj,
-    resolution = resolutionParameters[1],
-    annotate_clusters = TRUE,
-    verbose = verbose
-  )
-}, error = function(e) {
-  cat("Error in TCRDistanceHeatmaps:", e$message, "\n")
-  cat("This appears to be an internal bug in the heatmap annotation function.\n")
-  cat("Skipping heatmap generation.\n")
-})
-
-# UMAP and PCA plots
-umap_reduction <- "TcrClustR_pca.TRA.cdr3_umap"
-if (umap_reduction %in% names(single_chain_obj@reductions)) {
-  print(DimPlot(single_chain_obj,
-          reduction = umap_reduction,
-          group.by = "TcrClustR_TRA_cdr3_0.1",
-          label = TRUE,
-          pt.size = 0.5
-        ))
+if (length(cluster_cols) > 0) {
+  for (col in cluster_cols) {
+    cat("\nCluster distribution for", col, ":\n")
+    print(table(seurat_with_families@meta.data[[col]], useNA = "always"))
+  }
 } else {
-  cat("UMAP reduction", umap_reduction, "not found\n")
-}
-
-# PCA reduction
-pca_reduction <- "TcrClustR_pca.TRA.cdr3"
-if (pca_reduction %in% names(single_chain_obj@reductions)) {
-  print(DimPlot(
-          single_chain_obj,
-          reduction = pca_reduction,
-          group.by = "TcrClustR_TRA_cdr3_0.1",
-          label = TRUE,
-          pt.size = 0.5
-        ))
-} else {
-  cat("PCA reduction", pca_reduction, "not found\n")
+  message("No TcrFamily cluster columns found. Run JoinClusteringResults() first.")
 }
 ```
+
+## Visualize TCR Distance Matrices
+
+After computing distance matrices with `RunTcrdist3()`, you can visualize the pairwise distances between TCR clones. The distance matrices are stored as Seurat assays in `seuratObj_TCR`.
+
+### Basic Distance Heatmap
+
+Create a simple heatmap showing TCR distances with hierarchical clustering:
+
+```{r distanceHeatmap, fig.width=8, fig.height=8}
+library(ComplexHeatmap)
+
+# Extract distance matrix for TRB assay
+# Available assays depend on what chains were included in RunTcrdist3()
+distance_matrix <- Seurat::GetAssayData(
+  seuratObj_TCR, 
+  assay = "TRB",  # Use "TRA", "TRB", "TRA_cdr3", or "TRB_cdr3" depending on your analysis
+  layer = "counts"
+)
+
+# Create a hierarchical clustered heatmap
+distance_heatmap <- ComplexHeatmap::Heatmap(
+  as.matrix(distance_matrix),
+  name = "TCR Distance",
+  show_row_names = FALSE,
+  show_column_names = FALSE,
+  cluster_rows = TRUE,
+  cluster_columns = TRUE,
+  clustering_method_rows = "ward.D2",
+  clustering_method_columns = "ward.D2",
+  use_raster = TRUE,
+  show_heatmap_legend = TRUE,
+  column_title = "TRB Distance Matrix"
+)
+
+draw(distance_heatmap)
+```
+
+### Distance Histogram
+
+Visualize the distribution of pairwise TCR distances:
+
+```{r distanceHistogram, fig.width=8, fig.height=5}
+# Extract upper triangle of distance matrix (avoid duplicates)
+dist_values <- distance_matrix[upper.tri(distance_matrix)]
+
+# Plot histogram
+hist(
+  dist_values,
+  breaks = 50,
+  main = "Distribution of TCR Pairwise Distances",
+  xlab = "Distance",
+  ylab = "Frequency",
+  col = "steelblue",
+  border = "white"
+)
+```
+
+### Using TCRDistanceHeatmaps() with ClusterTcrs()
+
+**Note:** The built-in `TCRDistanceHeatmaps()` function requires clustering metadata columns (e.g., `TcrClustR_TRB_0.1`) which are added by the `ClusterTcrs()` function, not by `RunTcrClustering()`. 
+
+If you want to use `TCRDistanceHeatmaps()`, use `ClusterTcrs()` instead of `RunTcrClustering()`:
+
+```{r clusterTcrsExample, eval=FALSE}
+# Alternative workflow using ClusterTcrs() instead of RunTcrClustering()
+# This adds clustering metadata directly to the Seurat object
+seuratObj_clustered <- ClusterTcrs(
+  seuratObj_TCR = seuratObj_TCR,
+  resolutionParameters = c(0.1),
+  usePCA = TRUE,
+  pcaComponents = 50,
+  verbose = TRUE
+)
+
+
+heatmap <- TCRDistanceHeatmaps(
+  seuratObj_TCR = seuratObj_clustered$singleChainSeuratObject,
+  assayList = c("TRB"),
+  annotate_clusters = FALSE,
+  verbose = FALSE
+)
+heatmap
+```
+
+The primary workflow demonstrated in this vignette (`RunTcrClustering()`) focuses on creating compact parquet output files for downstream analysis, while `ClusterTcrs()` is better suited for interactive exploration with built-in visualization functions.
 
 ## Understanding the Results
 
