@@ -21,7 +21,11 @@
 #'
 #' @return Updated Seurat object with new metadata columns containing cluster assignments.
 #'   Column names follow the pattern: `{metadataColumnPrefix}_{chain}` (e.g., "TcrFamily_TRA", "TcrFamily_TRB").
-#'   Cells/clones without cluster assignments will have NA values.
+#'   Values are formatted as ordered factors:
+#'   - Numeric cluster IDs (1, 2, 3, ...) for clustered TCRs (sorted numerically)
+#'   - "LowFrequency" for cells with valid TCR data that were filtered/singletons (cluster 0)
+#'   - "No_TCR_Data" for cells without TCR data (NA in V/J/CDR3 columns)
+#'   Factor levels are ordered: numeric clusters first (sorted), then "LowFrequency", then "No_TCR_Data".
 #'
 #' @details
 #' **Matching Logic:**
@@ -176,10 +180,37 @@ JoinClusteringResults <- function(seuratObj,
     if (verbose) message("  Joined ", n_matched, " cluster assignments to column '", new_col_name, "'")
   }
 
+  # Format cluster columns: remap "0" to "LowFrequency", NA to "No_TCR_Data", and convert to sorted factor
+  cluster_cols <- grep(paste0("^", metadataColumnPrefix, "_"), colnames(metadata), value = TRUE)
+  
+  for (col in cluster_cols) {
+    if (verbose) message("\nFormatting cluster column: ", col)
+    
+    # Remap values
+    metadata[[col]][metadata[[col]] == "0"] <- "LowFrequency"
+    metadata[[col]][is.na(metadata[[col]])] <- "No_TCR_Data"
+    
+    # Extract numeric cluster IDs (everything that's not LowFrequency or No_TCR_Data)
+    numeric_clusters <- metadata[[col]][!metadata[[col]] %in% c("LowFrequency", "No_TCR_Data")]
+    unique_numeric <- sort(as.numeric(unique(numeric_clusters)))
+    
+    # Create factor levels: numeric clusters (sorted), then LowFrequency, then No_TCR_Data
+    factor_levels <- c(as.character(unique_numeric), "LowFrequency", "No_TCR_Data")
+    
+    # Convert to factor
+    metadata[[col]] <- factor(metadata[[col]], levels = factor_levels)
+    
+    if (verbose) {
+      message("  Cluster levels: ", paste(levels(metadata[[col]]), collapse = ", "))
+      message("  Distribution:")
+      print(table(metadata[[col]], useNA = "always"))
+    }
+  }
+
   # Update Seurat object metadata
   seuratObj@meta.data <- metadata
 
-  if (verbose) message("\nSuccessfully joined clustering results to Seurat object.")
+  if (verbose) message("\nSuccessfully joined and formatted clustering results.")
   return(seuratObj)
 }
 
@@ -213,6 +244,12 @@ JoinClusteringResults <- function(seuratObj,
   # Match metadata keys to parquet keys
   cluster_assignments <- lookup[metadata_key]
   names(cluster_assignments) <- NULL
+  
+  # Set unmatched cells with valid TCR data to "0" (i.e. filtered/singleton due to cluster size threshold)
+  # Only cells with valid V, J, and CDR3 data that don't match get "0"
+  # Cells with NA in any of these columns remain NA (i.e. truly missing TCR data)
+  has_valid_tcr <- !is.na(metadata[[v_col]]) & !is.na(metadata[[j_col]]) & !is.na(metadata[[cdr3_col]])
+  cluster_assignments[has_valid_tcr & is.na(cluster_assignments)] <- "0"
 
   return(cluster_assignments)
 }
@@ -286,6 +323,14 @@ JoinClusteringResults <- function(seuratObj,
   lookup <- stats::setNames(as.character(cluster_data_complete$Cluster), parquet_key)
   matches <- lookup[metadata_key]
   names(matches) <- NULL
+  
+  # Set unmatched cells with valid paired TCR data to "0" (i.e. filtered/singleton due to cluster size threshold)
+  # Only cells with valid data for BOTH chains that don't match get "0"
+  has_valid_chain1 <- !is.na(metadata[[v_col_1]]) & !is.na(metadata[[j_col_1]]) & !is.na(metadata[[cdr3_col_1]])
+  has_valid_chain2 <- !is.na(metadata[[v_col_2]]) & !is.na(metadata[[j_col_2]]) & !is.na(metadata[[cdr3_col_2]])
+  has_valid_paired <- has_valid_chain1 & has_valid_chain2
+  matches[has_valid_paired & is.na(matches)] <- "0"
+  
   return(matches)
 }
 

@@ -136,12 +136,13 @@ clustering_result <- RunTcrClustering(
   resolutionParameters = resolutionParameters,
   usePCA = usePCA,
   dianaHeight = 20, 
-  clusterSizeThreshold = 3,
+  clusterSizeThreshold = 1,
   clusteringMethod = "DIANA",
   pcaComponents = pcaComponents, 
   outputDir = file.path(outputPath, "tcrclustering_output"),
   pythonExecutable = pythonExecutable,
-  verbose = verbose
+  verbose = verbose, 
+  stripAlleles = TRUE
 )
 
 print("TCR clustering completed successfully!")
@@ -179,20 +180,28 @@ seurat_with_families <- JoinClusteringResults(
 #Preview newly added metadata columns
 new_cols <- grep("^TcrFamily_", colnames(seurat_with_families@meta.data), value = TRUE)
 print(new_cols)
-head(seurat_with_families@meta.data[, new_cols, drop = FALSE])
+
+# Clusters are automatically formatted as factors with levels:
+# - Numeric clusters (1, 2, 3, ...) sorted first
+# - "LowFrequency" for filtered/singleton clones
+# - "No_TCR_Data" for cells without TCR information
+print("Cluster levels:")
+print(levels(seurat_with_families@meta.data[[new_cols[1]]]))
+
+print("Cluster distribution:")
+print(table(seurat_with_families@meta.data[[new_cols[1]]], useNA = "always"))
 ```
 
 ```{r}
-#Assign a negative class for un-joined cells
-seurat_with_families@meta.data[is.na(seurat_with_families$TRB), new_cols] <- "No_TCR_Data"
-seurat_with_families@meta.data[!is.na(seurat_with_families$TRB) & 
-      is.na(seurat_with_families@meta.data[,new_cols]) , new_cols] <- "Singletons"
+#Visualize TCR families on UMAP
+# Note: Clusters are already formatted as factors by JoinClusteringResults
+# Values: "1", "2", "3", ... (numeric clusters), "LowFrequency", "No_TCR_Data"
 
 #check that you have a UMAP-able number of classes: 
-unique_classes <- length(unique(seurat_with_families@meta.data[, new_cols]))
-print(paste0("Number of unique TCR families (including No_TCR_Data and Singletons): ", unique_classes))
+unique_classes <- length(levels(seurat_with_families@meta.data[[new_cols[1]]]))
+print(paste0("Number of unique TCR families (including LowFrequency and No_TCR_Data): ", unique_classes))
 
-if (unique_classes > 20) {
+if (unique_classes > 25) {
   stop("Too many unique TCR families for effective UMAP visualization. Consider subsetting or using a different visualization approach.")
 }
 
@@ -202,8 +211,8 @@ DimPlot(
   reduction = "umap",
   group.by = new_cols,
   label = TRUE,
-  pt.size = 1,
-)
+  pt.size = 1
+) 
 ```
 
 
