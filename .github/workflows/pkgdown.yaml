@@ -11,6 +11,7 @@ jobs:
     
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      RETICULATE_PYTHON: /usr/bin/python3
     
     steps:
       - uses: actions/checkout@v4
@@ -23,15 +24,36 @@ jobs:
         env:
           GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Install tcrClustR specific python packages
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libcurl4-openssl-dev \
+            libssl-dev \
+            libxml2-dev \
+            libfontconfig1-dev \
+            libharfbuzz-dev \
+            libfribidi-dev \
+            libfreetype6-dev \
+            libpng-dev \
+            libtiff5-dev \
+            libjpeg-dev \
+            cmake
+      
+      - name: Install Python dependencies
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install --user scikit-learn tqdm sympy pyyaml rpy2 pandas>=2.2.3 tcrdist3
+          python3 -m pip install --user -r requirements.txt
+      
+      - name: Install R package dependencies
+        run: |
+          Rscript -e 'install.packages(c("pkgdown", "devtools", "BiocManager"))'
+          Rscript -e 'devtools::install_deps(dependencies = TRUE, upgrade = "never")'
       
       - name: Install package
         run: R CMD INSTALL .
       
-      - name: Deploy pkgdown site
+      - name: Build pkgdown site
         run: |
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
