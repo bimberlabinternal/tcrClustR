@@ -41,7 +41,13 @@ files whose cluster column already exists in metadata.}
 \value{
 Updated Seurat object with new metadata columns containing cluster assignments.
 Column names follow the pattern: \verb{\{metadataColumnPrefix\}_\{chain\}} (e.g., "TcrFamily_TRA", "TcrFamily_TRB").
-Cells/clones without cluster assignments will have NA values.
+Values are formatted as ordered factors:
+\itemize{
+\item Numeric cluster IDs (1, 2, 3, ...) for clustered TCRs (sorted numerically)
+\item "LowFrequency" for cells with valid TCR data that were filtered/singletons (cluster 0)
+\item "No_TCR_Data" for cells without TCR data (NA in V/J/CDR3 columns)
+Factor levels are ordered: numeric clusters first (sorted), then "LowFrequency", then "No_TCR_Data".
+}
 }
 \description{
 Join TCR clustering results from parquet files back to a Seurat object.

@@ -24,7 +24,7 @@ test_that("JoinClusteringResults handles single-chain parquet files", {
   )
   
   mock_seurat <- SeuratObject::CreateSeuratObject(counts = matrix(1:30, nrow = 3, ncol = 10,
-                                                                   dimnames = list(paste0("gene_", 1:3),
+                                                                   dimnames = list(paste0("gene", 1:3),
                                                                                  rownames(mock_metadata))),
                                                    meta.data = mock_metadata)
   
@@ -54,11 +54,15 @@ test_that("JoinClusteringResults handles single-chain parquet files", {
   # Check that new column was added
   expect_true("TcrFamily_TRA" %in% colnames(result_seurat@meta.data))
   
+  # Check that result is a factor (JoinClusteringResults converts to ordered factors)
+  expect_true(is.factor(result_seurat@meta.data$TcrFamily_TRA))
+  
   # Check cluster assignments (cells with CAVRD should be cluster 1, CAVSL should be cluster 2)
-  expect_equal(result_seurat@meta.data$TcrFamily_TRA[1], "1")
-  expect_equal(result_seurat@meta.data$TcrFamily_TRA[2], "2")
-  expect_equal(result_seurat@meta.data$TcrFamily_TRA[3], "1")
-  expect_equal(result_seurat@meta.data$TcrFamily_TRA[4], "2")
+  # Use as.character() to compare factor values to strings
+  expect_equal(as.character(result_seurat@meta.data$TcrFamily_TRA[1]), "1")
+  expect_equal(as.character(result_seurat@meta.data$TcrFamily_TRA[2]), "2")
+  expect_equal(as.character(result_seurat@meta.data$TcrFamily_TRA[3]), "1")
+  expect_equal(as.character(result_seurat@meta.data$TcrFamily_TRA[4]), "2")
   
   # Clean up
   unlink(parquet_file_tra)
@@ -82,7 +86,7 @@ test_that("JoinClusteringResults handles paired-chain parquet files (AND join)",
   )
   
   mock_seurat <- SeuratObject::CreateSeuratObject(counts = matrix(1:18, nrow = 3, ncol = 6,
-                                                                   dimnames = list(paste0("gene_", 1:3),
+                                                                   dimnames = list(paste0("gene", 1:3),
                                                                                  rownames(mock_metadata))),
                                                    meta.data = mock_metadata)
   
@@ -91,17 +95,17 @@ test_that("JoinClusteringResults handles paired-chain parquet files (AND join)",
   parquet_file_paired <- file.path(temp_dir, "test_TRA_TRB_paired.parquet")
   
   cluster_data_paired <- data.frame(
-    chain_1 = c("TRA", "TRA", "TRA"),
-    v_gene_1 = c("TRAV1-2", "TRAV8-1", "TRAV12-1"),
-    j_gene_1 = c("TRAJ33", "TRAJ21", "TRAJ45"),
-    CDR3_1 = c("CAVRD", "CAVSL", "CAVXX"),
-    chain_2 = c("TRB", "TRB", NA),
-    v_gene_2 = c("TRBV6-4", "TRBV6-4", NA),
-    j_gene_2 = c("TRBJ1-1", "TRBJ2-1", NA),
-    CDR3_2 = c("CASS1", "CASS2", NA),
-    Cluster = c("1", "2", "3"),
-    Cluster_Size_Threshold = c(2, 2, 2),
-    Clustering_Method = c("DIANA", "DIANA", "DIANA"),
+    chain_1 = c("TRA", "TRA"),
+    v_gene_1 = c("TRAV1-2", "TRAV8-1"),
+    j_gene_1 = c("TRAJ33", "TRAJ21"),
+    CDR3_1 = c("CAVRD", "CAVSL"),
+    chain_2 = c("TRB", "TRB"),
+    v_gene_2 = c("TRBV6-4", "TRBV6-4"),
+    j_gene_2 = c("TRBJ1-1", "TRBJ2-1"),
+    CDR3_2 = c("CASS1", "CASS2"),
+    Cluster = c("1", "2"),
+    Cluster_Size_Threshold = c(2, 2),
+    Clustering_Method = c("DIANA", "DIANA"),
     stringsAsFactors = FALSE
   )
   
@@ -116,24 +120,27 @@ test_that("JoinClusteringResults handles paired-chain parquet files (AND join)",
   # Check that new column was added
   expect_true("TcrFamily_TRA_TRB" %in% colnames(result_seurat@meta.data))
   
+  # Check that result is a factor (JoinClusteringResults converts to ordered factors)
+  expect_true(is.factor(result_seurat@meta.data$TcrFamily_TRA_TRB))
+  
   # Check cluster assignments under AND logic:
   # Cell 1: TRA=CAVRD + TRB=CASS1 -> cluster 1 (complete match)
-  expect_equal(result_seurat@meta.data$TcrFamily_TRA_TRB[1], "1")
+  expect_equal(as.character(result_seurat@meta.data$TcrFamily_TRA_TRB[1]), "1")
 
   # Cell 2: TRA=CAVSL + TRB=CASS2 -> cluster 2 (complete match)
-  expect_equal(result_seurat@meta.data$TcrFamily_TRA_TRB[2], "2")
+  expect_equal(as.character(result_seurat@meta.data$TcrFamily_TRA_TRB[2]), "2")
 
-  # Cell 3: Only TRA present (TRB missing) -> NA (no paired match)
-  expect_true(is.na(result_seurat@meta.data$TcrFamily_TRA_TRB[3]))
+  # Cell 3: Only TRA present (TRB missing) -> "No_TCR_Data" (no paired TCR data for TRB)
+  expect_equal(as.character(result_seurat@meta.data$TcrFamily_TRA_TRB[3]), "No_TCR_Data")
 
-  # Cell 4: Only TRB present (TRA missing) -> NA (no paired match)
-  expect_true(is.na(result_seurat@meta.data$TcrFamily_TRA_TRB[4]))
+  # Cell 4: Only TRB present (TRA missing) -> "No_TCR_Data" (no paired TCR data for TRA)
+  expect_equal(as.character(result_seurat@meta.data$TcrFamily_TRA_TRB[4]), "No_TCR_Data")
 
   # Cell 5: TRA=CAVRD + TRB=CASS1 -> cluster 1 (complete match)
-  expect_equal(result_seurat@meta.data$TcrFamily_TRA_TRB[5], "1")
+  expect_equal(as.character(result_seurat@meta.data$TcrFamily_TRA_TRB[5]), "1")
 
   # Cell 6: TRA=CAVSL + TRB=CASS2 -> cluster 2 (complete match)
-  expect_equal(result_seurat@meta.data$TcrFamily_TRA_TRB[6], "2")
+  expect_equal(as.character(result_seurat@meta.data$TcrFamily_TRA_TRB[6]), "2")
   
   # Clean up
   unlink(parquet_file_paired)
@@ -154,7 +161,7 @@ test_that("JoinClusteringResults strips alleles when requested", {
   )
   
   mock_seurat <- SeuratObject::CreateSeuratObject(counts = matrix(1:12, nrow = 3, ncol = 4,
-                                                                   dimnames = list(paste0("gene_", 1:3),
+                                                                   dimnames = list(paste0("gene", 1:3),
                                                                                  rownames(mock_metadata))),
                                                    meta.data = mock_metadata)
   
@@ -181,12 +188,15 @@ test_that("JoinClusteringResults strips alleles when requested", {
                                           verbose = FALSE,
                                           stripAlleles = TRUE)
   
-  expect_equal(result_seurat@meta.data$TcrFamily_TRA[1], "1")
-  expect_equal(result_seurat@meta.data$TcrFamily_TRA[2], "2")
+  # Check that result is a factor
+  expect_true(is.factor(result_seurat@meta.data$TcrFamily_TRA))
+  
+  expect_equal(as.character(result_seurat@meta.data$TcrFamily_TRA[1]), "1")
+  expect_equal(as.character(result_seurat@meta.data$TcrFamily_TRA[2]), "2")
   
   # Test joining WITHOUT allele stripping (should NOT match because metadata has *01, parquet doesn't)
   mock_seurat2 <- SeuratObject::CreateSeuratObject(counts = matrix(1:12, nrow = 3, ncol = 4,
-                                                                    dimnames = list(paste0("gene_", 1:3),
+                                                                    dimnames = list(paste0("gene", 1:3),
                                                                                   rownames(mock_metadata))),
                                                     meta.data = mock_metadata)
   
@@ -195,8 +205,9 @@ test_that("JoinClusteringResults strips alleles when requested", {
                                            verbose = FALSE,
                                            stripAlleles = FALSE)
   
-  # All should be NA because alleles don't match
-  expect_true(all(is.na(result_seurat2@meta.data$TcrFamily_TRA)))
+  # All should be "LowFrequency" because alleles don't match (cells have valid TCR data but no cluster match)
+  # The function sets unmatched cells with valid TCR data to "0", which gets remapped to "LowFrequency"
+  expect_true(all(as.character(result_seurat2@meta.data$TcrFamily_TRA) == "LowFrequency"))
   
   # Clean up
   unlink(parquet_file)
@@ -217,7 +228,7 @@ test_that("JoinClusteringResults handles missing columns gracefully", {
   )
   
   mock_seurat <- SeuratObject::CreateSeuratObject(counts = matrix(1:12, nrow = 3, ncol = 4,
-                                                                   dimnames = list(paste0("gene_", 1:3),
+                                                                   dimnames = list(paste0("gene", 1:3),
                                                                                  rownames(mock_metadata))),
                                                    meta.data = mock_metadata)
   
@@ -238,16 +249,17 @@ test_that("JoinClusteringResults handles missing columns gracefully", {
   
   arrow::write_parquet(cluster_data, parquet_file)
   
-  # Should handle gracefully with warning and return NAs
+  # Should handle gracefully with warning and return NAs -> remapped to "No_TCR_Data"
   expect_warning({
     result_seurat <- JoinClusteringResults(mock_seurat,
                                             parquetFiles = parquet_file,
                                             verbose = FALSE)
   }, "Missing metadata columns")
   
-  # Column should be added but all NAs
+  # Column should be added but all "No_TCR_Data" (since original NAs get remapped)
   expect_true("TcrFamily_TRA" %in% colnames(result_seurat@meta.data))
-  expect_true(all(is.na(result_seurat@meta.data$TcrFamily_TRA)))
+  expect_true(is.factor(result_seurat@meta.data$TcrFamily_TRA))
+  expect_true(all(as.character(result_seurat@meta.data$TcrFamily_TRA) == "No_TCR_Data"))
   
   # Clean up
   unlink(parquet_file)
@@ -268,7 +280,7 @@ test_that("JoinClusteringResults auto-detects parquet files", {
   )
   
   mock_seurat <- SeuratObject::CreateSeuratObject(counts = matrix(1:12, nrow = 3, ncol = 4,
-                                                                   dimnames = list(paste0("gene_", 1:3),
+                                                                   dimnames = list(paste0("gene", 1:3),
                                                                                  rownames(mock_metadata))),
                                                    meta.data = mock_metadata)
   
@@ -296,7 +308,8 @@ test_that("JoinClusteringResults auto-detects parquet files", {
                                           stripAlleles = FALSE)
   
   expect_true("TcrFamily_TRA" %in% colnames(result_seurat@meta.data))
-  expect_equal(result_seurat@meta.data$TcrFamily_TRA[1], "1")
+  expect_true(is.factor(result_seurat@meta.data$TcrFamily_TRA))
+  expect_equal(as.character(result_seurat@meta.data$TcrFamily_TRA[1]), "1")
   
   # Clean up
   unlink(temp_dir, recursive = TRUE)
@@ -318,11 +331,11 @@ test_that("JoinClusteringResults respects overwriteExisting parameter", {
   )
   
   mock_seurat <- SeuratObject::CreateSeuratObject(counts = matrix(1:12, nrow = 3, ncol = 4,
-                                                                   dimnames = list(paste0("gene_", 1:3),
+                                                                   dimnames = list(paste0("gene", 1:3),
                                                                                  rownames(mock_metadata))),
                                                    meta.data = mock_metadata)
   
-  # Create parquet file
+  # Create parquet file with new cluster assignments (use numeric cluster IDs like real output)
   temp_dir <- tempdir()
   parquet_file <- file.path(temp_dir, "test_overwrite.parquet")
   
@@ -331,7 +344,7 @@ test_that("JoinClusteringResults respects overwriteExisting parameter", {
     v_gene = c("TRAV1-2", "TRAV8-1"),
     j_gene = c("TRAJ33", "TRAJ21"),
     CDR3 = c("CAVRD", "CAVSL"),
-    Cluster = c("new1", "new2"),
+    Cluster = c("1", "2"),  # Use numeric-style cluster IDs
     Cluster_Size_Threshold = c(2, 2),
     Clustering_Method = c("DIANA", "DIANA"),
     stringsAsFactors = FALSE
@@ -346,7 +359,8 @@ test_that("JoinClusteringResults respects overwriteExisting parameter", {
                                            overwriteExisting = FALSE,
                                            stripAlleles = FALSE)
   
-  expect_equal(result_seurat1@meta.data$TcrFamily_TRA[1], "old1")  # Unchanged
+  # Column should be unchanged (still a character, not factor) because skip happened
+  expect_equal(as.character(result_seurat1@meta.data$TcrFamily_TRA[1]), "old1")  # Unchanged
   
   # Test with overwriteExisting = TRUE (should replace with new values)
   result_seurat2 <- JoinClusteringResults(mock_seurat,
@@ -355,7 +369,9 @@ test_that("JoinClusteringResults respects overwriteExisting parameter", {
                                            overwriteExisting = TRUE,
                                            stripAlleles = FALSE)
   
-  expect_equal(result_seurat2@meta.data$TcrFamily_TRA[1], "new1")  # Updated
+  # New values should be applied (and converted to factor)
+  expect_true(is.factor(result_seurat2@meta.data$TcrFamily_TRA))
+  expect_equal(as.character(result_seurat2@meta.data$TcrFamily_TRA[1]), "1")  # Updated
   
   # Clean up
   unlink(parquet_file)
