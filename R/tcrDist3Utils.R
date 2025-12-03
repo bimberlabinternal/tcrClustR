@@ -12,10 +12,8 @@ utils::globalVariables(
 #' @param outputCsvName Optional path where the results will be written as a CSV file.
 #' @param chains TCR chains to include in the analysis. TRA/TRB supported and tested, but others likely work.
 #' @param organism Organism to use for tcrDist3. Default is 'human'.
-#' @param cleanMetadata Boolean controlling whether to clean the metadata by removing rows with NA values or commas in the specified chains.
 #' @param summarizeClones Boolean controlling whether to summarize clones by SubjectId, TRA, TRB, TRA_V, TRA_J, TRB_V, and TRB_J.
 #' @param imputeCloneNames Boolean controlling whether to impute clone names if they are missing.
-#' @param writeUnannotatedGeneSegmentsToFile Boolean controlling whether to write unannotated gene segments to a file (filtered_(chain)_gene_segments.csv).
 #' @param minimumClonesPerSubject Minimum number of clones per subject to include in the analysis. Default is 2.
 #' @param spikeInDataframe Data frame containing spike-in data. Default is NULL. See examples for formatting requirements.
 #' @param verbose Boolean controlling whether to display processing steps. Default is FALSE.
@@ -39,11 +37,9 @@ FormatMetadataForTcrDist3 <- function(metadata,
                                       outputCsvName = NULL,
                                       chains = c("TRA", "TRB"),
                                       organism = 'human',
-                                      cleanMetadata = T,
                                       summarizeClones = T,
                                       imputeCloneNames = T,
-                                      minimumClonesPerSubject = 100,
-                                      writeUnannotatedGeneSegmentsToFile = T,
+                                      minimumClonesPerSubject = 2,
                                       spikeInDataframe = NULL,
                                       verbose = FALSE
 ) {
@@ -51,274 +47,53 @@ FormatMetadataForTcrDist3 <- function(metadata,
     message("Initial metadata dimensions: ", nrow(metadata), " rows, ", ncol(metadata), " columns")
     message("Requested chains: ", paste(chains, collapse = ", "))
   }
+
+  unknownChains <- chains[!chains %in% c('TRA', 'TRB', 'TRD', 'TRG')]
+  if (length(unknownChains) > 0) {
+    stop(paste0("Unknown chains: ", paste0(unknownChains, collapse = ',')))
+  }
+
+  # TODO: parameterize the name of this field
+  if (!'SubjectId' %in% colnames(metadata)) {
+    stop('Metadata missing SubjectId')
+  }
+  metadata$SubjectId <- as.character(metadata$SubjectId)
+
   #check spikeInDataframe's formatting
   if (!is.null(spikeInDataframe)) {
-    #check that the spikeInDataframe has columns that match the chains requested
-    if ("TRA" %in% chains) {
-      if (!all(c("TRA_V", "TRA_J", "TRA") %in% colnames(spikeInDataframe))) {
-        stop("The spikeInDataframe must have the columns 'TRA_V', 'TRA_J', and 'CDR3' for TRA chains.")
+    # Check that the spikeInDataframe has columns that match the chains requested
+    for (chainName in chains) {
+      if (! .has_chain_columns(spikeInDataframe, chain)) {
+        stop(paste0("The spikeInDataframe must have the columns '", chain, "' (the CDR3), '", paste0(chain, '_V'), "', and '", paste0(chain, '_J'), "'"))
       }
-    } else if ("TRB" %in% chains) {
-      if (!all(c("TRB_V", "TRB_J", "TRB") %in% colnames(spikeInDataframe))) {
-        stop("The spikeInDataframe must have the columns 'TRB_V', 'TRB_J', and 'CDR3' for TRB chains.")
-      }
-    } else if ("TRG" %in% chains) {
-      if (!all(c("TRG_V", "TRG_J", "TRG") %in% colnames(spikeInDataframe))) {
-        stop("The spikeInDataframe must have the columns 'TRG_V', 'TRG_J', and 'CDR3' for TRG chains.")
-      }
-    } else if ("TRD" %in% chains) {
-      if (!all(c("TRD_V", "TRD_J", "TRD") %in% colnames(spikeInDataframe))) {
-        stop("The spikeInDataframe must have the columns 'TRD_V', 'TRD_J', and 'CDR3' for TRD chains.")
-      }
-    } else {
-      stop(paste0("Chain ", chain, " is not supported."))
     }
-    #check that the spikeInDataframe has the columns 'CloneNames' and impute a SubjectId if missing
+
+    # Check that the spikeInDataframe has the columns 'CloneNames' and impute a SubjectId if missing
     if (!"CloneNames" %in% colnames(spikeInDataframe)) {
-      stop("The spikeInDataframe must have the column 'CloneNames'.")
+      stop("The spikeInDataframe must have the column 'CloneNames'")
     }
+
     if (!"SubjectId" %in% colnames(spikeInDataframe)) {
       spikeInDataframe$SubjectId <- paste0("spikeIn_", seq_len(nrow(spikeInDataframe)))
     }
+
     #force spikeInDataframe to exceed the minimum number of clones per subject
     if (minimumClonesPerSubject > 1) {
-      spikeInDataframe <- do.call("rbind",
-                                  replicate(minimumClonesPerSubject,
-                                            spikeInDataframe,
-                                            simplify = FALSE))
+      spikeInDataframe <- do.call("rbind", replicate(minimumClonesPerSubject, spikeInDataframe, simplify = FALSE))
     }
-    #bind the spikeInDataframe to the metadata
+
+    # Bind the spikeInDataframe to the metadata
     metadata <- plyr::rbind.fill(metadata, spikeInDataframe)
   }
 
-  if (cleanMetadata) {
-    if (verbose) message("Starting metadata cleaning with ", nrow(metadata), " rows")
-    for (chain in chains) {
-      if (verbose) message("Processing chain: ", chain)
-
-      #check if chain column exists
-      if (!chain %in% colnames(metadata)) {
-        if (verbose) {
-          message("WARNING - Chain column ", chain, " not found in metadata!")
-          message("Available columns: ", paste(colnames(metadata), collapse = ", "))
-        }
-        next
-      }
-
-      initial_rows <- nrow(metadata)
-
-      #filter rows with NA values in the requested chains
-      metadata <- metadata[!is.na(metadata[[chain]]), ]
-      after_na_filter <- nrow(metadata)
-      if (verbose) message("After filtering NA values in ", chain, ": ", after_na_filter, " rows (removed ", initial_rows - after_na_filter, " rows)")
-
-      #filter rows with commas (multiple segments detected in a cell) in the requested chains
-      metadata <- metadata[!grepl(",", metadata[[chain]]), ]
-      after_comma_filter <- nrow(metadata)
-      if (verbose) message("After filtering commas in ", chain, ": ", after_comma_filter, " rows (removed ", after_na_filter - after_comma_filter, " rows)")
-
-      segmentTempFile <- tempfile(fileext = '.txt')
-      .PullTcrdist3Db(organism = organism,
-                      outputFilePath = segmentTempFile,
-                      verbose = verbose)
-      gene_segments_in_db <- readr::read_csv(segmentTempFile, show_col_types = FALSE) |>
-        dplyr::mutate(`gene_segments` = gsub("\\*[0-9]+$", "", `gene_segments`)) |>
-        unlist() |>
-        unique()
-      if (verbose) {
-        message("Found ", length(gene_segments_in_db), " gene segments in tcrdist3 database")
-        message("First 10 database gene segments: ", paste(head(gene_segments_in_db, 10), collapse = ", "))
-      }
-
-      unlink(segmentTempFile)
-
-      #remove gene segments not found in conga's database
-      #TODO: add message flag that trips when TCRDist3 detects an unannotated gene segment
-      if (chain == "TRA") {
-        if (any(!(metadata$TRA_V %in% gene_segments_in_db) | any(!metadata$TRA_J %in% gene_segments_in_db))) {
-          message("TRA gene segments present in the data, but not found in conga database!")
-          #store filtered gene segments
-          filtered_genes <- metadata |>
-            dplyr::filter(!is.na(TRA_V)) |>
-            dplyr::filter(!is.na(TRA_J)) |>
-            dplyr::mutate(
-              VALID_V = dplyr::case_when(TRA_V %in% gene_segments_in_db ~ "valid",
-                                         TRUE ~ "invalid"),
-              VALID_J = dplyr::case_when(TRA_J %in% gene_segments_in_db ~ "valid",
-                                         TRUE ~ "invalid" )) |>
-            #write only the invalid V and J segments, so that the valid ones appear as "valid" in the text file
-            dplyr::mutate(TRA_V = dplyr::case_when(VALID_V == "valid" ~ "valid",
-                                                   TRUE ~ TRA_V)) |>
-            dplyr::mutate(TRA_J = dplyr::case_when(VALID_J == "valid" ~ "valid",
-                                                   TRUE ~ TRA_J)) |>
-            dplyr::filter(TRA_V != "valid" | TRA_J != "valid") |>
-            dplyr::select(TRA_V, TRA_J) |>
-            unique.data.frame()
-          if (verbose)
-            message("Writing TRA segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath(file.path(outputPath,'filtered_TRA_gene_segments.csv')))
-
-          if (nrow(filtered_genes) < 10) {
-            print(filtered_genes)
-          }
-
-          if (writeUnannotatedGeneSegmentsToFile) {
-            utils::write.csv(filtered_genes, file = file.path(outputPath,'filtered_TRA_gene_segments.csv'), row.names = FALSE)
-          }
-        }
-        metadata <- metadata |>
-          dplyr::filter(TRA_V %in% gene_segments_in_db) |>
-          dplyr::filter(TRA_J %in% gene_segments_in_db)
-      } else if (chain == "TRB") {
-        if (verbose) message("Processing TRB chain filtering")
-
-        #check for required TRB columns
-        if (!"TRB_V" %in% colnames(metadata)) {
-          if (verbose) {
-            message("Missing TRB_V column: Available columns: ", paste(colnames(metadata), collapse = ", "))
-          }
-        }
-        if (!"TRB_J" %in% colnames(metadata)) {
-          if (verbose) {
-            message("Missing TRB_J column: available columns: ", paste(colnames(metadata), collapse = ", "))
-          }
-        }
-
-        #check unique values in TRB_V and TRB_J columns
-        if ("TRB_V" %in% colnames(metadata)) {
-          unique_v_genes <- unique(metadata$TRB_V[!is.na(metadata$TRB_V)])
-          if (verbose) {
-            message("Found ", length(unique_v_genes), " unique TRB_V genes")
-            message("First 10 TRB_V genes: ", paste(head(unique_v_genes, 10), collapse = ", "))
-          }
-          v_genes_in_db <- sum(unique_v_genes %in% gene_segments_in_db)
-          if (verbose) message(v_genes_in_db, " out of ", length(unique_v_genes), " TRB_V genes found in database")
-        }
-
-        if ("TRB_J" %in% colnames(metadata)) {
-          unique_j_genes <- unique(metadata$TRB_J[!is.na(metadata$TRB_J)])
-          if (verbose) {
-            message("Found ", length(unique_j_genes), " unique TRB_J genes")
-            message("First 10 TRB_J genes: ", paste(head(unique_j_genes, 10), collapse = ", "))
-          }
-          j_genes_in_db <- sum(unique_j_genes %in% gene_segments_in_db)
-          if (verbose) message(j_genes_in_db, " out of ", length(unique_j_genes), " TRB_J genes found in database")
-        }
-
-        before_v_filter <- nrow(metadata)
-        if (any(!(metadata$TRB_V %in% gene_segments_in_db) | any(!metadata$TRB_J %in% gene_segments_in_db))) {
-          message("TRB gene segments present in the data, but not found in conga database!")
-          #store filtered gene segments
-          filtered_genes <- metadata |>
-            dplyr::filter(!is.na(TRB_V)) |>
-            dplyr::filter(!is.na(TRB_J)) |>
-            dplyr::mutate(
-              VALID_V = dplyr::case_when(TRB_V %in% gene_segments_in_db ~ "valid",
-                                         TRUE ~ "invalid"),
-              VALID_J = dplyr::case_when(TRB_J %in% gene_segments_in_db ~ "valid",
-                                         TRUE ~ "invalid" )) |>
-            #NA the valid V and J segments, so that the valid ones appear as "valid" in the text file
-            dplyr::mutate(TRB_V = dplyr::case_when(VALID_V == "valid" ~ "valid",
-                                                   TRUE ~ TRB_V)) |>
-            dplyr::mutate(TRB_J = dplyr::case_when(VALID_J == "valid" ~ "valid",
-                                                   TRUE ~ TRB_J)) |>
-            dplyr::filter(TRB_V != "valid" | TRB_J != "valid") |>
-            dplyr::select(TRB_V, TRB_J) |>
-            unique.data.frame()
-          if (verbose)
-            message("Writing TRB segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath(file.path(outputPath,'filtered_TRB_gene_segments.csv')))
-
-          if (writeUnannotatedGeneSegmentsToFile) {
-            utils::write.csv(filtered_genes, file = file.path(outputPath, 'filtered_TRB_gene_segments.csv'), row.names = FALSE)
-          }
-
-          if (nrow(filtered_genes) < 10) {
-            print(filtered_genes)
-          }
-        }
-        metadata <- metadata |>
-          dplyr::filter(TRB_V %in% gene_segments_in_db) |>
-          dplyr::filter(TRB_J %in% gene_segments_in_db)
-        after_gene_filter <- nrow(metadata)
-        if (verbose) {
-          message("After filtering TRB gene segments: ", after_gene_filter, " rows (removed ", before_v_filter - after_gene_filter, " rows)")
-          message("Metadata after TRB filtering has ", nrow(metadata), " rows")
-        }
-
-      } else if (chain == "TRG") {
-        if (any(!(metadata$TRG_V %in% gene_segments_in_db) | any(!metadata$TRG_J %in% gene_segments_in_db))) {
-          message("TRG gene segments present in the data, but not found in conga database!")
-          #store filtered gene segments
-          filtered_genes <- metadata |>
-            dplyr::filter(!is.na(TRG_V)) |>
-            dplyr::filter(!is.na(TRG_J)) |>
-            dplyr::mutate(
-              VALID_V = dplyr::case_when(TRG_V %in% gene_segments_in_db ~ "valid",
-                                         TRUE ~ "invalid"),
-              VALID_J = dplyr::case_when(TRG_J %in% gene_segments_in_db ~ "valid",
-                                         TRUE ~ "invalid" )) |>
-            #NA the valid V and J segments, so that the valid ones appear as "valid" in the text file
-            dplyr::mutate(TRG_V = dplyr::case_when(VALID_V == "valid" ~ "valid",
-                                                   TRUE ~ TRG_V)) |>
-            dplyr::mutate(TRG_J = dplyr::case_when(VALID_J == "valid" ~ "valid",
-                                                   TRUE ~ TRG_J)) |>
-            dplyr::filter(TRG_V != "valid" | TRG_J != "valid") |>
-            dplyr::select(TRG_V, TRG_J) |>
-            unique.data.frame()
-
-          if (writeUnannotatedGeneSegmentsToFile) {
-            if (verbose)
-              message("Writing TRG segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath(file.path(outputPath,'filtered_TRG_gene_segments.csv')))
-            utils::write.csv(filtered_genes, file = file.path(outputPath,'filtered_TRG_gene_segments.csv'), row.names = FALSE)
-          }
-        }
-        metadata <- metadata |>
-          dplyr::filter(TRG_V %in% gene_segments_in_db) |>
-          dplyr::filter(TRG_J %in% gene_segments_in_db)
-      } else if (chain == "TRD") {
-        if (any(!(metadata$TRD_V %in% gene_segments_in_db) | any(!metadata$TRD_J %in% gene_segments_in_db))) {
-          message("TRD gene segments present in the data, but not found in conga database!")
-          #store filtered gene segments
-          filtered_genes <- metadata |>
-            dplyr::filter(!is.na(TRD_V)) |>
-            dplyr::filter(!is.na(TRD_J)) |>
-            dplyr::mutate(
-              VALID_V = dplyr::case_when(TRD_V %in% gene_segments_in_db ~ "valid",
-                                         TRUE ~ "invalid"),
-              VALID_J = dplyr::case_when(TRD_J %in% gene_segments_in_db ~ "valid",
-                                         TRUE ~ "invalid" )) |>
-            #NA the valid V and J segments, so that the valid ones appear as "valid" in the text file
-            dplyr::mutate(TRD_V = dplyr::case_when(VALID_V == "valid" ~ "valid",
-                                                   TRUE ~ TRD_V)) |>
-            dplyr::mutate(TRD_J = dplyr::case_when(VALID_J == "valid" ~ "valid",
-                                                   TRUE ~ TRD_J)) |>
-            dplyr::filter(TRD_V != "valid" | TRD_J != "valid") |>
-            dplyr::select(TRD_V, TRD_J) |>
-            unique.data.frame()
-          if (verbose)
-            message("Writing TRD segments present in the data, but missing in tcrdist3 database to file: ", R.utils::getAbsolutePath(file.path(outputPath,'filtered_TRD_gene_segments.csv')))
-
-          if (writeUnannotatedGeneSegmentsToFile) {
-            utils::write.csv(filtered_genes, file = file.path(outputPath,'filtered_TRD_gene_segments.csv'), row.names = FALSE)
-          }
-        }
-
-        metadata <- metadata |>
-          dplyr::filter(TRD_V %in% gene_segments_in_db) |>
-          dplyr::filter(TRD_J %in% gene_segments_in_db)
-      } else {
-        stop(paste0("Chain ", chain, " is not supported."))
-      }
-    }
-    if (verbose) message("Finished metadata cleaning with ", nrow(metadata), " rows")
+  metadata <- .flag_valid_rows(metadata = metadata, chains = chains, organism = organism, verbose = verbose)
+  if (nrow(metadata) == 0) {
+    stop("No data remaining after filtering. Check your gene segment names and database compatibility.")
   }
+
   #impute clone names if asked
   if (imputeCloneNames) {
     if (verbose) message("Starting clone name imputation with ", nrow(metadata), " rows")
-
-    if (nrow(metadata) == 0) {
-      if (verbose) message("ERROR - metadata has 0 rows when trying to impute clone names!")
-      stop("No data remaining after filtering. Check your gene segment names and database compatibility.")
-    }
 
     if (!"CloneNames" %in% colnames(metadata)) {
       #initialize the CloneNames metadata column
@@ -327,7 +102,6 @@ FormatMetadataForTcrDist3 <- function(metadata,
       }
       metadata$CloneNames <- "undefined_clone"
     }
-    #assume that clone names are set by Rdiscvr, but if they're NA (like for the tests) we need to impute them
 
     # Check if SubjectId column exists, if not create it
     if (!"SubjectId" %in% colnames(metadata)) {
@@ -335,66 +109,44 @@ FormatMetadataForTcrDist3 <- function(metadata,
       metadata$SubjectId <- "DefaultSubject"
     }
 
-    if (!is.null(spikeInDataframe)){
-      #if a user submits a spike-in dataframe, the subject IDs will need to be converted to a character column to merge with SubjectId == "SpikeIn"
-      metadata$SubjectId <- as.character(metadata$SubjectId)
-    }
-
-    # Check if TRA column exists, if not create dummy column
-    if (!"TRA" %in% colnames(metadata)) {
-      if (verbose) message("TRA column not found, creating dummy TRA column")
-      metadata$TRA <- "DUMMY_TRA"
-    }
-
-    # Check if TRB column exists, if not create dummy column
-    if (!"TRB" %in% colnames(metadata)) {
-      if (verbose) message("TRB column not found, creating dummy TRB column")
-      metadata$TRB <- "DUMMY_TRB"
-    }
-
-    # Check if TRA_V column exists, if not create dummy column
-    if (!"TRA_V" %in% colnames(metadata)) {
-      if (verbose) message("TRA_V column not found, creating dummy TRA_V column")
-      metadata$TRA_V <- "DUMMY_TRA_V"
-    }
-
-    # Check if TRA_J column exists, if not create dummy column
-    if (!"TRA_J" %in% colnames(metadata)) {
-      if (verbose) message("TRA_J column not found, creating dummy TRA_J column")
-      metadata$TRA_J <- "DUMMY_TRA_J"
-    }
-
     #construct the grouping columns based on the supplied chains
     grouping_columns <- c("SubjectId")
-    if ("TRA" %in% chains) {
+    for (chain in chains) {
       grouping_columns <- c(grouping_columns, "TRA", "TRA_V", "TRA_J")
     }
-    if ("TRB" %in% chains) {
-      grouping_columns <- c(grouping_columns, "TRB", "TRB_V", "TRB_J")
-    }
-    if ("TRG" %in% chains) {
-      grouping_columns <- c(grouping_columns, "TRG", "TRG_V", "TRG_J")
-    }
-    if ("TRD" %in% chains) {
-      grouping_columns <- c(grouping_columns, "TRD", "TRD_V", "TRD_J")
+
+    # Check if columns exist, if not create dummy column
+    requiredChains <- c()
+    if ('TRA' %in% chains || 'TRB' %in% chains) {
+      requiredChains <- c(requiredChains, 'TRA', 'TRB')
     }
 
-    if (verbose) {
-      print(head(metadata))
+    if ('TRD' %in% chains || 'TRG' %in% chains) {
+      requiredChains <- c(requiredChains, 'TRD', 'TRD')
+    }
+
+    for (chain in requiredChains) {
+      vCol <- paste0(chain, '_V')
+      if (!vCol %in% colnames(metadata)) {
+        message(paste0(vCol, " column not found, creating dummy column"))
+        metadata[[vCol]] <- "DUMMY_TRA_V"
+      }
+
+      jCol <- paste0(chain, '_J')
+      if (!jCol %in% colnames(metadata)) {
+        message(paste0(jCol, " column not found, creating dummy column"))
+        metadata[[jCol]] <- "DUMMY_TRA_J"
+      }
     }
 
     metadata <- metadata |>
-      #if a user submits a spike-in dataframe, the clones will be missing a subject Id
-      dplyr::mutate(SubjectId = dplyr::case_when(
-        is.na(CloneNames) & is.na(SubjectId) ~ "SpikeIn",
-        .default = as.character(SubjectId)
-      )) |>
       dplyr::group_by(dplyr::across(dplyr::all_of(grouping_columns))) |>
       dplyr::mutate(CloneNames =
                       dplyr::case_when(
                         is.na(CloneNames) ~ paste0(SubjectId, "_", dplyr::cur_group_id()),
                         .default = as.character(CloneNames))
-      )
+      ) |>
+      as.data.frame()
   }
 
   #TODO: this implementation only works for TRA+TRB, need to fix eventually.
@@ -416,63 +168,32 @@ FormatMetadataForTcrDist3 <- function(metadata,
 
   #unique-ify the metadata prior to formatting, since the random sampling in the reverse translation function can cause duplicates
   metadata <- metadata |> unique.data.frame()
-  if (verbose) message("Final metadata dimensions after cleaning and summarizing: ", nrow(metadata), " rows, ", ncol(metadata), " columns")
-  #reformat data for tcrDist3, iterate over chains specified:
+  if (verbose) {
+    message("Final metadata dimensions after cleaning and summarizing: ", nrow(metadata), " rows, ", ncol(metadata), " columns")
+  }
 
+  #reformat data for tcrDist3, iterate over chains specified:
   formatted_data <- data.frame( subject = metadata$SubjectId,
                                 epitope = rep("Unknown", nrow(metadata)),  #epitope information is not available in seuratMetadata.csv
                                 count = if("count" %in% colnames(metadata)) metadata$count else rep(1, nrow(metadata))
-                                )
+  )
+
   if (verbose) {
     print(head(formatted_data))
     message("Dimensions of formatted_data: ", paste(dim(formatted_data), collapse = " x "))
     message("Dimensions of metadata: ", paste(dim(metadata), collapse = " x "))
   }
-  if ("TRA" %in% chains) {
-    if (verbose) message("Formatting TRA chains for tcrDist3")
-    formatted_data <- cbind(formatted_data,
-                            data.frame(
-                              v_a_gene = .add_gene_suffix(metadata$TRA_V),
-                              j_a_gene = .add_gene_suffix(metadata$TRA_J),
-                              cdr3_a_aa = metadata$TRA,
-                              cdr3_a_nucseq = sapply(metadata$TRA, .reverse_translate_cdr3)
-                            )
-    )
+
+  for (chain in chains){
+    charName <- substring('TRB', 3)
+    toAdd <- data.frame()
+    toAdd[paste0('v_', tolower(charName), '_gene')] <- .add_gene_suffix(metadata[[paste0('TR', charName, '_V')]])
+    toAdd[paste0('j_', tolower(charName), '_gene')] <- .add_gene_suffix(metadata[[paste0('TR', charName, '_J')]])
+    toAdd[paste0('cdr3_', tolower(charName), '_aa')] <- metadata[[paste0('TR', charName)]]
+    toAdd[paste0('cdr3_', tolower(charName), '_nucseq')] <- sapply(metadata[[paste0('TR', charName, '_J')]], .reverse_translate_cdr3)
   }
-  if ("TRB" %in% chains) {
-    if (verbose) message("Formatting TRB chains for tcrDist3")
-    formatted_data <- cbind(formatted_data,
-                            data.frame(
-                              v_b_gene = .add_gene_suffix(metadata$TRB_V),
-                              j_b_gene = .add_gene_suffix(metadata$TRB_J),
-                              cdr3_b_aa = metadata$TRB,
-                              cdr3_b_nucseq = sapply(metadata$TRB, .reverse_translate_cdr3)
-                            )
-    )
-  }
-  if ("TRG" %in% chains) {
-    if (verbose) message("Formatting TRG chains for tcrDist3")
-    formatted_data <- cbind(formatted_data,
-                            data.frame(
-                              v_g_gene = .add_gene_suffix(metadata$TRG_V),
-                              j_g_gene = .add_gene_suffix(metadata$TRG_J),
-                              cdr3_g_aa = metadata$TRG,
-                              cdr3_g_nucseq = sapply(metadata$TRG, .reverse_translate_cdr3)
-                            )
-    )
-  }
-  if ("TRD" %in% chains) {
-    if (verbose) message("Formatting TRD chains for tcrDist3")
-    formatted_data <- cbind(formatted_data,
-                            data.frame(
-                              v_d_gene = .add_gene_suffix(metadata$TRD_V),
-                              j_d_gene = .add_gene_suffix(metadata$TRD_J),
-                              cdr3_d_aa = metadata$TRD,
-                              cdr3_d_nucseq = sapply(metadata$TRD, .reverse_translate_cdr3)
-                            )
-    )
-  }
-  #write the formatted data to the output CSV file
+
+  # Write the formatted data to the output CSV file
   if (!is.null(outputCsvName)) {
     utils::write.csv(formatted_data, file.path(outputPath, outputCsvName), row.names = FALSE)
   }
@@ -562,9 +283,9 @@ FormatMetadataForTcrDist3 <- function(metadata,
 
   for (mod in required_modules) {
     check_result <- system2(pythonExecutable,
-                           c("-c", shQuote(paste0("import ", mod))),
-                           stdout = FALSE,
-                           stderr = FALSE)
+                            c("-c", shQuote(paste0("import ", mod))),
+                            stdout = FALSE,
+                            stderr = FALSE)
     if (check_result != 0) {
       missing_modules <- c(missing_modules, mod)
     }
@@ -602,9 +323,9 @@ FormatMetadataForTcrDist3 <- function(metadata,
   stderr_file <- tempfile(fileext = ".stderr")
 
   exit_code <- system2(pythonExecutable,
-                      script,
-                      stdout = stdout_file,
-                      stderr = stderr_file)
+                       script,
+                       stdout = stdout_file,
+                       stderr = stderr_file)
 
   # Read captured output
   stdout_content <- if (file.exists(stdout_file)) readLines(stdout_file, warn = FALSE) else character(0)
@@ -642,10 +363,10 @@ FormatMetadataForTcrDist3 <- function(metadata,
     }
 
     error_msg <- paste0(error_msg,
-      "Troubleshooting steps:\n",
-      "1. Run SetupPythonEnvironment() to validate and install Python dependencies\n",
-      "2. Verify tcrdist3 is installed: ", pythonExecutable, " -c 'import tcrdist'\n",
-      "3. Check Python script: ", script, "\n"
+                        "Troubleshooting steps:\n",
+                        "1. Run SetupPythonEnvironment() to validate and install Python dependencies\n",
+                        "2. Verify tcrdist3 is installed: ", pythonExecutable, " -c 'import tcrdist'\n",
+                        "3. Check Python script: ", script, "\n"
     )
 
     stop(error_msg)
@@ -683,12 +404,12 @@ FormatMetadataForTcrDist3 <- function(metadata,
 #' )
 #' }
 .TCRDistanceHeatmap <- function(
-    seuratObj_TCR = NULL,
-    assay = NULL,
-    cluster_info = NULL,
-    cluster_colors = NULL,
-    annotate_clusters = TRUE,
-    verbose = FALSE
+  seuratObj_TCR = NULL,
+  assay = NULL,
+  cluster_info = NULL,
+  cluster_colors = NULL,
+  annotate_clusters = TRUE,
+  verbose = FALSE
 ) {
   if (is.null(seuratObj_TCR)) {
     stop("seuratObj_TCR must not be NULL.")
@@ -800,11 +521,11 @@ FormatMetadataForTcrDist3 <- function(metadata,
 #' )
 #' }
 TCRDistanceHeatmaps <- function(
-    seuratObj_TCR = NULL,
-    assayList = NULL,
-    resolution = 0.1,
-    annotate_clusters = TRUE,
-    verbose = FALSE
+  seuratObj_TCR = NULL,
+  assayList = NULL,
+  resolution = 0.1,
+  annotate_clusters = TRUE,
+  verbose = FALSE
 ) {
   if (is.null(seuratObj_TCR)) {
     stop("Please provide a Seurat Object with TCR distance assays.")
@@ -947,9 +668,9 @@ TCRDistanceHeatmaps <- function(
 #' )
 #' }
 TCRDistanceHistograms <- function(
-    seuratObj_TCR = NULL,
-    assayList  = NULL,
-    resolution = 0.1
+  seuratObj_TCR = NULL,
+  assayList  = NULL,
+  resolution = 0.1
 ) {
   if (is.null(seuratObj_TCR)) {
     stop("Please provide a Seurat object with TCR distance assays.")
@@ -1049,4 +770,91 @@ GetExampleMarkdown <- function(dest) {
   if (!success) {
     stop(paste0('Unable to copy file to: ', dest))
   }
+}
+
+.has_chain_columns <- function(df, chain) {
+  vCol <- paste0(chain, '_V')
+  jCol <- paste0(chain, '_J')
+
+  return(all(c(chain, vCol, jCol) %in% colnames(df)))
+}
+
+.flag_valid_rows <- function(metadata, chains, organism, verbose) {
+  segmentTempFile <- tempfile(fileext = '.txt')
+  .PullTcrdist3Db(organism = organism,
+                  outputFilePath = segmentTempFile,
+                  verbose = verbose
+  )
+
+  gene_segments_in_db <- readr::read_csv(segmentTempFile, show_col_types = FALSE) |>
+    dplyr::mutate(`gene_segments` = gsub("\\*[0-9]+$", "", `gene_segments`)) |>
+    unlist() |>
+    unique()
+
+  if (verbose) {
+    message("Found ", length(gene_segments_in_db), " gene segments in tcrdist3 database")
+    message("First 10 database gene segments: ", paste(head(gene_segments_in_db, 10), collapse = ", "))
+  }
+  unlink(segmentTempFile)
+
+  if (verbose) {
+    message("Starting metadata cleaning with ", nrow(metadata), " rows")
+  }
+
+  for (chain in chains) {
+    vCol <- paste0(chain, '_V')
+    jCol <- paste0(chain, '_J')
+    chainColumns <- c(chains, vCol, jCol)
+    validCol <- paste0(chain, '_ValidForClustering')
+
+    if (verbose)
+      message("Processing chain: ", chain)
+
+    if (any(!chainColumns %in% colnames(metadata))) {
+      missingCols <- chainColumns[! chainColumns %in% colnames(metadata)]
+      stop(paste0('Missing columns: ', paste0(missingCols, collapse = ','), ', available columns: ', paste(colnames(metadata), collapse = ", ")))
+    }
+
+    initial_rows <- nrow(metadata)
+    metadata[[validCol]] <- !is.na(metadata[[chain]]) &
+      !is.na(metadata[[vCol]]) &
+      !is.na(metadata[[jCol]]) &
+      metadata[[chain]] != '' &
+      metadata[[vCol]] != '' &
+      metadata[[jCol]] != ''
+
+    after_na_filter <- sum(metadata[[validCol]])
+    if (verbose) {
+      message("After filtering NA values in ", chain, ": ", after_na_filter, " rows (removed ", initial_rows - after_na_filter, " rows)")
+    }
+
+    # Filter rows with commas (multiple segments detected in a cell) in the requested chains
+    comma_filter <- grepl(",", metadata[[chain]])
+    after_comma_filter <- sum(comma_filter)
+    metadata[[validCol]][comma_filter] <- FALSE
+    if (verbose) {
+      message("After filtering commas in ", chain, ": ", after_comma_filter, " rows (removed ", after_na_filter - after_comma_filter, " rows)")
+    }
+
+    # Flag gene segments not found in conga's database
+    unknown_v_segments <- ! metadata[[vCol]] %in% gene_segments_in_db
+    if (sum(unknown_v_segments) > 0) {
+      unk <- unique(metadata[[vCol]][unknown_v_segments])
+      warning('The following ', vCol, ' values were not found in the DB: ', paste0(unk, collapse = ','))
+      metadata[[validCol]][unknown_v_segments] <- FALSE
+    }
+
+    unknown_j_segments <- ! metadata[[jCol]] %in% gene_segments_in_db
+    if (sum(unknown_j_segments) > 0) {
+      unk <- unique(metadata[[jCol]][unknown_j_segments])
+      warning('The following ', jCol, ' values were not found in the DB: ', paste0(unk, collapse = ','))
+      metadata[[validCol]][unknown_j_segments] <- FALSE
+    }
+
+    if (verbose) {
+      message(paste0("Finished metadata cleaning for ", chain, ". Initial rows: ", nrow(metadata), ", total filtered: ", sum(metadata[[validCol]])))
+    }
+  }
+
+  return(metadata)
 }

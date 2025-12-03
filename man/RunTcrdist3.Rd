@@ -8,7 +8,6 @@ RunTcrdist3(
   inputData = NULL,
   organism = "human",
   chains = c("TRA", "TRB"),
-  cleanMetadata = T,
   spikeInDataframe = NULL,
   summarizeClones = T,
   imputeCloneNames = T,
@@ -26,8 +25,6 @@ RunTcrdist3(
 \item{organism}{Organism to use for tcrdist3. Default is 'human'.}
 
 \item{chains}{Vector of TCR chains to include in the analysis. Default is c("TRA", "TRB").}
-
-\item{cleanMetadata}{Pass-through boolean controlling whether to clean the metadata by removing rows with NA values or commas in the specified chains. Default is TRUE.}
 
 \item{spikeInDataframe}{Data frame containing known CDR3s and gene segments to be included in the clustering. Default is NULL.}
 
@@ -54,7 +51,6 @@ This function runs the tcrdist3 pipeline on a set of CDR3 sequences in a Seurat 
 \dontrun{
   seuratObj_TCR<- RunTcrdist3(inputData = seuratObj@meta.data,
               chains = c("TRA", "TRB"),
-              cleanMetadata = T,
               summarizeClones = T,
               imputeCloneNames = T,
               minimumClonesPerSubject = 2,

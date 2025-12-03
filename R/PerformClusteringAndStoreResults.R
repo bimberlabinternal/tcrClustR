@@ -13,7 +13,6 @@ PerformClusteringAndStoreResults <- function(seuratObj, outputDir, outputPrefix 
   seuratObj_TCR <- RunTcrdist3(
     inputData = seuratObj,
     chains = chains,
-    cleanMetadata = TRUE,
     minimumClonesPerSubject = minimumClonesPerSubject,
     rdsOutputPath = rdsOutputPath,
     verbose = verbose

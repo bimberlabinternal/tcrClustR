@@ -10,11 +10,9 @@ FormatMetadataForTcrDist3(
   outputCsvName = NULL,
   chains = c("TRA", "TRB"),
   organism = "human",
-  cleanMetadata = T,
   summarizeClones = T,
   imputeCloneNames = T,
-  minimumClonesPerSubject = 100,
-  writeUnannotatedGeneSegmentsToFile = T,
+  minimumClonesPerSubject = 2,
   spikeInDataframe = NULL,
   verbose = FALSE
 )
@@ -30,15 +28,11 @@ FormatMetadataForTcrDist3(
 
 \item{organism}{Organism to use for tcrDist3. Default is 'human'.}
 
-\item{cleanMetadata}{Boolean controlling whether to clean the metadata by removing rows with NA values or commas in the specified chains.}
-
 \item{summarizeClones}{Boolean controlling whether to summarize clones by SubjectId, TRA, TRB, TRA_V, TRA_J, TRB_V, and TRB_J.}
 
 \item{imputeCloneNames}{Boolean controlling whether to impute clone names if they are missing.}
 
 \item{minimumClonesPerSubject}{Minimum number of clones per subject to include in the analysis. Default is 2.}
-
-\item{writeUnannotatedGeneSegmentsToFile}{Boolean controlling whether to write unannotated gene segments to a file (filtered_(chain)_gene_segments.csv).}
 
 \item{spikeInDataframe}{Data frame containing spike-in data. Default is NULL. See examples for formatting requirements.}
 

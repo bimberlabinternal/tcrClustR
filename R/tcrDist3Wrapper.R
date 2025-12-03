@@ -11,7 +11,6 @@ utils::globalVariables(
 #' @param inputData Either a seurat Object containing TCR information or a dataframe containing metadata
 #' @param organism Organism to use for tcrdist3. Default is 'human'.
 #' @param chains Vector of TCR chains to include in the analysis. Default is c("TRA", "TRB").
-#' @param cleanMetadata Pass-through boolean controlling whether to clean the metadata by removing rows with NA values or commas in the specified chains. Default is TRUE.
 #' @param spikeInDataframe Data frame containing known CDR3s and gene segments to be included in the clustering. Default is NULL.
 #' @param summarizeClones Pass-through boolean controlling whether to summarize clones into a frequency (by SubjectId, TRA, TRB, TRA_V, and TRB_J). Default is TRUE.
 #' @param imputeCloneNames Pass-through boolean controlling whether to impute clone names if they are missing. Existing clone names will be inherited. Default is TRUE.
@@ -30,7 +29,6 @@ utils::globalVariables(
 #' \dontrun{
 #'   seuratObj_TCR<- RunTcrdist3(inputData = seuratObj@meta.data,
 #'               chains = c("TRA", "TRB"),
-#'               cleanMetadata = T,
 #'               summarizeClones = T,
 #'               imputeCloneNames = T,
 #'               minimumClonesPerSubject = 2,
@@ -62,7 +60,6 @@ utils::globalVariables(
 RunTcrdist3 <- function(inputData = NULL,
                         organism = 'human',
                         chains = c("TRA", "TRB"),
-                        cleanMetadata = T,
                         spikeInDataframe = NULL,
                         summarizeClones = T,
                         imputeCloneNames = T,
@@ -131,7 +128,6 @@ RunTcrdist3 <- function(inputData = NULL,
                                         outputPath = dirname(postFormattingMetadataCsvOutput),
                                         outputCsvName = basename(postFormattingMetadataCsvOutput),
                                         chains = chains,
-                                        cleanMetadata = cleanMetadata,
                                         summarizeClones = summarizeClones,
                                         imputeCloneNames = imputeCloneNames,
                                         minimumClonesPerSubject = minimumClonesPerSubject,
@@ -218,16 +214,26 @@ RunTcrdist3 <- function(inputData = NULL,
 
     #add the distance matrices to the Seurat object
     if (is.null(seuratObj_TCR)){
-      seuratObj_TCR <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_full_length, "dgCMatrix"), assay =  chain)
-      seuratObj_TCR <- Seurat::AddMetaData(seuratObj_TCR, metadata = formatted_metadata)
+      formatted_metadata_for_chain <- FormatMetadataForTcrDist3(metadata = metadata,
+                                                      chains = chain,
+                                                      organism = organism,
+                                                      summarizeClones = summarizeClones,
+                                                      imputeCloneNames = imputeCloneNames,
+                                                      minimumClonesPerSubject = minimumClonesPerSubject,
+                                                      spikeInDataframe = spikeInDataframe,
+                                                      verbose = FALSE
+      )
+
+      seuratObj_TCR <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_full_length, "dgCMatrix"), assay =  chain, metadata = formatted_metadata_for_chain)
       seuratObj_TCR_CDR3 <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_CDR3, "dgCMatrix"), assay = paste0(chain, "_cdr3"))
-      seuratObj_TCR_CDR3 <- Seurat::AddMetaData(seuratObj_TCR_CDR3, metadata = formatted_metadata)
+      seuratObj_TCR_CDR3 <- Seurat::AddMetaData(seuratObj_TCR_CDR3, metadata = formatted_metadata_for_chain)
       seuratObj_TCR <- merge(seuratObj_TCR, seuratObj_TCR_CDR3)
     } else {
+      print('Adding!')
       seuratObj_TCR_subsequentChain <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_full_length, "dgCMatrix"), assay =  chain)
-      seuratObj_TCR_subsequentChain <- Seurat::AddMetaData(seuratObj_TCR_subsequentChain, metadata = formatted_metadata)
+      seuratObj_TCR_subsequentChain <- Seurat::AddMetaData(seuratObj_TCR_subsequentChain, metadata = formatted_metadata_for_chain)
       seuratObj_TCR_CDR3_subsequentChain <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_CDR3, "dgCMatrix"), assay = paste0(chain, "_cdr3"))
-      seuratObj_TCR_CDR3_subsequentChain <- Seurat::AddMetaData(seuratObj_TCR_CDR3_subsequentChain, metadata = formatted_metadata)
+      seuratObj_TCR_CDR3_subsequentChain <- Seurat::AddMetaData(seuratObj_TCR_CDR3_subsequentChain, metadata = formatted_metadata_for_chain)
       seuratObj_TCR_subsequentChain <- merge(seuratObj_TCR_subsequentChain, seuratObj_TCR_CDR3_subsequentChain)
       seuratObj_TCR <- merge(seuratObj_TCR, seuratObj_TCR_subsequentChain)
     }

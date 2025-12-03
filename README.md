@@ -233,7 +233,6 @@ TCRDistanceHeatmaps(
 formatted_metadata <- FormatMetadataForTcrDist3(
   metadata = seuratObj@meta.data,
   chains = c("TRA", "TRB"),
-  cleanMetadata = TRUE,
   minimumClonesPerSubject = 2
 )
 ```

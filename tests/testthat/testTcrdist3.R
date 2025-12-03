@@ -16,7 +16,6 @@ test_that("tcrdist3 works", {
   print(paste0('file.exists after create: ', file.exists(outFile)))
   print(paste0('python executable: ', Sys.which("python3")))
 
-  postFormattingMetadataCsvPath <- file.path(temp_dir, "tcrdist3Input.csv")
   rdsOutputPath <- file.path(temp_dir, "tcrdist3DistanceMatrices")
   filteredGeneSegmentsPath <- file.path(temp_dir, "filtered_TRB_gene_segments.csv")
 
@@ -28,17 +27,13 @@ test_that("tcrdist3 works", {
   testthat::expect_no_error(
     seuratObj_TCR <- RunTcrdist3(
              inputData = seuratObj,
-             postFormattingMetadataCsvPath = postFormattingMetadataCsvPath,
              chains = c("TRA", "TRB"),
-             cleanMetadata = T,
              minimumClonesPerSubject = 2,
              rdsOutputPath = rdsOutputPath,
              debugTcrdist3 = TRUE)
   )
-  print(postFormattingMetadataCsvPath)
+
   print(list.files(temp_dir))
-  #test that FormatMetadataForTcrDist3 worked
-  testthat::expect_true(file.exists(postFormattingMetadataCsvPath))
 
   #test that the "missing TCRs file" was created and properly stores the TCRs missing from the db
   testthat::expect_true(file.exists(filteredGeneSegmentsPath))
@@ -68,18 +63,14 @@ test_that("tcrdist3 works", {
   testthat::expect_no_error(
     seuratObj_TCR <- RunTcrdist3(
              inputData = seuratObj,
-             postFormattingMetadataCsvPath = postFormattingMetadataCsvPath,
              chains = c("TRA", "TRB"),
-             cleanMetadata = T,
              minimumClonesPerSubject = 2,
              rdsOutputPath = rdsOutputPath,
              debugTcrdist3 = TRUE,
              spikeInDataframe = spikeInDataframe)
   )
-  #read the resulting tcrdist3Input and ensure the spike-ins are present
-  tcrdist3Input <- readr::read_csv(postFormattingMetadataCsvPath)
-  testthat::expect_true(sum(grepl("spikeIn", tcrdist3Input$subject)) == 3)
-  #test that the RDS distance matrices were created
+
+  testthat::expect_true(sum(grepl("spikeIn", seuratObj_TCR$SubjectId)) == 3)
   testthat::expect_true(file.exists(file.path(rdsOutputPath, "pw_cdr3_a_aa.rds")))
 
   #test multichain functionality
@@ -87,9 +78,7 @@ test_that("tcrdist3 works", {
   testthat::expect_no_error(
     seuratObj_TCR_multichain <- RunTcrdist3(
              inputData = seuratObj,
-             postFormattingMetadataCsvPath = postFormattingMetadataCsvPath,
              chains = c("TRA", "TRB"),
-             cleanMetadata = T,
              minimumClonesPerSubject = 2,
              rdsOutputPath = rdsOutputPath,
              debugTcrdist3 = TRUE,
