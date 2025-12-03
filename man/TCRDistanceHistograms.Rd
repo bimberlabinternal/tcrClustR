@@ -4,12 +4,7 @@
 \alias{TCRDistanceHistograms}
 \title{Plot histograms of summed TCR distances by cluster for each assay}
 \usage{
-TCRDistanceHistograms(
-  seuratObj_TCR = NULL,
-  assayList = NULL,
-  resolution = 0.1,
-  verbose = FALSE
-)
+TCRDistanceHistograms(seuratObj_TCR = NULL, assayList = NULL, resolution = 0.1)
 }
 \arguments{
 \item{seuratObj_TCR}{A Seurat object with TCR distance assay data.}
@@ -17,8 +12,6 @@ TCRDistanceHistograms(
 \item{assayList}{Character vector of assays to plot. Default is NULL (all assays).}
 
 \item{resolution}{Numeric clustering resolution matching metadata column suffix.}
-
-\item{verbose}{Boolean controlling whether to display processing steps. Default is FALSE.}
 }
 \value{
 Returns the patchwork object containing the TCR distance histograms.
@@ -31,8 +24,7 @@ Plots histograms of summed TCR distances by cluster for each assay in a Seurat o
 TCRDistanceHistograms(
   seuratObj_TCR = seuratObj,
   assayList = NULL,
-  resolution = 0.1,
-  verbose = TRUE
+  resolution = 0.1
 )
 }
 }
