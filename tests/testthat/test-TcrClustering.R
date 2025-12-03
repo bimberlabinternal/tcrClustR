@@ -9,13 +9,11 @@ setup_test_data <- function() {
   postFormattingMetadataCsvPath <- file.path(temp_dir, "tcrdist3Input.csv")
   rdsOutputPath <- file.path(temp_dir, "tcrdist3DistanceMatrices")
 
-  seuratObj_TCR <- RunTcrdist3(seuratObj = seuratObj,
-                               formatMetadata = TRUE,
+  seuratObj_TCR <- RunTcrdist3(inputData = seuratObj,
                                postFormattingMetadataCsvPath = postFormattingMetadataCsvPath,
                                chains = c("TRA", "TRB"),
                                minimumClonesPerSubject = 2,
-                               rdsOutputPath = rdsOutputPath,
-                               pythonExecutable = Sys.which("python3"))
+                               rdsOutputPath = rdsOutputPath)
 
   return(list(seuratObj = seuratObj, seuratObj_TCR = seuratObj_TCR))
 }
@@ -199,13 +197,11 @@ test_that("Spike-in functionality works", {
   rdsOutputPath <- file.path(temp_dir, "tcrdist3DistanceMatrices_spikeins")
 
   testthat::expect_no_error({
-    seuratObj_TCR <- RunTcrdist3(seuratObj = seuratObj,
-                                 formatMetadata = TRUE,
+    seuratObj_TCR <- RunTcrdist3(inputData = seuratObj,
                                  postFormattingMetadataCsvPath = postFormattingMetadataCsvPath,
                                  chains = c("TRA", "TRB"),
                                  minimumClonesPerSubject = 2,
                                  rdsOutputPath = rdsOutputPath,
-                                 pythonExecutable = Sys.which("python3"),
                                  spikeInDataframe = spikeInDataframe)
   })
 

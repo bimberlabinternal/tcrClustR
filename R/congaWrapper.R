@@ -5,7 +5,6 @@
 #' @param seuratObj Seurat object containing TCR information. If NULL, metadata must be provided.
 #' @param metadata Data frame containing metadata. If NULL, seuratObj must be provided.
 #' @param organism Organism to use for Conga. Default is 'human'.
-#' @param formatMetadata Boolean controlling whether to format the metadata for Conga using the internal FormatMetadataForConga function. Default is TRUE.
 #' @param postFormattingMetadataCsvPath Path to the output CSV file from FormatMetadataForConga. Default is './congaInput.csv'.
 #' @param chains Vector of TCR chains to include in the analysis. Default is c("TRA", "TRB").
 #' @param cleanMetadata Pass-through boolean controlling whether to clean the metadata by removing rows with NA values or commas in the specified chains. Default is TRUE.
@@ -18,13 +17,11 @@
 #' \dontrun{
 #'     RunConga(seuratObj = seuratObj,
 #'              metadata = NULL,
-#'              formatMetadata = T,
 #'              postFormattingMetadataCsvPath = './congaInput.csv',
 #'              chains = c("TRA", "TRB"),
 #'              cleanMetadata = T,
 #'              minimumClonesPerSubject = 2,
-#'              rdsOutputPath = "./tcrdist3DistanceMatrices/",
-#'              pythonExecutable = reticulate::py_exe()
+#'              rdsOutputPath = "./tcrdist3DistanceMatrices/"
 #'              )
 #'     spikeInDataframe <- data.frame(CloneNames = rep(1:3),
 #'                                  TRA_V = c("TRAV1-2", "TRAV1-2", "TRAV1-2"),
@@ -42,7 +39,6 @@
 RunConga <- function(seuratObj = NULL,
                      metadata = NULL,
                      organism = 'human',
-                     formatMetadata = T,
                      postFormattingMetadataCsvPath = './congaInput.csv',
                      chains = c("TRA", "TRB"),
                      cleanMetadata = T,

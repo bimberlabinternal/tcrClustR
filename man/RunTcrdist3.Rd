@@ -5,11 +5,8 @@
 \title{RunTcrdist3}
 \usage{
 RunTcrdist3(
-  seuratObj = NULL,
-  metadata = NULL,
+  inputData = NULL,
   organism = "human",
-  formatMetadata = T,
-  postFormattingMetadataCsvPath = "./tcrDist3Input.csv",
   chains = c("TRA", "TRB"),
   cleanMetadata = T,
   spikeInDataframe = NULL,
@@ -19,20 +16,14 @@ RunTcrdist3(
   multichain = FALSE,
   rdsOutputPath = "./tcrdist3DistanceMatrices/",
   pythonExecutable = NULL,
-  debugTcrdist3 = "True",
+  debugTcrdist3 = TRUE,
   verbose = FALSE
 )
 }
 \arguments{
-\item{seuratObj}{Seurat Object containing TCR information. If NULL, metadata must be provided.}
-
-\item{metadata}{Data frame containing metadata. If NULL, seuratObj must be provided.}
+\item{inputData}{Either a seurat Object containing TCR information or a dataframe containing metadata}
 
 \item{organism}{Organism to use for tcrdist3. Default is 'human'.}
-
-\item{formatMetadata}{Boolean controlling whether to format the metadata for tcrdist3 using the internal FormatMetadataForTcrDist3 function. Default is TRUE.}
-
-\item{postFormattingMetadataCsvPath}{Path to the output CSV file from FormatMetadataForTcrDist3. Default is './tcrDist3Input.csv'.}
 
 \item{chains}{Vector of TCR chains to include in the analysis. Default is c("TRA", "TRB").}
 
@@ -52,7 +43,7 @@ RunTcrdist3(
 
 \item{pythonExecutable}{Path to the python executable. Default is reticulate::py_exe().}
 
-\item{debugTcrdist3}{String (to be passed to python and converted to boolean) controlling whether to run tcrdist3 in debug mode. Default is "True".}
+\item{debugTcrdist3}{Boolean controlling whether to run tcrdist3 in debug mode. Default is TRUE.}
 
 \item{verbose}{Boolean controlling whether to display processing steps. Default is FALSE.}
 }
@@ -61,10 +52,7 @@ This function runs the tcrdist3 pipeline on a set of CDR3 sequences in a Seurat 
 }
 \examples{
 \dontrun{
-  RunTcrdist3(seuratObj = seuratObj,
-              metadata = NULL,
-              formatMetadata = T,
-              postFormattingMetadataCsvPath = './tcrDist3Input.csv',
+  seuratObj_TCR<- RunTcrdist3(inputData = seuratObj@meta.data,
               chains = c("TRA", "TRB"),
               cleanMetadata = T,
               summarizeClones = T,
@@ -73,11 +61,10 @@ This function runs the tcrdist3 pipeline on a set of CDR3 sequences in a Seurat 
               multichain = FALSE,
               rdsOutputPath = "./tcrdist3DistanceMatrices/",
               pythonExecutable = reticulate::py_exe(),
-              debugTcrdist3 = "True",
               verbose = FALSE)
 
   # Example with multichain analysis
-  RunTcrdist3(seuratObj = seuratObj,
+  seuratObj_TCR<- RunTcrdist3(inputData = seuratObj,
               chains = c("TRA", "TRB", "TRG", "TRD"),
               multichain = TRUE,
               verbose = TRUE)

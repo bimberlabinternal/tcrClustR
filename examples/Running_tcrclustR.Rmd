@@ -29,15 +29,12 @@ seuratObj.Stims <- Rdiscvr::DownloadAndAppendTcrClonotypes(seruatObj.Stims)
 
 ```{r }
 seuratObj_TCR <- NULL 
- seuratObj_TCR <- RunTcrdist3(seuratObj = seuratObj.Stims,
-             metadata = NULL,
-             formatMetadata = T,
+ seuratObj_TCR <- RunTcrdist3(inputData = seuratObj.Stims,
              postFormattingMetadataCsvPath = './tcrdist3Input.csv',
              chains = c("TRA", "TRB"),
              cleanMetadata = T,
              minimumClonesPerSubject = 2, 
              rdsOutputPath = "./tcrdist3DistanceMatrices/",
-             pythonExecutable = reticulate::py_exe(),
              debugTcrdist3 = "True")
 ```
 

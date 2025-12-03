@@ -105,8 +105,8 @@ tryCatch({
     cleanMetadata = cleanMetadata,
     summarizeClones = summarizeClones,
     minimumClonesPerSubject = minimumClonesPerSubject,
-    outputCsv = file.path(outputPath, 'tcrDist3Input.csv'),
-    pythonExecutable = pythonExecutable,
+    outputPath = outputPath,
+    outputCsvName = 'tcrDist3Input.csv',
     verbose = verbose
   )
   
@@ -137,7 +137,7 @@ if (is.null(formatted_metadata) || nrow(formatted_metadata) == 0) {
 
 tryCatch({
   seuratObj_TCR <- RunTcrdist3(
-    seuratObj = seuratObj,
+    inputData = seuratObj,
     chains = chains,
     cleanMetadata = cleanMetadata,
     minimumClonesPerSubject = minimumClonesPerSubject,

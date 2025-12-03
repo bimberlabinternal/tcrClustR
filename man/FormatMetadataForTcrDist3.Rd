@@ -6,7 +6,8 @@
 \usage{
 FormatMetadataForTcrDist3(
   metadata,
-  outputCsv = "./tcrDist3Input.csv",
+  outputPath = "./",
+  outputCsvName = NULL,
   chains = c("TRA", "TRB"),
   organism = "human",
   cleanMetadata = T,
@@ -15,14 +16,15 @@ FormatMetadataForTcrDist3(
   minimumClonesPerSubject = 100,
   writeUnannotatedGeneSegmentsToFile = T,
   spikeInDataframe = NULL,
-  pythonExecutable = NULL,
   verbose = FALSE
 )
 }
 \arguments{
 \item{metadata}{Data frame containing metadata.}
 
-\item{outputCsv}{Path to the output CSV file.}
+\item{outputPath}{The path where any output files will be written}
+
+\item{outputCsvName}{Optional path where the results will be written as a CSV file.}
 
 \item{chains}{TCR chains to include in the analysis. TRA/TRB supported and tested, but others likely work.}
 
@@ -39,8 +41,6 @@ FormatMetadataForTcrDist3(
 \item{writeUnannotatedGeneSegmentsToFile}{Boolean controlling whether to write unannotated gene segments to a file (filtered_(chain)_gene_segments.csv).}
 
 \item{spikeInDataframe}{Data frame containing spike-in data. Default is NULL. See examples for formatting requirements.}
-
-\item{pythonExecutable}{Path to the python executable. Default is NULL, but imputes to reticulate::py_exe().}
 
 \item{verbose}{Boolean controlling whether to display processing steps. Default is FALSE.}
 }

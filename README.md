@@ -23,7 +23,7 @@ library(tcrClustR)
 
 #Step 1: compute TCR distance matrices (stored as Seurat assays)
 seuratObj_TCR <- RunTcrdist3(
-  seuratObj = seuratObj,
+  inputData = seuratObj,
   chains = c("TRA", "TRB"),
   minimumClonesPerSubject = 2
 )
@@ -169,7 +169,7 @@ library(tcrClustR)
 
 #Compute distances
 seuratObj_TCR <- RunTcrdist3(
-  seuratObj = seuratObj,
+  inputData = seuratObj,
   chains = c("TRA", "TRB"),
   minimumClonesPerSubject = 2
 )
@@ -206,7 +206,7 @@ For interactive analysis with full Seurat integration:
 ```r
 #Compute distances
 seuratObj_TCR <- RunTcrdist3(
-  seuratObj = seuratObj,
+  inputData = seuratObj,
   chains = c("TRA", "TRB"),
   minimumClonesPerSubject = 2
 )
@@ -266,7 +266,7 @@ formatted <- FormatMetadataForTcrDist3(
 
 # 2. Compute distances
 tcr_obj <- RunTcrdist3(
-  seuratObj = seuratObj,
+  inputData = seuratObj,
   chains = c("TRA", "TRB"),
   minimumClonesPerSubject = 2
 )

@@ -48,7 +48,6 @@ resolutionParameters <- c(0.1)
 pcaComponents <- 50
 usePCA <- TRUE
 verbose <- FALSE
-pythonExecutable <- NULL
 
 # Create output directory
 outputPath <- tempdir()
@@ -86,8 +85,7 @@ formatted_metadata <- FormatMetadataForTcrDist3(
   cleanMetadata = cleanMetadata,
   summarizeClones = summarizeClones,
   minimumClonesPerSubject = minimumClonesPerSubject,
-  outputCsv = file.path(outputPath, 'tcrDist3Input.csv'),
-  pythonExecutable = pythonExecutable,
+  outputPath = outputPath,
   verbose = verbose
 )
 
@@ -102,7 +100,7 @@ knitr::kable(head(formatted_metadata, n = 5), caption = "First 5 rows of formatt
 
 ### 2: Compute TCR Distance Matrices
 
-Note: You may start at the `RunTcrdist3` step and set `formatMetadata = TRUE`.
+Note: You may start at the `RunTcrdist3` step.
 
 Next, we compute distance matrices between TCRs using tcrdist3:
 
@@ -110,12 +108,11 @@ Next, we compute distance matrices between TCRs using tcrdist3:
 
 ```{r computeDistances}
 seuratObj_TCR <- RunTcrdist3(
-  seuratObj = seuratObj,
+  inputData = seuratObj,
   chains = chains,
   cleanMetadata = cleanMetadata,
   minimumClonesPerSubject = minimumClonesPerSubject,
   rdsOutputPath = file.path(outputPath, "tcrdist3DistanceMatrices"),
-  pythonExecutable = pythonExecutable,
   verbose = verbose
 )
 
@@ -140,7 +137,6 @@ clustering_result <- RunTcrClustering(
   clusteringMethod = "DIANA",
   pcaComponents = pcaComponents, 
   outputDir = file.path(outputPath, "tcrclustering_output"),
-  pythonExecutable = pythonExecutable,
   verbose = verbose, 
   stripAlleles = TRUE
 )

@@ -8,11 +8,8 @@ utils::globalVariables(
 #' @title RunTcrdist3
 #' @description This function runs the tcrdist3 pipeline on a set of CDR3 sequences in a Seurat Object.
 #'
-#' @param seuratObj Seurat Object containing TCR information. If NULL, metadata must be provided.
-#' @param metadata Data frame containing metadata. If NULL, seuratObj must be provided.
+#' @param inputData Either a seurat Object containing TCR information or a dataframe containing metadata
 #' @param organism Organism to use for tcrdist3. Default is 'human'.
-#' @param formatMetadata Boolean controlling whether to format the metadata for tcrdist3 using the internal FormatMetadataForTcrDist3 function. Default is TRUE.
-#' @param postFormattingMetadataCsvPath Path to the output CSV file from FormatMetadataForTcrDist3. Default is './tcrDist3Input.csv'.
 #' @param chains Vector of TCR chains to include in the analysis. Default is c("TRA", "TRB").
 #' @param cleanMetadata Pass-through boolean controlling whether to clean the metadata by removing rows with NA values or commas in the specified chains. Default is TRUE.
 #' @param spikeInDataframe Data frame containing known CDR3s and gene segments to be included in the clustering. Default is NULL.
@@ -22,7 +19,7 @@ utils::globalVariables(
 #' @param multichain Boolean controlling whether to compute joint multi-chain distance matrices for observed chain combinations. Default is FALSE.
 #' @param rdsOutputPath Path to the output directory for the RDS files containing the distance matrices. Default is "./tcrdist3DistanceMatrices/".
 #' @param pythonExecutable Path to the python executable. Default is reticulate::py_exe().
-#' @param debugTcrdist3 String (to be passed to python and converted to boolean) controlling whether to run tcrdist3 in debug mode. Default is "True".
+#' @param debugTcrdist3 Boolean controlling whether to run tcrdist3 in debug mode. Default is TRUE.
 #' @param verbose Boolean controlling whether to display processing steps. Default is FALSE.
 #' @import Matrix
 #' @importFrom methods as
@@ -31,10 +28,7 @@ utils::globalVariables(
 #' @importFrom methods is
 #' @examples
 #' \dontrun{
-#'   RunTcrdist3(seuratObj = seuratObj,
-#'               metadata = NULL,
-#'               formatMetadata = T,
-#'               postFormattingMetadataCsvPath = './tcrDist3Input.csv',
+#'   seuratObj_TCR<- RunTcrdist3(inputData = seuratObj@meta.data,
 #'               chains = c("TRA", "TRB"),
 #'               cleanMetadata = T,
 #'               summarizeClones = T,
@@ -43,11 +37,10 @@ utils::globalVariables(
 #'               multichain = FALSE,
 #'               rdsOutputPath = "./tcrdist3DistanceMatrices/",
 #'               pythonExecutable = reticulate::py_exe(),
-#'               debugTcrdist3 = "True",
 #'               verbose = FALSE)
 #'
 #'   # Example with multichain analysis
-#'   RunTcrdist3(seuratObj = seuratObj,
+#'   seuratObj_TCR<- RunTcrdist3(inputData = seuratObj,
 #'               chains = c("TRA", "TRB", "TRG", "TRD"),
 #'               multichain = TRUE,
 #'               verbose = TRUE)
@@ -66,11 +59,8 @@ utils::globalVariables(
 #TODO: flesh out examples demonstrating formatting requirements for spikeInDataframe
 
 
-RunTcrdist3 <- function(seuratObj = NULL,
-                        metadata = NULL,
+RunTcrdist3 <- function(inputData = NULL,
                         organism = 'human',
-                        formatMetadata = T,
-                        postFormattingMetadataCsvPath = './tcrDist3Input.csv',
                         chains = c("TRA", "TRB"),
                         cleanMetadata = T,
                         spikeInDataframe = NULL,
@@ -80,19 +70,21 @@ RunTcrdist3 <- function(seuratObj = NULL,
                         multichain = FALSE,
                         rdsOutputPath = "./tcrdist3DistanceMatrices/",
                         pythonExecutable = NULL,
-                        debugTcrdist3 = "True",
+                        debugTcrdist3 = TRUE,
                         verbose = FALSE) {
-  #TODO: allow for more direct control of all of the files that will be written
-  #FormatMetadata can write several different kinds of files (filtered gene segments, database)
-  #a "metadata directory" is probably the cleanest way to organize those files.
-  #identify the metadata dataframe
-  if (is.null(seuratObj) && is.null(metadata)) {
+
+  if (is.null(inputData)) {
     stop("Please provide either a Seurat Object or the Seurat Object's metadata as input.")
   }
-  #TODO: add a check for the metadata dataframe, or, if it's a csv file, read it.
-  if (!is.null(seuratObj)) {
-    metadata <- seuratObj@meta.data
+
+  if (typeof(inputData) == 'S4' && class(inputData)[1] == 'Seurat' ){
+    metadata <- inputData@meta.data
   }
+
+  if (!is.data.frame(metadata)) {
+    stop('Expected inputData to be either a Seurat object or a data.frame')
+  }
+
   if (is.null(pythonExecutable)) {
     pythonExecutable <- reticulate::py_exe()
 
@@ -110,7 +102,9 @@ RunTcrdist3 <- function(seuratObj = NULL,
   }
 
   #validate Python environment and required packages
-  print(paste("Using Python executable:", pythonExecutable))
+  if (verbose) {
+    print(paste("Using Python executable:", pythonExecutable))
+  }
 
   # NOTE: The package is installed as 'tcrdist3' but imported as 'tcrdist'
   #test if required packages are available
@@ -119,30 +113,31 @@ RunTcrdist3 <- function(seuratObj = NULL,
     system(testCmd, intern = TRUE)
   }, error = function(e) {
     warning(paste("Python environment test failed:", e$message))
-    return(NULL)
   })
 
-  if (is.null(testResult)) {
-    warning("Python environment may not have required packages (tcrdist3, rpy2). This may cause failures.")
+  if (all(is.null(testResult))) {
+    stop("Python environment may not have required packages (tcrdist3, rpy2). This may cause failures.")
   }
 
-  #format metadata if necessary (a user may have done this already, so add optional flag)
-  if (formatMetadata) {
-    formatted_metadata <- FormatMetadataForTcrDist3(metadata = metadata,
-                                          outputCsv = postFormattingMetadataCsvPath,
-                                          chains = chains,
-                                          cleanMetadata = cleanMetadata,
-                                          summarizeClones = summarizeClones,
-                                          imputeCloneNames = imputeCloneNames,
-                                          minimumClonesPerSubject = minimumClonesPerSubject,
-                                          spikeInDataframe = spikeInDataframe,
-                                          pythonExecutable = pythonExecutable,
-                                          verbose = verbose)
+  postFormattingMetadataCsvOutput <- tempfile(fileext = ".csv")
+  postFormattingMetadataCsvOutput <- gsub(postFormattingMetadataCsvOutput, pattern = '\\\\', replacement = '/')
 
-  }
+  rdsOutputPath <- R.utils::getAbsolutePath(rdsOutputPath)
+  rdsOutputPath <- gsub(rdsOutputPath, pattern = '\\\\', replacement = '/')
 
+  pythonExecutable <- R.utils::getAbsolutePath(pythonExecutable)
 
-
+  formatted_metadata <- FormatMetadataForTcrDist3(metadata = metadata,
+                                        outputPath = dirname(postFormattingMetadataCsvOutput),
+                                        outputCsvName = basename(postFormattingMetadataCsvOutput),
+                                        chains = chains,
+                                        cleanMetadata = cleanMetadata,
+                                        summarizeClones = summarizeClones,
+                                        imputeCloneNames = imputeCloneNames,
+                                        minimumClonesPerSubject = minimumClonesPerSubject,
+                                        spikeInDataframe = spikeInDataframe,
+                                        verbose = verbose
+  )
 
   #convert chains into a string for parsing in python
   chainsString <- ""
@@ -167,26 +162,21 @@ RunTcrdist3 <- function(seuratObj = NULL,
   script <- tempfile(fileext = ".py")
   readr::write_file(template, script)
 
-  #convert paths to absolute paths
-  postFormattingMetadataCsvPath <- R.utils::getAbsolutePath(postFormattingMetadataCsvPath)
-  rdsOutputPath <- R.utils::getAbsolutePath(rdsOutputPath)
-  pythonExecutable <- R.utils::getAbsolutePath(pythonExecutable)
-
   #create distance matrix output directory if it doesn't exist
   if (!dir.exists(rdsOutputPath)) {
     dir.create(rdsOutputPath)
   }
   if (verbose) message("Creating tcrdist3 distance matrices in the following directory: ", rdsOutputPath)
   #format and write the python function to the end of the script
-  command <- paste0("writeTcrDistances(csv_path = '", postFormattingMetadataCsvPath,
+  command <- paste0("writeTcrDistances(csv_path = '", postFormattingMetadataCsvOutput,
                    "', organism = '", organism,
                    "', chainsString = '", chainsString,
-                   "', db_file = 'alphabeta_gammadelta_db.tsv", #TODO: I don't think we can change the db file, but perhaps we'd want to someday?
+                    #TODO: review what DB this is using, and probably conditionalize based on organisms
+                   "', db_file = 'alphabeta_gammadelta_db.tsv",
                    "', rds_output_path = '", rdsOutputPath,
-                   "', debug ='", debugTcrdist3,
+                   "', debug ='", ifelse(!is.null(debugTcrdist3) && debugTcrdist3, yes = 'True', no = 'False'),
                    "')")
   readr::write_file(command, script, append = TRUE)
-  #execute
   system2(pythonExecutable, script)
 
   #return a seurat object, with the distance matrices implemented as assays
@@ -228,19 +218,15 @@ RunTcrdist3 <- function(seuratObj = NULL,
 
     #add the distance matrices to the Seurat object
     if (is.null(seuratObj_TCR)){
-      seuratObj_TCR <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_full_length, "dgCMatrix"),
-                                                        assay =  chain)
+      seuratObj_TCR <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_full_length, "dgCMatrix"), assay =  chain)
       seuratObj_TCR <- Seurat::AddMetaData(seuratObj_TCR, metadata = formatted_metadata)
-      seuratObj_TCR_CDR3 <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_CDR3, "dgCMatrix"),
-                                                             assay = paste0(chain, "_cdr3"))
+      seuratObj_TCR_CDR3 <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_CDR3, "dgCMatrix"), assay = paste0(chain, "_cdr3"))
       seuratObj_TCR_CDR3 <- Seurat::AddMetaData(seuratObj_TCR_CDR3, metadata = formatted_metadata)
       seuratObj_TCR <- merge(seuratObj_TCR, seuratObj_TCR_CDR3)
     } else {
-      seuratObj_TCR_subsequentChain <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_full_length, "dgCMatrix"),
-                                                                        assay =  chain)
+      seuratObj_TCR_subsequentChain <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_full_length, "dgCMatrix"), assay =  chain)
       seuratObj_TCR_subsequentChain <- Seurat::AddMetaData(seuratObj_TCR_subsequentChain, metadata = formatted_metadata)
-      seuratObj_TCR_CDR3_subsequentChain <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_CDR3, "dgCMatrix"),
-                                                                             assay = paste0(chain, "_cdr3"))
+      seuratObj_TCR_CDR3_subsequentChain <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_CDR3, "dgCMatrix"), assay = paste0(chain, "_cdr3"))
       seuratObj_TCR_CDR3_subsequentChain <- Seurat::AddMetaData(seuratObj_TCR_CDR3_subsequentChain, metadata = formatted_metadata)
       seuratObj_TCR_subsequentChain <- merge(seuratObj_TCR_subsequentChain, seuratObj_TCR_CDR3_subsequentChain)
       seuratObj_TCR <- merge(seuratObj_TCR, seuratObj_TCR_subsequentChain)
@@ -267,8 +253,7 @@ RunTcrdist3 <- function(seuratObj = NULL,
       }
 
       #sanity check to make sure the assays exist before pulling
-      if (!chain1 %in% SeuratObject::Assays(seuratObj_TCR) ||
-          !chain2 %in% SeuratObject::Assays(seuratObj_TCR)) {
+      if (!chain1 %in% SeuratObject::Assays(seuratObj_TCR) || !chain2 %in% SeuratObject::Assays(seuratObj_TCR)) {
         if (verbose) message(paste("Skipping", chain1, "+", chain2, "combination - matrices not found"))
         next
       }
@@ -282,11 +267,12 @@ RunTcrdist3 <- function(seuratObj = NULL,
         message(paste("Matrix dimensions for", chain2, ":", nrow(dist_matrix2), "x", ncol(dist_matrix2)))
       }
 
+      # TODO: GW, can we just drop this entirely?
       #for different-sized matrices (almost certainly the case), identify observations with both chains
       #read the formatted metadata to map sequence indices to observations
-      if (!exists("formatted_metadata_for_mapping")) {
-        if (file.exists(postFormattingMetadataCsvPath)) {
-          formatted_metadata_for_mapping <- readr::read_csv(postFormattingMetadataCsvPath, show_col_types = FALSE)
+      if (!exists("formatted_metadata")) {
+        if (file.exists(postFormattingMetadataCsvOutput)) {
+          formatted_metadata <- readr::read_csv(postFormattingMetadataCsvOutput, show_col_types = FALSE)
         } else {
           if (verbose) message("Warning: Cannot create multichain matrices - formatted metadata file not found")
           next
@@ -323,19 +309,19 @@ RunTcrdist3 <- function(seuratObj = NULL,
         next
       }
 
-      if (!chain1_col %in% colnames(formatted_metadata_for_mapping) ||
-          !chain2_col %in% colnames(formatted_metadata_for_mapping)) {
+      if (!chain1_col %in% colnames(formatted_metadata) ||
+          !chain2_col %in% colnames(formatted_metadata)) {
         if (verbose) message(paste("Skipping", chain1, "+", chain2, "combination - chain columns not found in metadata"))
         if (verbose) message(paste0("Looking for columns: ", chain1_col, ", ", chain2_col))
-        if (verbose) message(paste0("Available columns: ", paste(colnames(formatted_metadata_for_mapping), collapse = ", ")))
+        if (verbose) message(paste0("Available columns: ", paste(colnames(formatted_metadata), collapse = ", ")))
         next
       }
 
       #find rows (cells) that have non-NA values for both chains
-      both_chains_present <- !is.na(formatted_metadata_for_mapping[[chain1_col]]) &
-                            !is.na(formatted_metadata_for_mapping[[chain2_col]]) &
-                            formatted_metadata_for_mapping[[chain1_col]] != "" &
-                            formatted_metadata_for_mapping[[chain2_col]] != ""
+      both_chains_present <- !is.na(formatted_metadata[[chain1_col]]) &
+                            !is.na(formatted_metadata[[chain2_col]]) &
+                            formatted_metadata[[chain1_col]] != "" &
+                            formatted_metadata[[chain2_col]] != ""
 
       if (sum(both_chains_present) == 0) {
         if (verbose) message(paste("Skipping", chain1, "+", chain2, "combination - no observations with both chains"))
@@ -343,7 +329,7 @@ RunTcrdist3 <- function(seuratObj = NULL,
       }
 
       #get the subset of metadata with both chains and set the dimensions of the joint matrix
-      dual_chain_metadata <- formatted_metadata_for_mapping[both_chains_present, ]
+      dual_chain_metadata <- formatted_metadata[both_chains_present, ]
       n_observations <- nrow(dual_chain_metadata)
 
       if (verbose) message(paste("Found", n_observations, "observations with both", chain1, "and", chain2))
@@ -444,6 +430,8 @@ RunTcrdist3 <- function(seuratObj = NULL,
       }
     }
   }
+
+  unlink(postFormattingMetadataCsvOutput)
 
   return(seuratObj_TCR)
 }

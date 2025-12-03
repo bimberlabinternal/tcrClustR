@@ -26,16 +26,14 @@ test_that("tcrdist3 works", {
 
   #test that the function runs without errors
   testthat::expect_no_error(
-    seuratObj_TCR <- RunTcrdist3(seuratObj = seuratObj,
-             metadata = NULL,
-             formatMetadata = T,
+    seuratObj_TCR <- RunTcrdist3(
+             inputData = seuratObj,
              postFormattingMetadataCsvPath = postFormattingMetadataCsvPath,
              chains = c("TRA", "TRB"),
              cleanMetadata = T,
              minimumClonesPerSubject = 2,
              rdsOutputPath = rdsOutputPath,
-             pythonExecutable = Sys.which("python3"),
-             debugTcrdist3 = "True")
+             debugTcrdist3 = TRUE)
   )
   print(postFormattingMetadataCsvPath)
   print(list.files(temp_dir))
@@ -68,16 +66,14 @@ test_that("tcrdist3 works", {
   #test that spiking in TCRs works:
   seuratObj_TCR <- NULL
   testthat::expect_no_error(
-    seuratObj_TCR <- RunTcrdist3(seuratObj = seuratObj,
-             metadata = NULL,
-             formatMetadata = T,
+    seuratObj_TCR <- RunTcrdist3(
+             inputData = seuratObj,
              postFormattingMetadataCsvPath = postFormattingMetadataCsvPath,
              chains = c("TRA", "TRB"),
              cleanMetadata = T,
              minimumClonesPerSubject = 2,
              rdsOutputPath = rdsOutputPath,
-             pythonExecutable = Sys.which("python3"),
-             debugTcrdist3 = "True",
+             debugTcrdist3 = TRUE,
              spikeInDataframe = spikeInDataframe)
   )
   #read the resulting tcrdist3Input and ensure the spike-ins are present
@@ -89,16 +85,14 @@ test_that("tcrdist3 works", {
   #test multichain functionality
   seuratObj_TCR_multichain <- NULL
   testthat::expect_no_error(
-    seuratObj_TCR_multichain <- RunTcrdist3(seuratObj = seuratObj,
-             metadata = NULL,
-             formatMetadata = T,
+    seuratObj_TCR_multichain <- RunTcrdist3(
+             inputData = seuratObj,
              postFormattingMetadataCsvPath = postFormattingMetadataCsvPath,
              chains = c("TRA", "TRB"),
              cleanMetadata = T,
              minimumClonesPerSubject = 2,
              rdsOutputPath = rdsOutputPath,
-             pythonExecutable = Sys.which("python3"),
-             debugTcrdist3 = "True",
+             debugTcrdist3 = TRUE,
              multichain = TRUE,
              verbose = TRUE)
   )

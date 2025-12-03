@@ -8,7 +8,6 @@ RunConga(
   seuratObj = NULL,
   metadata = NULL,
   organism = "human",
-  formatMetadata = T,
   postFormattingMetadataCsvPath = "./congaInput.csv",
   chains = c("TRA", "TRB"),
   cleanMetadata = T,
@@ -24,8 +23,6 @@ RunConga(
 \item{metadata}{Data frame containing metadata. If NULL, seuratObj must be provided.}
 
 \item{organism}{Organism to use for Conga. Default is 'human'.}
-
-\item{formatMetadata}{Boolean controlling whether to format the metadata for Conga using the internal FormatMetadataForConga function. Default is TRUE.}
 
 \item{postFormattingMetadataCsvPath}{Path to the output CSV file from FormatMetadataForConga. Default is './congaInput.csv'.}
 
@@ -48,13 +45,11 @@ Run Conga's implementation of tcrdist on a Seurat object/metadata
 \dontrun{
     RunConga(seuratObj = seuratObj,
              metadata = NULL,
-             formatMetadata = T,
              postFormattingMetadataCsvPath = './congaInput.csv',
              chains = c("TRA", "TRB"),
              cleanMetadata = T,
              minimumClonesPerSubject = 2,
-             rdsOutputPath = "./tcrdist3DistanceMatrices/",
-             pythonExecutable = reticulate::py_exe()
+             rdsOutputPath = "./tcrdist3DistanceMatrices/"
              )
     spikeInDataframe <- data.frame(CloneNames = rep(1:3),
                                  TRA_V = c("TRAV1-2", "TRAV1-2", "TRAV1-2"),
