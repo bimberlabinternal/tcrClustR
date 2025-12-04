@@ -238,10 +238,10 @@ RunTcrdist3 <- function(inputData = NULL,
   for (chain in c(chains)) {
     matName <- paste0(chain, '_cdr3')
     fieldName <- paste0(chain, '-CloneIdx')
-    return_values[[paste0(chain, '_cdr3_fullSize')]] <- .restore_matrix_to_metadata_size(formatted_metadata, return_values[[matName]], fieldName)
+    return_values[[paste0(chain, '_cdr3_seurat')]] <- .restore_matrix_to_seurat_obj(formatted_metadata, return_values[[matName]], fieldName)
 
     matName <- paste0(chain, '_fl')
-    return_values[[paste0(chain, '_fl_fullSize')]] <- .restore_matrix_to_metadata_size(formatted_metadata, return_values[[matName]], fieldName)
+    return_values[[paste0(chain, '_fl_seurat')]] <- restore_matrix_to_seurat_obj(formatted_metadata, return_values[[matName]], fieldName)
   }
 
   # TODO: GW, please check my logic on this
@@ -249,13 +249,13 @@ RunTcrdist3 <- function(inputData = NULL,
     message('Calculating joint-chain distances')
 
     if ('TRA' %in% chains && 'TRB' %in% chains) {
-      return_values[[paste0('TRA_TRB_fl_fullSize')]] <- return_values[[paste0('TRA_fl_fullSize')]] + return_values[[paste0('TRB_fl_fullSize')]]
-      return_values[[paste0('TRA_TRB_cdr3_fullSize')]] <- return_values[[paste0('TRA_cdr3_fullSize')]] + return_values[[paste0('TRB_cdr3_fullSize')]]
+      return_values[[paste0('TRA_TRB_fl_fullSize')]] <-  Seurat::GetAssayData(return_values[[paste0('TRA_fl_fullSize')]], layer = 'counts') + Seurat::GetAssayData(return_values[[paste0('TRB_fl_fullSize')]], layer = 'counts')
+      return_values[[paste0('TRA_TRB_cdr3_fl_fullSize')]] <-  Seurat::GetAssayData(return_values[[paste0('TRA_cdr3_fl_fullSize')]], layer = 'counts') + Seurat::GetAssayData(return_values[[paste0('TRB_cdr3_fl_fullSize')]], layer = 'counts')
     }
 
     if ('TRG' %in% chains && 'TRD' %in% chains) {
-      return_values[[paste0('TRG_TRD_fl_fullSize')]] <- return_values[[paste0('TRG_fl_fullSize')]] + return_values[[paste0('TRD_fl_fullSize')]]
-      return_values[[paste0('TRG_TRD_cdr3_fullSize')]] <- return_values[[paste0('TRG_cdr3_fullSize')]] + return_values[[paste0('TRD_cdr3_fullSize')]]
+      return_values[[paste0('TRG_TRD_fl_fullSize')]] <-  Seurat::GetAssayData(return_values[[paste0('TRG_fl_fullSize')]], layer = 'counts') + Seurat::GetAssayData(return_values[[paste0('TRD_fl_fullSize')]], layer = 'counts')
+      return_values[[paste0('TRG_TRD_cdr3_fl_fullSize')]] <-  Seurat::GetAssayData(return_values[[paste0('TRG_cdr3_fl_fullSize')]], layer = 'counts') + Seurat::GetAssayData(return_values[[paste0('TRD_cdr3_fl_fullSize')]], layer = 'counts')
     }
   }
 
@@ -263,11 +263,12 @@ RunTcrdist3 <- function(inputData = NULL,
 }
 
 # NOTE: this will probbaly not work correctly with spike-in values. We could consider subsetting metadata[!metadata$IsSpikeInClone,].
-.restore_matrix_to_metadata_size <- function(metadata, mat, cloneFieldName) {
+.restore_matrix_to_seurat_obj <- function(metadata, mat, cloneFieldName) {
   if (!cloneFieldName %in% names(metadata)) {
     stop(paste0('Missing field: ', cloneFieldName, ', fields present: ', paste0(sort(names(metadata)), collapse = ',')))
   }
 
+  # NOTE: these can be duplicated:
   cloneNames <- metadata[[cloneFieldName]]
 
   if (!all(colnames(mat) %in% cloneNames)) {
@@ -278,27 +279,23 @@ RunTcrdist3 <- function(inputData = NULL,
     stop('The metadata cloneNames and matrix rownames did not match')
   }
 
+  # The idea here is to duplicate very clone for each time it appeared in one of the input rows (cells). We can leave the rows/features alone
+  # TODO: GW: what's the right way to represent cells that were not compared (such as those lacking a given chain)? NAs might get converted to 0s in a sparse matrix. Zero implies 0-distance, wouldnt it?
   new_mat <- NULL
   for (colName in cloneNames) {
-    if (colName %in% colnames(mat)) {
+    if (is.na(colName)) {
+      new_mat <- cbind(new_mat, tidyr::setNames(rep(nrow(mat), x = NA), colnames(mat)))
+    }
+    else if (colName %in% colnames(mat)) {
       new_mat <- cbind(new_mat, mat[,colName])
     } else {
-      new_mat <- cbind(new_mat, rep(nrow(mat), x = 0))
+      new_mat <- cbind(new_mat, tidyr::setNames(rep(nrow(mat), x = NA), colnames(mat)))
     }
   }
-  colnames(new_mat) <- cloneNames
+  # Treat these like cells
+  colnames(new_mat) <- rownames(metadata)
 
-  new_mat2 <- NULL
-  for (rowName in cloneNames) {
-    if (rowName %in% rownames(new_mat)) {
-      new_mat2 <- rbind(new_mat2, new_mat[rowName,])
-    } else {
-      new_mat2 <- rbind(new_mat2, rep(ncol(mat), x = 0))
-    }
-  }
-  rownames(new_mat2) <- cloneNames
-
-  return(new_mat2)
+  return(Seurat::CreateSeuratObject(counts = Seurat::as.Sparse(new_mat), assay = 'TCR', meta.data = metadata))
 }
 
 # This is an internal method that expects the dataframe produced by FormatMetadataForTcrDist3. This dataframe should contain columns to uniquely identify each

@@ -10,15 +10,16 @@
 PerformClusteringAndStoreResults <- function(seuratObj, outputDir, outputPrefix = 'TCR.clustering', chains, verbose = TRUE, minimumCloneSize) {
   rdsOutputPath <- file.path(outputDir, ".tcrdist3DistanceMatrices")
 
-  seuratObj_TCR <- RunTcrdist3(
+  distDistOutput <- RunTcrdist3(
     inputData = seuratObj,
+    calculateChainPairs = TRUE,
     chains = chains,
-    minimumCloneSize = minimumCloneSize,
+    minimumCloneSize = 2,
     rdsOutputPath = rdsOutputPath,
     verbose = verbose
   )
-
-    print("TCR distance matrices computed successfully!")
+   
+  print("TCR distance matrices computed successfully!")
   print(paste0("Available assays: ", paste(SeuratObject::Assays(seuratObj_TCR), collapse = ", ")))
   print(paste0("Number of cells in TCR object: ", ncol(seuratObj_TCR)))
 
