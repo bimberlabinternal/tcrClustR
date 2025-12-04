@@ -9,10 +9,8 @@ RunTcrdist3(
   organism = "human",
   chains = c("TRA", "TRB"),
   spikeInDataframe = NULL,
-  summarizeClones = T,
-  imputeCloneNames = T,
-  minimumClonesPerSubject = 2,
-  multichain = FALSE,
+  minimumCloneSize = 2,
+  calculateChainPairs = FALSE,
   rdsOutputPath = "./tcrdist3DistanceMatrices/",
   pythonExecutable = NULL,
   debugTcrdist3 = TRUE,
@@ -28,13 +26,9 @@ RunTcrdist3(
 
 \item{spikeInDataframe}{Data frame containing known CDR3s and gene segments to be included in the clustering. Default is NULL.}
 
-\item{summarizeClones}{Pass-through boolean controlling whether to summarize clones into a frequency (by SubjectId, TRA, TRB, TRA_V, and TRB_J). Default is TRUE.}
+\item{minimumCloneSize}{Minimum number of clones per subject to include in the analysis. Default is 2.}
 
-\item{imputeCloneNames}{Pass-through boolean controlling whether to impute clone names if they are missing. Existing clone names will be inherited. Default is TRUE.}
-
-\item{minimumClonesPerSubject}{Minimum number of clones per subject to include in the analysis. Default is 2.}
-
-\item{multichain}{Boolean controlling whether to compute joint multi-chain distance matrices for observed chain combinations. Default is FALSE.}
+\item{calculateChainPairs}{Boolean controlling whether to compute joint multi-chain distance matrices for observed chain combinations. Default is FALSE.}
 
 \item{rdsOutputPath}{Path to the output directory for the RDS files containing the distance matrices. Default is "./tcrdist3DistanceMatrices/".}
 
@@ -51,18 +45,16 @@ This function runs the tcrdist3 pipeline on a set of CDR3 sequences in a Seurat 
 \dontrun{
   seuratObj_TCR<- RunTcrdist3(inputData = seuratObj@meta.data,
               chains = c("TRA", "TRB"),
-              summarizeClones = T,
-              imputeCloneNames = T,
-              minimumClonesPerSubject = 2,
-              multichain = FALSE,
+              minimumCloneSize = 2,
+              calculateChainPairs = FALSE,
               rdsOutputPath = "./tcrdist3DistanceMatrices/",
               pythonExecutable = reticulate::py_exe(),
               verbose = FALSE)
 
-  # Example with multichain analysis
+  # Example with calculateChainPairs analysis
   seuratObj_TCR<- RunTcrdist3(inputData = seuratObj,
               chains = c("TRA", "TRB", "TRG", "TRD"),
-              multichain = TRUE,
+              calculateChainPairs = TRUE,
               verbose = TRUE)
 
     spikeInDataframe <- data.frame(CloneNames = rep(1:3),

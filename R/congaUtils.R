@@ -13,7 +13,7 @@ utils::globalVariables(
 #' @param organism Organism to use for conga's TCR db. Default is 'human'.
 #' @param chains TCR chains to include in the analysis. TRA/TRB supported and tested, but others likely work
 #' @param cleanMetadata Boolean controlling whether to clean the metadata by removing rows with NA values or commas in the specified chains.
-#' @param minimumClonesPerSubject Minimum number of clones per subject to include in the analysis. Default is 2.
+#' @param minimumClonesPerSample Minimum number of clones per subject to include in the analysis. Default is 2.
 #' @param writeUnannotatedGeneSegmentsToFile Boolean controlling whether to write unannotated gene segments to a file (filtered_(chain)_gene_segments.csv).
 #' @param spikeInDataframe Data frame containing spike-in data. Default is NULL. See examples for formatting requirements.
 #' @export
@@ -35,7 +35,7 @@ FormatMetadataForConga <- function(metadata,
                                    organism = 'human',
                                    chains = NULL,
                                    cleanMetadata = T,
-                                   minimumClonesPerSubject = 100,
+                                   minimumClonesPerSample = 100,
                                    writeUnannotatedGeneSegmentsToFile = T,
                                    spikeInDataframe = NULL) {
   #determine gene segments from chains
@@ -84,9 +84,9 @@ FormatMetadataForConga <- function(metadata,
     }
 
     #force spikeInDataframe to exceed the minimum number of clones per subject
-    if (minimumClonesPerSubject > 1) {
+    if (minimumClonesPerSample > 1) {
       spikeInDataframe <- do.call("rbind",
-                                  replicate(minimumClonesPerSubject,
+                                  replicate(minimumClonesPerSample,
                                             spikeInDataframe,
                                             simplify = FALSE))
     }
@@ -234,14 +234,14 @@ FormatMetadataForConga <- function(metadata,
     }
   }
   #filter the clones if requested
-  if (minimumClonesPerSubject > 1) {
+  if (minimumClonesPerSample > 1) {
     #filter out unique/rare clones
     metadata <- metadata |>
       dplyr::group_by(dplyr::across(dplyr::all_of(c("SubjectId", gene_segments_and_chains)))) |>
       dplyr::reframe(count = dplyr::n()) |>
       unique.data.frame()
     metadata <- metadata |>
-      dplyr::filter(count >= minimumClonesPerSubject)
+      dplyr::filter(count >= minimumClonesPerSample)
   }
   #isolate necessary columns and de-duplicate the chains
   metadata <- metadata |>

@@ -7,18 +7,18 @@
 #' @param verbose Logical. Print progress. Default = TRUE.
 #' @return A seurat object with clustering information stored as assays
 #' @export
-PerformClusteringAndStoreResults <- function(seuratObj, outputDir, outputPrefix = 'TCR.clustering', chains, verbose = TRUE, minimumClonesPerSubject) {
+PerformClusteringAndStoreResults <- function(seuratObj, outputDir, outputPrefix = 'TCR.clustering', chains, verbose = TRUE, minimumCloneSize) {
   rdsOutputPath <- file.path(outputDir, ".tcrdist3DistanceMatrices")
 
   seuratObj_TCR <- RunTcrdist3(
     inputData = seuratObj,
     chains = chains,
-    minimumClonesPerSubject = minimumClonesPerSubject,
+    minimumCloneSize = minimumCloneSize,
     rdsOutputPath = rdsOutputPath,
     verbose = verbose
   )
 
-  print("TCR distance matrices computed successfully!")
+    print("TCR distance matrices computed successfully!")
   print(paste0("Available assays: ", paste(SeuratObject::Assays(seuratObj_TCR), collapse = ", ")))
   print(paste0("Number of cells in TCR object: ", ncol(seuratObj_TCR)))
 

@@ -10,7 +10,7 @@ FormatMetadataForConga(
   organism = "human",
   chains = NULL,
   cleanMetadata = T,
-  minimumClonesPerSubject = 100,
+  minimumClonesPerSample = 100,
   writeUnannotatedGeneSegmentsToFile = T,
   spikeInDataframe = NULL
 )
@@ -26,7 +26,7 @@ FormatMetadataForConga(
 
 \item{cleanMetadata}{Boolean controlling whether to clean the metadata by removing rows with NA values or commas in the specified chains.}
 
-\item{minimumClonesPerSubject}{Minimum number of clones per subject to include in the analysis. Default is 2.}
+\item{minimumClonesPerSample}{Minimum number of clones per subject to include in the analysis. Default is 2.}
 
 \item{writeUnannotatedGeneSegmentsToFile}{Boolean controlling whether to write unannotated gene segments to a file (filtered_(chain)_gene_segments.csv).}
 

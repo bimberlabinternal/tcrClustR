@@ -10,7 +10,7 @@ PerformClusteringAndStoreResults(
   outputPrefix = "TCR.clustering",
   chains,
   verbose = TRUE,
-  minimumClonesPerSubject
+  minimumCloneSize
 )
 }
 \arguments{

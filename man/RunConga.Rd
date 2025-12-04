@@ -12,7 +12,7 @@ RunConga(
   chains = c("TRA", "TRB"),
   cleanMetadata = T,
   spikeInDataframe = NULL,
-  minimumClonesPerSubject = 2,
+  minimumClonesPerSample = 2,
   rdsOutputPath = "./congaDistanceMatrices/",
   pythonExecutable = NULL
 )
@@ -32,7 +32,7 @@ RunConga(
 
 \item{spikeInDataframe}{Data frame containing known CDR3s and gene segments to be included in the clustering. Default is NULL.}
 
-\item{minimumClonesPerSubject}{Minimum number of clones per subject to include in the analysis. Default is 2.}
+\item{minimumClonesPerSample}{Minimum number of clones per subject to include in the analysis. Default is 2.}
 
 \item{rdsOutputPath}{Path to the output directory for the RDS files containing the distance matrices. Default is "./tcrdist3DistanceMatrices/".}
 
@@ -48,7 +48,7 @@ Run Conga's implementation of tcrdist on a Seurat object/metadata
              postFormattingMetadataCsvPath = './congaInput.csv',
              chains = c("TRA", "TRB"),
              cleanMetadata = T,
-             minimumClonesPerSubject = 2,
+             minimumClonesPerSample = 2,
              rdsOutputPath = "./tcrdist3DistanceMatrices/"
              )
     spikeInDataframe <- data.frame(CloneNames = rep(1:3),

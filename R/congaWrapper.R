@@ -8,7 +8,7 @@
 #' @param postFormattingMetadataCsvPath Path to the output CSV file from FormatMetadataForConga. Default is './congaInput.csv'.
 #' @param chains Vector of TCR chains to include in the analysis. Default is c("TRA", "TRB").
 #' @param cleanMetadata Pass-through boolean controlling whether to clean the metadata by removing rows with NA values or commas in the specified chains. Default is TRUE.
-#' @param minimumClonesPerSubject Minimum number of clones per subject to include in the analysis. Default is 2.
+#' @param minimumClonesPerSample Minimum number of clones per subject to include in the analysis. Default is 2.
 #' @param rdsOutputPath Path to the output directory for the RDS files containing the distance matrices. Default is "./tcrdist3DistanceMatrices/".
 #' @param pythonExecutable Path to the python executable. Default is NULL, but imputes to reticulate::py_exe().
 #' @param spikeInDataframe Data frame containing known CDR3s and gene segments to be included in the clustering. Default is NULL.
@@ -20,7 +20,7 @@
 #'              postFormattingMetadataCsvPath = './congaInput.csv',
 #'              chains = c("TRA", "TRB"),
 #'              cleanMetadata = T,
-#'              minimumClonesPerSubject = 2,
+#'              minimumClonesPerSample = 2,
 #'              rdsOutputPath = "./tcrdist3DistanceMatrices/"
 #'              )
 #'     spikeInDataframe <- data.frame(CloneNames = rep(1:3),
@@ -43,7 +43,7 @@ RunConga <- function(seuratObj = NULL,
                      chains = c("TRA", "TRB"),
                      cleanMetadata = T,
                      spikeInDataframe = NULL,
-                     minimumClonesPerSubject = 2,
+                     minimumClonesPerSample = 2,
                      rdsOutputPath = "./congaDistanceMatrices/",
                      pythonExecutable = NULL
                      ) {
@@ -68,7 +68,7 @@ RunConga <- function(seuratObj = NULL,
                            organism = organism,
                            chains = chain,
                            cleanMetadata = cleanMetadata,
-                           minimumClonesPerSubject = minimumClonesPerSubject,
+                           minimumClonesPerSample = minimumClonesPerSample,
                            spikeInDataframe = spikeInDataframe)
 
     #run conga in python and return individual RDS files with the results (they may get very large)

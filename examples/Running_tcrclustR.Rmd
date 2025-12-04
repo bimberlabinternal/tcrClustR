@@ -31,7 +31,7 @@ seuratObj.Stims <- Rdiscvr::DownloadAndAppendTcrClonotypes(seruatObj.Stims)
 seuratObj_TCR <- NULL 
  seuratObj_TCR <- RunTcrdist3(inputData = seuratObj.Stims,
              chains = c("TRA", "TRB"),
-             minimumClonesPerSubject = 2, 
+             minimumCloneSize = 2,
              rdsOutputPath = "./tcrdist3DistanceMatrices/",
              debugTcrdist3 = "True")
 ```

@@ -33,7 +33,8 @@ Imports:
     arrow,
     cluster,
     NatParksPalettes,
-    dbscan
+    dbscan,
+    tibble
 Remotes:
     kevinsblake/NatParksPalettes
 Roxygen: list(markdown = TRUE)

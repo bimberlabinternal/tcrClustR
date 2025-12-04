@@ -10,7 +10,7 @@ setup_test_data <- function() {
 
   seuratObj_TCR <- RunTcrdist3(inputData = seuratObj,
                                chains = c("TRA", "TRB"),
-                               minimumClonesPerSubject = 2,
+                               minimumCloneSize = 2,
                                rdsOutputPath = rdsOutputPath)
 
   return(list(seuratObj = seuratObj, seuratObj_TCR = seuratObj_TCR))
@@ -196,7 +196,7 @@ test_that("Spike-in functionality works", {
   testthat::expect_no_error({
     seuratObj_TCR <- RunTcrdist3(inputData = seuratObj,
                                  chains = c("TRA", "TRB"),
-                                 minimumClonesPerSubject = 2,
+                                 minimumCloneSize = 2,
                                  rdsOutputPath = rdsOutputPath,
                                  spikeInDataframe = spikeInDataframe)
   })

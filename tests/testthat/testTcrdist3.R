@@ -28,7 +28,7 @@ test_that("tcrdist3 works", {
     seuratObj_TCR <- RunTcrdist3(
              inputData = seuratObj,
              chains = c("TRA", "TRB"),
-             minimumClonesPerSubject = 2,
+             minimumCloneSize = 2,
              rdsOutputPath = rdsOutputPath,
              debugTcrdist3 = TRUE)
   )
@@ -64,7 +64,7 @@ test_that("tcrdist3 works", {
     seuratObj_TCR <- RunTcrdist3(
              inputData = seuratObj,
              chains = c("TRA", "TRB"),
-             minimumClonesPerSubject = 2,
+             minimumCloneSize = 2,
              rdsOutputPath = rdsOutputPath,
              debugTcrdist3 = TRUE,
              spikeInDataframe = spikeInDataframe)
@@ -73,20 +73,20 @@ test_that("tcrdist3 works", {
   testthat::expect_true(sum(grepl("spikeIn", seuratObj_TCR$SubjectId)) == 3)
   testthat::expect_true(file.exists(file.path(rdsOutputPath, "pw_cdr3_a_aa.rds")))
 
-  #test multichain functionality
+  #test calculateChainPairs functionality
   seuratObj_TCR_multichain <- NULL
   testthat::expect_no_error(
     seuratObj_TCR_multichain <- RunTcrdist3(
              inputData = seuratObj,
              chains = c("TRA", "TRB"),
-             minimumClonesPerSubject = 2,
+             minimumCloneSize = 2,
              rdsOutputPath = rdsOutputPath,
              debugTcrdist3 = TRUE,
-             multichain = TRUE,
+             calculateChainPairs = TRUE,
              verbose = TRUE)
   )
   
-  #test that multichain assays were created
+  #test that calculateChainPairs assays were created
   assay_names <- SeuratObject::Assays(seuratObj_TCR_multichain)
   
   #we should have multiple joint combinations:

@@ -25,7 +25,7 @@ library(tcrClustR)
 seuratObj_TCR <- RunTcrdist3(
   inputData = seuratObj,
   chains = c("TRA", "TRB"),
-  minimumClonesPerSubject = 2
+  minimumCloneSize = 2
 )
 
 #Step 2: cluster and export results to parquet files
@@ -171,7 +171,7 @@ library(tcrClustR)
 seuratObj_TCR <- RunTcrdist3(
   inputData = seuratObj,
   chains = c("TRA", "TRB"),
-  minimumClonesPerSubject = 2
+  minimumCloneSize = 2
 )
 
 #Cluster with automatic filtering and allele stripping
@@ -208,7 +208,7 @@ For interactive analysis with full Seurat integration:
 seuratObj_TCR <- RunTcrdist3(
   inputData = seuratObj,
   chains = c("TRA", "TRB"),
-  minimumClonesPerSubject = 2
+  minimumCloneSize = 2
 )
 
 #Cluster with multiple resolutions
@@ -233,7 +233,7 @@ TCRDistanceHeatmaps(
 formatted_metadata <- FormatMetadataForTcrDist3(
   metadata = seuratObj@meta.data,
   chains = c("TRA", "TRB"),
-  minimumClonesPerSubject = 2
+  minimumCloneSize = 2
 )
 ```
 
@@ -260,14 +260,14 @@ Complete workflow for automated analysis:
 formatted <- FormatMetadataForTcrDist3(
   metadata = seuratObj@meta.data,
   chains = c("TRA", "TRB"),
-  minimumClonesPerSubject = 2
+  minimumCloneSize = 2
 )
 
 # 2. Compute distances
 tcr_obj <- RunTcrdist3(
   inputData = seuratObj,
   chains = c("TRA", "TRB"),
-  minimumClonesPerSubject = 2
+  minimumCloneSize = 2
 )
 
 # 3. Cluster

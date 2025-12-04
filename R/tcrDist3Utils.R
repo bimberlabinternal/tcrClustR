@@ -8,13 +8,10 @@ utils::globalVariables(
 #' @description This function formats a seurat object's metadata (with TCR information appended) for tcrDist3 distance caluclations.
 #'
 #' @param metadata Data frame containing metadata.
-#' @param outputPath The path where any output files will be written
-#' @param outputCsvName Optional path where the results will be written as a CSV file.
 #' @param chains TCR chains to include in the analysis. TRA/TRB supported and tested, but others likely work.
 #' @param organism Organism to use for tcrDist3. Default is 'human'.
-#' @param summarizeClones Boolean controlling whether to summarize clones by SubjectId, TRA, TRB, TRA_V, TRA_J, TRB_V, and TRB_J.
-#' @param imputeCloneNames Boolean controlling whether to impute clone names if they are missing.
-#' @param minimumClonesPerSubject Minimum number of clones per subject to include in the analysis. Default is 2.
+#' @param sampleGroupingColumns The set of columns on which to group the data
+#' @param calculateChainPairs If true, this will prepare the columns needed for A/B and/or  G/D (depending on values of chains
 #' @param spikeInDataframe Data frame containing spike-in data. Default is NULL. See examples for formatting requirements.
 #' @param verbose Boolean controlling whether to display processing steps. Default is FALSE.
 #' @return a properly formatted metadata dataframe.
@@ -30,16 +27,11 @@ utils::globalVariables(
 #'                                  TRB = c("CASSAAAAAAAAFF", "CASSVVVVVVVVQF", "CASSWWWWWWWWQY"))
 #' }
 
-#TODO: flesh out examples demonstrating formatting requirements for spikeInDataframe
-
 FormatMetadataForTcrDist3 <- function(metadata,
-                                      outputPath = './',
-                                      outputCsvName = NULL,
                                       chains = c("TRA", "TRB"),
                                       organism = 'human',
-                                      summarizeClones = T,
-                                      imputeCloneNames = T,
-                                      minimumClonesPerSubject = 2,
+                                      sampleGroupingColumns = c('SubjectId'),
+                                      calculateChainPairs = TRUE,
                                       spikeInDataframe = NULL,
                                       verbose = FALSE
 ) {
@@ -53,13 +45,25 @@ FormatMetadataForTcrDist3 <- function(metadata,
     stop(paste0("Unknown chains: ", paste0(unknownChains, collapse = ',')))
   }
 
-  # TODO: parameterize the name of this field
-  if (!'SubjectId' %in% colnames(metadata)) {
-    stop('Metadata missing SubjectId')
+  if (any(!sampleGroupingColumns %in% colnames(metadata))) {
+    missing <- sampleGroupingColumns[!sampleGroupingColumns %in% colnames(metadata)]
+    stop(paste0('Metadata missing columns: ', paste0(missing, collapse = ',')))
   }
-  metadata$SubjectId <- as.character(metadata$SubjectId)
 
-  #check spikeInDataframe's formatting
+  # Add the corresponding pair, as needed:
+  if (calculateChainPairs) {
+    if ('TRA' %in% chains || 'TRB' %in% chains) {
+      chains <- unique(c(chains, 'TRA', 'TRB'))
+    }
+
+    if ('TRG' %in% chains || 'TRD' %in% chains) {
+      chains <- unique(c(chains, 'TRG', 'TRD'))
+    }
+  }
+
+  # Check spikeInDataframe's formatting
+  metadata$IsSpikeInClone <- FALSE
+  metadata$RowName <- rownames(metadata)
   if (!is.null(spikeInDataframe)) {
     # Check that the spikeInDataframe has columns that match the chains requested
     for (chainName in chains) {
@@ -68,22 +72,33 @@ FormatMetadataForTcrDist3 <- function(metadata,
       }
     }
 
-    # Check that the spikeInDataframe has the columns 'CloneNames' and impute a SubjectId if missing
+    # Check that the spikeInDataframe has the columns 'CloneNames'
     if (!"CloneNames" %in% colnames(spikeInDataframe)) {
       stop("The spikeInDataframe must have the column 'CloneNames'")
     }
 
-    if (!"SubjectId" %in% colnames(spikeInDataframe)) {
-      spikeInDataframe$SubjectId <- paste0("spikeIn_", seq_len(nrow(spikeInDataframe)))
+    for (colName in sampleGroupingColumns) {
+      # Ensure the source is a string for rbind
+      metadata[[colName]] <- as.character(metadata[[colName]])
+
+      if (!colName %in% names(spikeInDataframe)) {
+        spikeInDataframe[[colName]] <- paste0("SpikeIn_", seq_len(nrow(spikeInDataframe)))
+      }
     }
 
-    #force spikeInDataframe to exceed the minimum number of clones per subject
-    if (minimumClonesPerSubject > 1) {
-      spikeInDataframe <- do.call("rbind", replicate(minimumClonesPerSubject, spikeInDataframe, simplify = FALSE))
-    }
+    rownames(spikeInDataframe) <- paste0("SpikeIn_", seq_len(nrow(spikeInDataframe)))
 
     # Bind the spikeInDataframe to the metadata
+    spikeInDataframe$IsSpikeInClone <- TRUE
+
+    newRowNames <- c(rownames(metadata), rownames(spikeInDataframe))
+    spikeInDataframe$RowName <- rownames(spikeInDataframe)
+
     metadata <- plyr::rbind.fill(metadata, spikeInDataframe)
+    rownames(metadata) <- newRowNames
+    if (any(rownames(metadata) != metadata$RowName)) {
+      stop('Row names did not match after plyr::rbind.fill')
+    }
   }
 
   metadata <- .flag_valid_rows(metadata = metadata, chains = chains, organism = organism, verbose = verbose)
@@ -91,117 +106,80 @@ FormatMetadataForTcrDist3 <- function(metadata,
     stop("No data remaining after filtering. Check your gene segment names and database compatibility.")
   }
 
-  #impute clone names if asked
-  if (imputeCloneNames) {
-    if (verbose) message("Starting clone name imputation with ", nrow(metadata), " rows")
+  # Group and add unique columns for later joins:
+  metadata$GlobalRowIdx <- seq_len(nrow(metadata))
+  metadata <- metadata |>
+    tibble::rownames_to_column('RowNames_') |>
+    dplyr::group_by(dplyr::across(dplyr::all_of(sampleGroupingColumns))) |>
+    dplyr::mutate(SampleIdx = paste0('Sample_', dplyr::cur_group_id())) |>
+    dplyr::ungroup() %>%
+    tibble::column_to_rownames('RowNames_')
 
-    if (!"CloneNames" %in% colnames(metadata)) {
-      #initialize the CloneNames metadata column
-      if (verbose) {
-        message("Creating CloneNames column")
-      }
-      metadata$CloneNames <- "undefined_clone"
+  for (chain in chains) {
+    colName <- paste0(chain, '_ValidForClustering')
+    if (! colName %in% names(metadata)) {
+      stop(paste0('Missing column: ', colName))
     }
 
-    # Check if SubjectId column exists, if not create it
-    if (!"SubjectId" %in% colnames(metadata)) {
-      if (verbose) message("SubjectId column not found, creating default SubjectId")
-      metadata$SubjectId <- "DefaultSubject"
-    }
+    metadata$IsValidForChain <- metadata[[colName]]
 
-    #construct the grouping columns based on the supplied chains
-    grouping_columns <- c("SubjectId")
-    for (chain in chains) {
-      grouping_columns <- c(grouping_columns, "TRA", "TRA_V", "TRA_J")
-    }
-
-    # Check if columns exist, if not create dummy column
-    requiredChains <- c()
-    if ('TRA' %in% chains || 'TRB' %in% chains) {
-      requiredChains <- c(requiredChains, 'TRA', 'TRB')
-    }
-
-    if ('TRD' %in% chains || 'TRG' %in% chains) {
-      requiredChains <- c(requiredChains, 'TRD', 'TRD')
-    }
-
-    for (chain in requiredChains) {
-      vCol <- paste0(chain, '_V')
-      if (!vCol %in% colnames(metadata)) {
-        message(paste0(vCol, " column not found, creating dummy column"))
-        metadata[[vCol]] <- "DUMMY_TRA_V"
-      }
-
-      jCol <- paste0(chain, '_J')
-      if (!jCol %in% colnames(metadata)) {
-        message(paste0(jCol, " column not found, creating dummy column"))
-        metadata[[jCol]] <- "DUMMY_TRA_J"
-      }
-    }
-
+    tcr_grouping_columns <- c(c(chain, paste0(chain, "_V"), paste0(chain, "_J")))
     metadata <- metadata |>
-      dplyr::group_by(dplyr::across(dplyr::all_of(grouping_columns))) |>
-      dplyr::mutate(CloneNames =
-                      dplyr::case_when(
-                        is.na(CloneNames) ~ paste0(SubjectId, "_", dplyr::cur_group_id()),
-                        .default = as.character(CloneNames))
-      ) |>
-      as.data.frame()
+      tibble::rownames_to_column('RowNames_') |>
+      dplyr::group_by(dplyr::across(dplyr::all_of(tcr_grouping_columns))) |>
+      dplyr::mutate(`_CloneIdx_` = paste0(chain, '_', 'Clone_', dplyr::cur_group_id())) |>
+      dplyr::ungroup() %>%
+      tibble::column_to_rownames('RowNames_')
+
+    # There might be a more elegant solution to this:
+    names(metadata)[names(metadata) == '_CloneIdx_'] <- paste0(chain, '-CloneIdx')
+    metadata$IsValidForChain <- NULL
   }
 
-  #TODO: this implementation only works for TRA+TRB, need to fix eventually.
+  # Repeat for A/B and G/D:
+  if (calculateChainPairs) {
+    toTest <- c()
+    if ('TRA' %in% chains && 'TRB' %in% chains) {
+      toTest <- c(toTest, 'TRA_TRB')
+    }
 
-  if (summarizeClones) {
-    #TODO: figure out if we need to index clones jointly (across both chains)
-    #or singly (TRAs would have a clone ID and TRBs would have their own clone ID)
-    metadata <- metadata |>
-      dplyr::group_by(dplyr::across(dplyr::all_of(grouping_columns))) |>
-      dplyr::reframe(count = dplyr::n(), CloneNames) |>
-      unique.data.frame()
-    #filter out unique/rare clones
-    #TODO: check for parameter nesting between summarizeClones and imputeCloneNames appropriately
-    if (minimumClonesPerSubject > 1) {
+    if ('TRG' %in% chains && 'TRD' %in% chains) {
+      toTest <- c(toTest, 'TRG_TRD')
+    }
+
+    for (chainId in toTest) {
+      message(paste0('Computing columns for: ', chainId))
+
+      chains <- unlist(strsplit(chainId, split = '_'))
+      metadata$IsValidForChain <- metadata[[paste0(chains[1], '_ValidForClustering')]] & metadata[[paste0(chains[2], '_ValidForClustering')]]
+      tcr_grouping_columns <- c(chains[1], paste0(chains[1], "_V"), paste0(chains[1], "_J"), chains[2], paste0(chains[2], "_V"), paste0(chains[2], "_J"))
       metadata <- metadata |>
-        dplyr::filter(count >= minimumClonesPerSubject)
+        tibble::rownames_to_column('RowNames_') |>
+        dplyr::group_by(dplyr::across(dplyr::all_of(tcr_grouping_columns))) |>
+        dplyr::mutate(`_CloneIdx_` = paste0(chainId, '_', 'Clone_', dplyr::cur_group_id())) |>
+        dplyr::ungroup() %>%
+        tibble::column_to_rownames('RowNames_')
+
+      # There might be a more elegant solution to this:
+      names(metadata)[names(metadata) == '_CloneIdx_'] <- paste0(chainId, '-CloneIdx')
+      metadata$IsValidForChain <- NULL
     }
   }
 
-  #unique-ify the metadata prior to formatting, since the random sampling in the reverse translation function can cause duplicates
-  metadata <- metadata |> unique.data.frame()
-  if (verbose) {
-    message("Final metadata dimensions after cleaning and summarizing: ", nrow(metadata), " rows, ", ncol(metadata), " columns")
+  if (any(rownames(metadata) != metadata$RowName)) {
+    print(head(rownames(metadata)))
+    stop('Row names did not match after FormatMetadataForTcrDist3')
   }
 
-  #reformat data for tcrDist3, iterate over chains specified:
-  formatted_data <- data.frame( subject = metadata$SubjectId,
-                                epitope = rep("Unknown", nrow(metadata)),  #epitope information is not available in seuratMetadata.csv
-                                count = if("count" %in% colnames(metadata)) metadata$count else rep(1, nrow(metadata))
-  )
-
-  if (verbose) {
-    print(head(formatted_data))
-    message("Dimensions of formatted_data: ", paste(dim(formatted_data), collapse = " x "))
-    message("Dimensions of metadata: ", paste(dim(metadata), collapse = " x "))
-  }
-
-  for (chain in chains){
-    charName <- substring('TRB', 3)
-    toAdd <- data.frame()
-    toAdd[paste0('v_', tolower(charName), '_gene')] <- .add_gene_suffix(metadata[[paste0('TR', charName, '_V')]])
-    toAdd[paste0('j_', tolower(charName), '_gene')] <- .add_gene_suffix(metadata[[paste0('TR', charName, '_J')]])
-    toAdd[paste0('cdr3_', tolower(charName), '_aa')] <- metadata[[paste0('TR', charName)]]
-    toAdd[paste0('cdr3_', tolower(charName), '_nucseq')] <- sapply(metadata[[paste0('TR', charName, '_J')]], .reverse_translate_cdr3)
-  }
-
-  # Write the formatted data to the output CSV file
-  if (!is.null(outputCsvName)) {
-    utils::write.csv(formatted_data, file.path(outputPath, outputCsvName), row.names = FALSE)
-  }
-
-  return(formatted_data)
+  return(metadata)
 }
 
-.add_gene_suffix <- function(dat, suffix = '*01') {
+.add_gene_suffix <- function(df, colName, suffix = '*01') {
+  if (!colName %in% names(df)) {
+    stop('Missing df column: ', colName)
+  }
+
+  dat <- df[[colName]]
   sel <- !grepl(dat, pattern = '\\*')
   if (sum(sel) > 0) {
     dat <- as.character(dat)
@@ -302,16 +280,13 @@ FormatMetadataForTcrDist3 <- function(metadata,
   template <- readr::read_file(system.file("scripts/PullTcrdist3Db.py", package = "tcrClustR"))
   script <- tempfile(fileext = ".py")
   readr::write_file(template, script)
-  #format and write the Python function call to the script
+
   command <- paste0("PullTcrdist3Db(organism = '", organism,
                     "', outputFilePath = '", outputFilePath,
                     "')")
   readr::write_file(command, script, append = TRUE)
-  #add execution permissions to script and parent directory
-  Sys.chmod(script, mode = "755")
-  system(paste("chmod 755", dirname(script)))
 
-  #execute with proper error capture
+  # Execute with proper error capture
   if (verbose) {
     message("Python executable: ", pythonExecutable)
     message("Python script: ", script)
@@ -787,16 +762,18 @@ GetExampleMarkdown <- function(dest) {
   )
 
   gene_segments_in_db <- readr::read_csv(segmentTempFile, show_col_types = FALSE) |>
-    dplyr::mutate(`gene_segments` = gsub("\\*[0-9]+$", "", `gene_segments`)) |>
+    dplyr::mutate(gene_segments = gsub(pattern = "\\*[0-9]+$", replacement = "", gene_segments)) |>
     unlist() |>
     unique()
 
+  gene_segments_in_db <- as.character(gene_segments_in_db)
   if (verbose) {
     message("Found ", length(gene_segments_in_db), " gene segments in tcrdist3 database")
-    message("First 10 database gene segments: ", paste(head(gene_segments_in_db, 10), collapse = ", "))
   }
+
   unlink(segmentTempFile)
 
+  initial_rows <- nrow(metadata)
   if (verbose) {
     message("Starting metadata cleaning with ", nrow(metadata), " rows")
   }
@@ -807,15 +784,15 @@ GetExampleMarkdown <- function(dest) {
     chainColumns <- c(chains, vCol, jCol)
     validCol <- paste0(chain, '_ValidForClustering')
 
-    if (verbose)
+    if (verbose) {
       message("Processing chain: ", chain)
+    }
 
     if (any(!chainColumns %in% colnames(metadata))) {
       missingCols <- chainColumns[! chainColumns %in% colnames(metadata)]
       stop(paste0('Missing columns: ', paste0(missingCols, collapse = ','), ', available columns: ', paste(colnames(metadata), collapse = ", ")))
     }
 
-    initial_rows <- nrow(metadata)
     metadata[[validCol]] <- !is.na(metadata[[chain]]) &
       !is.na(metadata[[vCol]]) &
       !is.na(metadata[[jCol]]) &
@@ -825,34 +802,36 @@ GetExampleMarkdown <- function(dest) {
 
     after_na_filter <- sum(metadata[[validCol]])
     if (verbose) {
-      message("After filtering NA values in ", chain, ": ", after_na_filter, " rows (removed ", initial_rows - after_na_filter, " rows)")
+      message("After filtering NA values in ", chain, ": ", after_na_filter, " rows (filtered ", initial_rows - after_na_filter, " rows)")
     }
 
     # Filter rows with commas (multiple segments detected in a cell) in the requested chains
-    comma_filter <- grepl(",", metadata[[chain]])
-    after_comma_filter <- sum(comma_filter)
+    comma_filter <- grepl(",", metadata[[chain]]) | grepl(",", metadata[[vCol]]) | grepl(",", metadata[[jCol]])
     metadata[[validCol]][comma_filter] <- FALSE
     if (verbose) {
-      message("After filtering commas in ", chain, ": ", after_comma_filter, " rows (removed ", after_na_filter - after_comma_filter, " rows)")
+      message("Dropping ", sum(comma_filter), ' rows for ', chain, ", remaining valid rows: ", sum(metadata[[validCol]]))
     }
 
     # Flag gene segments not found in conga's database
-    unknown_v_segments <- ! metadata[[vCol]] %in% gene_segments_in_db
+    toTest <- as.character(metadata[[vCol]])
+    unknown_v_segments <- metadata[[validCol]] & !is.na(toTest) & !(toTest %in% gene_segments_in_db)
     if (sum(unknown_v_segments) > 0) {
-      unk <- unique(metadata[[vCol]][unknown_v_segments])
-      warning('The following ', vCol, ' values were not found in the DB: ', paste0(unk, collapse = ','))
+      unk <- sort(unique(toTest[unknown_v_segments]))
+      warning('The following ', length(unk), ' ', vCol, ' values were not found in the DB: ', paste0(unk, collapse = ','))
       metadata[[validCol]][unknown_v_segments] <- FALSE
     }
 
-    unknown_j_segments <- ! metadata[[jCol]] %in% gene_segments_in_db
+    toTest <- as.character(metadata[[jCol]])
+    unknown_j_segments <- metadata[[validCol]] & !is.na(toTest) & !(toTest %in% gene_segments_in_db)
     if (sum(unknown_j_segments) > 0) {
-      unk <- unique(metadata[[jCol]][unknown_j_segments])
-      warning('The following ', jCol, ' values were not found in the DB: ', paste0(unk, collapse = ','))
+      unk <- sort(unique(toTest[unknown_j_segments]))
+      print(typeof(unk))
+      warning('The following ', length(unk), ' ', jCol, ' values were not found in the DB: ', paste0(unk, collapse = ','))
       metadata[[validCol]][unknown_j_segments] <- FALSE
     }
 
     if (verbose) {
-      message(paste0("Finished metadata cleaning for ", chain, ". Initial rows: ", nrow(metadata), ", total filtered: ", sum(metadata[[validCol]])))
+      message(paste0("Finished metadata cleaning for ", chain, ". Initial rows: ", nrow(metadata), ", remaining after filters: ", sum(metadata[[validCol]])))
     }
   }
 

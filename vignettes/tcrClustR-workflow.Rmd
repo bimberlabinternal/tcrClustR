@@ -41,8 +41,7 @@ library(arrow)
 
 # Set analysis parameters
 chains <- c("TRA", "TRB")
-summarizeClones <- TRUE
-minimumClonesPerSubject <- 2
+minimumCloneSize <- 2
 resolutionParameters <- c(0.1)
 pcaComponents <- 50
 usePCA <- TRUE
@@ -81,8 +80,7 @@ The first step is to format the TCR metadata for downstream analysis:
 formatted_metadata <- FormatMetadataForTcrDist3(
   metadata = seuratObj@meta.data,
   chains = chains,
-  summarizeClones = summarizeClones,
-  minimumClonesPerSubject = minimumClonesPerSubject,
+  minimumCloneSize = minimumCloneSize,
   outputPath = outputPath,
   verbose = verbose
 )
@@ -108,7 +106,7 @@ Next, we compute distance matrices between TCRs using tcrdist3:
 seuratObj_TCR <- RunTcrdist3(
   inputData = seuratObj,
   chains = chains,
-  minimumClonesPerSubject = minimumClonesPerSubject,
+  minimumCloneSize = minimumCloneSize,
   rdsOutputPath = file.path(outputPath, "tcrdist3DistanceMatrices"),
   verbose = verbose
 )

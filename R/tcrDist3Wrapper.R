@@ -12,10 +12,8 @@ utils::globalVariables(
 #' @param organism Organism to use for tcrdist3. Default is 'human'.
 #' @param chains Vector of TCR chains to include in the analysis. Default is c("TRA", "TRB").
 #' @param spikeInDataframe Data frame containing known CDR3s and gene segments to be included in the clustering. Default is NULL.
-#' @param summarizeClones Pass-through boolean controlling whether to summarize clones into a frequency (by SubjectId, TRA, TRB, TRA_V, and TRB_J). Default is TRUE.
-#' @param imputeCloneNames Pass-through boolean controlling whether to impute clone names if they are missing. Existing clone names will be inherited. Default is TRUE.
-#' @param minimumClonesPerSubject Minimum number of clones per subject to include in the analysis. Default is 2.
-#' @param multichain Boolean controlling whether to compute joint multi-chain distance matrices for observed chain combinations. Default is FALSE.
+#' @param minimumCloneSize Minimum number of clones per subject to include in the analysis. Default is 2.
+#' @param calculateChainPairs Boolean controlling whether to compute joint multi-chain distance matrices for observed chain combinations. Default is FALSE.
 #' @param rdsOutputPath Path to the output directory for the RDS files containing the distance matrices. Default is "./tcrdist3DistanceMatrices/".
 #' @param pythonExecutable Path to the python executable. Default is reticulate::py_exe().
 #' @param debugTcrdist3 Boolean controlling whether to run tcrdist3 in debug mode. Default is TRUE.
@@ -29,18 +27,16 @@ utils::globalVariables(
 #' \dontrun{
 #'   seuratObj_TCR<- RunTcrdist3(inputData = seuratObj@meta.data,
 #'               chains = c("TRA", "TRB"),
-#'               summarizeClones = T,
-#'               imputeCloneNames = T,
-#'               minimumClonesPerSubject = 2,
-#'               multichain = FALSE,
+#'               minimumCloneSize = 2,
+#'               calculateChainPairs = FALSE,
 #'               rdsOutputPath = "./tcrdist3DistanceMatrices/",
 #'               pythonExecutable = reticulate::py_exe(),
 #'               verbose = FALSE)
 #'
-#'   # Example with multichain analysis
+#'   # Example with calculateChainPairs analysis
 #'   seuratObj_TCR<- RunTcrdist3(inputData = seuratObj,
 #'               chains = c("TRA", "TRB", "TRG", "TRD"),
-#'               multichain = TRUE,
+#'               calculateChainPairs = TRUE,
 #'               verbose = TRUE)
 #'
 #'     spikeInDataframe <- data.frame(CloneNames = rep(1:3),
@@ -61,10 +57,8 @@ RunTcrdist3 <- function(inputData = NULL,
                         organism = 'human',
                         chains = c("TRA", "TRB"),
                         spikeInDataframe = NULL,
-                        summarizeClones = T,
-                        imputeCloneNames = T,
-                        minimumClonesPerSubject = 2,
-                        multichain = FALSE,
+                        minimumCloneSize = 2,
+                        calculateChainPairs = FALSE,
                         rdsOutputPath = "./tcrdist3DistanceMatrices/",
                         pythonExecutable = NULL,
                         debugTcrdist3 = TRUE,
@@ -100,7 +94,7 @@ RunTcrdist3 <- function(inputData = NULL,
 
   #validate Python environment and required packages
   if (verbose) {
-    print(paste("Using Python executable:", pythonExecutable))
+    message(paste("Using Python executable:", pythonExecutable))
   }
 
   # NOTE: The package is installed as 'tcrdist3' but imported as 'tcrdist'
@@ -116,67 +110,87 @@ RunTcrdist3 <- function(inputData = NULL,
     stop("Python environment may not have required packages (tcrdist3, rpy2). This may cause failures.")
   }
 
-  postFormattingMetadataCsvOutput <- tempfile(fileext = ".csv")
-  postFormattingMetadataCsvOutput <- gsub(postFormattingMetadataCsvOutput, pattern = '\\\\', replacement = '/')
-
   rdsOutputPath <- R.utils::getAbsolutePath(rdsOutputPath)
   rdsOutputPath <- gsub(rdsOutputPath, pattern = '\\\\', replacement = '/')
 
   pythonExecutable <- R.utils::getAbsolutePath(pythonExecutable)
 
   formatted_metadata <- FormatMetadataForTcrDist3(metadata = metadata,
-                                        outputPath = dirname(postFormattingMetadataCsvOutput),
-                                        outputCsvName = basename(postFormattingMetadataCsvOutput),
-                                        chains = chains,
-                                        summarizeClones = summarizeClones,
-                                        imputeCloneNames = imputeCloneNames,
-                                        minimumClonesPerSubject = minimumClonesPerSubject,
-                                        spikeInDataframe = spikeInDataframe,
-                                        verbose = verbose
+                                                  chains = chains,
+                                                  spikeInDataframe = spikeInDataframe,
+                                                  calculateChainPairs = calculateChainPairs,
+                                                  verbose = verbose
   )
+
+  if (nrow(formatted_metadata[!formatted_metadata$IsSpikeInClone,]) != nrow(metadata)) {
+    stop('Incorrect row count after FormatMetadataForTcrDist3')
+  }
+
+  if (any(rownames(formatted_metadata[!formatted_metadata$IsSpikeInClone,]) != rownames(metadata))) {
+    print(head(rownames(formatted_metadata[!formatted_metadata$IsSpikeInClone,])))
+    print(head(rownames(metadata)))
+    stop('Rownames did not match after FormatMetadataForTcrDist3')
+  }
 
   #convert chains into a string for parsing in python
   chainsString <- ""
   for (chain in chains) {
     if (chain == "TRA") {
       chainsString <- paste0(chainsString, "alpha")
-      } else if (chain == "TRB") {
-        chainsString <- paste0(chainsString, "beta")
-      } else if (chain == "TRG") {
-        chainsString <- paste0(chainsString, "gamma")
-      } else if (chain == "TRD") {
-        chainsString <- paste0(chainsString, "delta")
-      } else {
-        warning(paste0("Chain Type ", chain, " not recognized. Skipping."))
-      }
+    } else if (chain == "TRB") {
+      chainsString <- paste0(chainsString, "beta")
+    } else if (chain == "TRG") {
+      chainsString <- paste0(chainsString, "gamma")
+    } else if (chain == "TRD") {
+      chainsString <- paste0(chainsString, "delta")
+    } else {
+      warning(paste0("Chain Type ", chain, " not recognized. Skipping."))
     }
+  }
 
-  #run tcrdist3 in python and return individual RDS files with the results (they may get very large)
-
-  #read the python script template from tcrClustR and write them to a tempfile
+  # Read the python script template from tcrClustR and write them to a tempfile
   template <- readr::read_file(system.file("scripts/tcrdist3TcrDistances.py", package = "tcrClustR"))
   script <- tempfile(fileext = ".py")
   readr::write_file(template, script)
 
-  #create distance matrix output directory if it doesn't exist
+  # Create distance matrix output directory if it doesn't exist
   if (!dir.exists(rdsOutputPath)) {
     dir.create(rdsOutputPath)
   }
-  if (verbose) message("Creating tcrdist3 distance matrices in the following directory: ", rdsOutputPath)
+
+  if (verbose) {
+    message("Creating tcrdist3 distance matrices in the following directory: ", rdsOutputPath)
+  }
+
+  output_file <- tempfile(fileext = ".csv")
+  output_file <- gsub(output_file, pattern = '\\\\', replacement = '/')
+
+  dat <- .filter_and_group_for_tcrdist3(
+    metadata = formatted_metadata,
+    chains = chain,
+    minimumCloneSize = minimumCloneSize
+  )
+
+  write.table(dat, file = output_file, sep = ',', row.names = FALSE, quote = TRUE)
+
   #format and write the python function to the end of the script
-  command <- paste0("writeTcrDistances(csv_path = '", postFormattingMetadataCsvOutput,
-                   "', organism = '", organism,
-                   "', chainsString = '", chainsString,
-                    #TODO: review what DB this is using, and probably conditionalize based on organisms
-                   "', db_file = 'alphabeta_gammadelta_db.tsv",
-                   "', rds_output_path = '", rdsOutputPath,
-                   "', debug ='", ifelse(!is.null(debugTcrdist3) && debugTcrdist3, yes = 'True', no = 'False'),
-                   "')")
+  command <- paste0("writeTcrDistances(csv_path = '", output_file,
+                    "', organism = '", organism,
+                    "', chainsString = '", chainsString,
+                    # TODO: review what DB this is using, and probably conditionalize based on organisms
+                    "', db_file = 'alphabeta_gammadelta_db.tsv",
+                    "', rds_output_path = '", rdsOutputPath,
+                    "', debug ='", ifelse(!is.null(debugTcrdist3) && debugTcrdist3, yes = 'True', no = 'False'),
+                    "')")
   readr::write_file(command, script, append = TRUE)
   system2(pythonExecutable, script)
 
+  unlink(output_file)
+
   #return a seurat object, with the distance matrices implemented as assays
-  seuratObj_TCR <- NULL
+  return_values <- list(
+    metadata = formatted_metadata
+  )
 
   for (chain in chains) {
     #read the RDS file
@@ -198,8 +212,10 @@ RunTcrdist3 <- function(inputData = NULL,
       stop(paste0("Pairwise 'full' tcrdist3 distance matrix RDS file not found: ", rdsFile))
     }
     distanceMatrix_full_length <- readRDS(rdsFile)
-    colnames(distanceMatrix_full_length) <- paste0(chain, "_", seq_len(ncol(distanceMatrix_full_length)))
-    rownames(distanceMatrix_full_length) <- paste0(chain, "_", seq_len(nrow(distanceMatrix_full_length)))
+
+    # TODO: GW, can we count on the row/column order being identical to our input??
+    colnames(distanceMatrix_full_length) <- as.character(dat$CloneId)
+    rownames(distanceMatrix_full_length) <- as.character(dat$CloneId)
 
     #process the CDR3 only TCR distance matrix
     #grab the first letter of the chain (distance matrices for the cdr3 are stored as "pw_cdr3_b_aa.rds" for a beta chain)
@@ -209,235 +225,154 @@ RunTcrdist3 <- function(inputData = NULL,
       stop(paste0("Pairwise CDR3 tcrdist3 distance matrix RDS file not found: ", rdsFile))
     }
     distanceMatrix_CDR3 <- readRDS(rdsFile)
-    colnames(distanceMatrix_CDR3) <- paste0(chain, "_", seq_len(ncol(distanceMatrix_CDR3)), "_cdr3")
-    rownames(distanceMatrix_CDR3) <- paste0(chain, "_", seq_len(nrow(distanceMatrix_CDR3)), "_cdr3")
+    colnames(distanceMatrix_CDR3) <- as.character(dat$CloneId)
+    rownames(distanceMatrix_CDR3) <- as.character(dat$CloneId)
 
-    #add the distance matrices to the Seurat object
-    if (is.null(seuratObj_TCR)){
-      formatted_metadata_for_chain <- FormatMetadataForTcrDist3(metadata = metadata,
-                                                      chains = chain,
-                                                      organism = organism,
-                                                      summarizeClones = summarizeClones,
-                                                      imputeCloneNames = imputeCloneNames,
-                                                      minimumClonesPerSubject = minimumClonesPerSubject,
-                                                      spikeInDataframe = spikeInDataframe,
-                                                      verbose = FALSE
-      )
+    return_values[[paste0(chain, '_fl')]] <- distanceMatrix_full_length
+    rm(distanceMatrix_full_length)
 
-      seuratObj_TCR <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_full_length, "dgCMatrix"), assay =  chain, metadata = formatted_metadata_for_chain)
-      seuratObj_TCR_CDR3 <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_CDR3, "dgCMatrix"), assay = paste0(chain, "_cdr3"))
-      seuratObj_TCR_CDR3 <- Seurat::AddMetaData(seuratObj_TCR_CDR3, metadata = formatted_metadata_for_chain)
-      seuratObj_TCR <- merge(seuratObj_TCR, seuratObj_TCR_CDR3)
+    return_values[[paste0(chain, '_cdr3')]] <- distanceMatrix_CDR3
+    rm(distanceMatrix_CDR3)
+  }
+
+  for (chain in c(chains)) {
+    matName <- paste0(chain, '_cdr3')
+    fieldName <- paste0(chain, '-CloneIdx')
+    return_values[[paste0(chain, '_cdr3_fullSize')]] <- .restore_matrix_to_metadata_size(formatted_metadata, return_values[[matName]], fieldName)
+
+    matName <- paste0(chain, '_fl')
+    return_values[[paste0(chain, '_fl_fullSize')]] <- .restore_matrix_to_metadata_size(formatted_metadata, return_values[[matName]], fieldName)
+  }
+
+  # TODO: GW, please check my logic on this
+  if (calculateChainPairs) {
+    message('Calculating joint-chain distances')
+
+    if ('TRA' %in% chains && 'TRB' %in% chains) {
+      return_values[[paste0('TRA_TRB_fl_fullSize')]] <- return_values[[paste0('TRA_fl_fullSize')]] + return_values[[paste0('TRB_fl_fullSize')]]
+      return_values[[paste0('TRA_TRB_cdr3_fullSize')]] <- return_values[[paste0('TRA_cdr3_fullSize')]] + return_values[[paste0('TRB_cdr3_fullSize')]]
+    }
+
+    if ('TRG' %in% chains && 'TRD' %in% chains) {
+      return_values[[paste0('TRG_TRD_fl_fullSize')]] <- return_values[[paste0('TRG_fl_fullSize')]] + return_values[[paste0('TRD_fl_fullSize')]]
+      return_values[[paste0('TRG_TRD_cdr3_fullSize')]] <- return_values[[paste0('TRG_cdr3_fullSize')]] + return_values[[paste0('TRD_cdr3_fullSize')]]
+    }
+  }
+
+  return(return_values)
+}
+
+# NOTE: this will probbaly not work correctly with spike-in values. We could consider subsetting metadata[!metadata$IsSpikeInClone,].
+.restore_matrix_to_metadata_size <- function(metadata, mat, cloneFieldName) {
+  if (!cloneFieldName %in% names(metadata)) {
+    stop(paste0('Missing field: ', cloneFieldName, ', fields present: ', paste0(sort(names(metadata)), collapse = ',')))
+  }
+
+  cloneNames <- metadata[[cloneFieldName]]
+
+  if (!all(colnames(mat) %in% cloneNames)) {
+    stop('The metadata cloneNames and matrix colnames did not match')
+  }
+
+  if (!all(rownames(mat) %in% cloneNames)) {
+    stop('The metadata cloneNames and matrix rownames did not match')
+  }
+
+  new_mat <- NULL
+  for (colName in cloneNames) {
+    if (colName %in% colnames(mat)) {
+      new_mat <- cbind(new_mat, mat[,colName])
     } else {
-      print('Adding!')
-      seuratObj_TCR_subsequentChain <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_full_length, "dgCMatrix"), assay =  chain)
-      seuratObj_TCR_subsequentChain <- Seurat::AddMetaData(seuratObj_TCR_subsequentChain, metadata = formatted_metadata_for_chain)
-      seuratObj_TCR_CDR3_subsequentChain <- SeuratObject::CreateSeuratObject(counts = as(distanceMatrix_CDR3, "dgCMatrix"), assay = paste0(chain, "_cdr3"))
-      seuratObj_TCR_CDR3_subsequentChain <- Seurat::AddMetaData(seuratObj_TCR_CDR3_subsequentChain, metadata = formatted_metadata_for_chain)
-      seuratObj_TCR_subsequentChain <- merge(seuratObj_TCR_subsequentChain, seuratObj_TCR_CDR3_subsequentChain)
-      seuratObj_TCR <- merge(seuratObj_TCR, seuratObj_TCR_subsequentChain)
+      new_mat <- cbind(new_mat, rep(nrow(mat), x = 0))
     }
   }
+  colnames(new_mat) <- cloneNames
 
-  #add multichain tcrdist matrices if requested
-  if (multichain && length(chains) > 1) {
-    if (verbose) message("Computing multichain distance matrices...")
-
-    #create joint distance matrices for observed chain combinations
-    #Note: matrices represent distances between observations (rows in formatted metadata)
-    #that have information for both chains in the combination
-    chain_combinations <- utils::combn(chains, 2, simplify = FALSE)
-
-    for (combo in chain_combinations) {
-      chain1 <- combo[1]
-      chain2 <- combo[2]
-
-      #skip identical chains (trivial case)
-      if (chain1 == chain2) {
-        if (verbose) message(paste("Skipping", chain1, "+", chain2, "combination - identical chains"))
-        next
-      }
-
-      #sanity check to make sure the assays exist before pulling
-      if (!chain1 %in% SeuratObject::Assays(seuratObj_TCR) || !chain2 %in% SeuratObject::Assays(seuratObj_TCR)) {
-        if (verbose) message(paste("Skipping", chain1, "+", chain2, "combination - matrices not found"))
-        next
-      }
-
-      #get distance matrices for both chains
-      dist_matrix1 <- SeuratObject::GetAssayData(seuratObj_TCR, assay = chain1, layer = "counts")
-      dist_matrix2 <- SeuratObject::GetAssayData(seuratObj_TCR, assay = chain2, layer = "counts")
-
-      if (verbose) {
-        message(paste("Matrix dimensions for", chain1, ":", nrow(dist_matrix1), "x", ncol(dist_matrix1)))
-        message(paste("Matrix dimensions for", chain2, ":", nrow(dist_matrix2), "x", ncol(dist_matrix2)))
-      }
-
-      # TODO: GW, can we just drop this entirely?
-      #for different-sized matrices (almost certainly the case), identify observations with both chains
-      #read the formatted metadata to map sequence indices to observations
-      if (!exists("formatted_metadata")) {
-        if (file.exists(postFormattingMetadataCsvOutput)) {
-          formatted_metadata <- readr::read_csv(postFormattingMetadataCsvOutput, show_col_types = FALSE)
-        } else {
-          if (verbose) message("Warning: Cannot create multichain matrices - formatted metadata file not found")
-          next
-        }
-      }
-
-      #whole-dataset chain pairing vectors
-      # Map chain names to tcrdist3 column names
-      chain1_col <- NULL
-      chain2_col <- NULL
-
-      if (chain1 == "TRA") {
-        chain1_col <- "cdr3_a_aa"
-      } else if (chain1 == "TRB") {
-        chain1_col <- "cdr3_b_aa"
-      } else if (chain1 == "TRG") {
-        chain1_col <- "cdr3_g_aa"
-      } else if (chain1 == "TRD") {
-        chain1_col <- "cdr3_d_aa"
-      }
-
-      if (chain2 == "TRA") {
-        chain2_col <- "cdr3_a_aa"
-      } else if (chain2 == "TRB") {
-        chain2_col <- "cdr3_b_aa"
-      } else if (chain2 == "TRG") {
-        chain2_col <- "cdr3_g_aa"
-      } else if (chain2 == "TRD") {
-        chain2_col <- "cdr3_d_aa"
-      }
-
-      if (is.null(chain1_col) || is.null(chain2_col)) {
-        if (verbose) message(paste("Skipping", chain1, "+", chain2, "combination - unsupported chain types"))
-        next
-      }
-
-      if (!chain1_col %in% colnames(formatted_metadata) ||
-          !chain2_col %in% colnames(formatted_metadata)) {
-        if (verbose) message(paste("Skipping", chain1, "+", chain2, "combination - chain columns not found in metadata"))
-        if (verbose) message(paste0("Looking for columns: ", chain1_col, ", ", chain2_col))
-        if (verbose) message(paste0("Available columns: ", paste(colnames(formatted_metadata), collapse = ", ")))
-        next
-      }
-
-      #find rows (cells) that have non-NA values for both chains
-      both_chains_present <- !is.na(formatted_metadata[[chain1_col]]) &
-                            !is.na(formatted_metadata[[chain2_col]]) &
-                            formatted_metadata[[chain1_col]] != "" &
-                            formatted_metadata[[chain2_col]] != ""
-
-      if (sum(both_chains_present) == 0) {
-        if (verbose) message(paste("Skipping", chain1, "+", chain2, "combination - no observations with both chains"))
-        next
-      }
-
-      #get the subset of metadata with both chains and set the dimensions of the joint matrix
-      dual_chain_metadata <- formatted_metadata[both_chains_present, ]
-      n_observations <- nrow(dual_chain_metadata)
-
-      if (verbose) message(paste("Found", n_observations, "observations with both", chain1, "and", chain2))
-
-      #create unique sequence mappings for each chain
-      #each chain's distance matrix rows/cols correspond to unique sequences in that chain
-      chain1_sequences <- unique(dual_chain_metadata[[chain1_col]])
-      chain2_sequences <- unique(dual_chain_metadata[[chain2_col]])
-
-      #create mapping from sequences to matrix indices
-      chain1_seq_to_idx <- setNames(seq_along(chain1_sequences), chain1_sequences)
-      chain2_seq_to_idx <- setNames(seq_along(chain2_sequences), chain2_sequences)
-
-      #create all possible matrix combinations (full + CDR3) for this chain pair
-      #this allows for mixed comparisons like full TRA + CDR3 TRB
-
-      #init available matrix types for each chain
-      chain1_matrices <- list()
-      chain2_matrices <- list()
-
-      #add full-length matrices
-      chain1_matrices[[chain1]] <- dist_matrix1
-      chain2_matrices[[chain2]] <- dist_matrix2
-
-      #add CDR3 matrices (if they exist)
-      cdr3_assay1 <- paste0(chain1, "_cdr3")
-      cdr3_assay2 <- paste0(chain2, "_cdr3")
-
-      if (cdr3_assay1 %in% SeuratObject::Assays(seuratObj_TCR)) {
-        chain1_matrices[[paste0(chain1, "_cdr3")]] <- SeuratObject::GetAssayData(seuratObj_TCR, assay = cdr3_assay1, layer = "counts")
-      }
-
-      if (cdr3_assay2 %in% SeuratObject::Assays(seuratObj_TCR)) {
-        chain2_matrices[[paste0(chain2, "_cdr3")]] <- SeuratObject::GetAssayData(seuratObj_TCR, assay = cdr3_assay2, layer = "counts")
-      }
-
-      #create joint matrices for all combinations
-      for (matrix1_name in names(chain1_matrices)) {
-        for (matrix2_name in names(chain2_matrices)) {
-
-          matrix1 <- chain1_matrices[[matrix1_name]]
-          matrix2 <- chain2_matrices[[matrix2_name]]
-
-          #initialize joint distance matrix (observations x observations)
-          joint_matrix <- matrix(0, nrow = n_observations, ncol = n_observations)
-
-          # for each pair of observations, compute joint distance
-          for (i in 1:n_observations) {
-            for (j in 1:n_observations) {
-              #get sequences for observation i
-              seq1_chain1 <- dual_chain_metadata[[chain1_col]][i]
-              seq1_chain2 <- dual_chain_metadata[[chain2_col]][i]
-
-              #get sequences for observation j
-              seq2_chain1 <- dual_chain_metadata[[chain1_col]][j]
-              seq2_chain2 <- dual_chain_metadata[[chain2_col]][j]
-
-              #get matrix indices for these sequences
-              idx1_chain1 <- chain1_seq_to_idx[seq1_chain1]
-              idx2_chain1 <- chain1_seq_to_idx[seq2_chain1]
-              idx1_chain2 <- chain2_seq_to_idx[seq1_chain2]
-              idx2_chain2 <- chain2_seq_to_idx[seq2_chain2]
-
-              #extract distances from matrices
-              dist_chain1 <- 0
-              dist_chain2 <- 0
-
-              if (!is.na(idx1_chain1) && !is.na(idx2_chain1) &&
-                  idx1_chain1 <= nrow(matrix1) && idx2_chain1 <= ncol(matrix1)) {
-                dist_chain1 <- matrix1[idx1_chain1, idx2_chain1]
-              }
-
-              if (!is.na(idx1_chain2) && !is.na(idx2_chain2) &&
-                  idx1_chain2 <= nrow(matrix2) && idx2_chain2 <= ncol(matrix2)) {
-                dist_chain2 <- matrix2[idx1_chain2, idx2_chain2]
-              }
-
-              #fill in joint matrix
-              joint_matrix[i, j] <- dist_chain1 + dist_chain2
-            }
-          }
-
-          #create assay name based on matrix types
-          joint_assay_name <- paste0(matrix1_name, "_", matrix2_name)
-          colnames(joint_matrix) <- paste0(joint_assay_name, "_", seq_len(ncol(joint_matrix)))
-          rownames(joint_matrix) <- paste0(joint_assay_name, "_", seq_len(nrow(joint_matrix)))
-
-          #create separate seurat object for joint matrix
-          seuratObj_joint <- SeuratObject::CreateSeuratObject(counts = as(joint_matrix, "dgCMatrix"),
-                                                              assay = joint_assay_name)
-          seuratObj_joint <- Seurat::AddMetaData(seuratObj_joint, metadata = dual_chain_metadata)
-
-          #merge with main object
-          seuratObj_TCR <- merge(seuratObj_TCR, seuratObj_joint)
-
-          if (verbose) message(paste("Created joint distance matrix:", joint_assay_name))
-        }
-      }
+  new_mat2 <- NULL
+  for (rowName in cloneNames) {
+    if (rowName %in% rownames(new_mat)) {
+      new_mat2 <- rbind(new_mat2, new_mat[rowName,])
+    } else {
+      new_mat2 <- rbind(new_mat2, rep(ncol(mat), x = 0))
     }
   }
+  rownames(new_mat2) <- cloneNames
 
-  unlink(postFormattingMetadataCsvOutput)
+  return(new_mat2)
+}
 
-  return(seuratObj_TCR)
+# This is an internal method that expects the dataframe produced by FormatMetadataForTcrDist3. This dataframe should contain columns to uniquely identify each
+.filter_and_group_for_tcrdist3 <- function(metadata, chains, minimumCloneSize = 1) {
+  initialRows <- nrow(metadata)
+
+  chainId <- paste0(chains, collapse = '_')
+  cloneIdxCol <- paste0(chainId, '-CloneIdx')
+  if (! cloneIdxCol %in% names(metadata)) {
+    stop(paste0('Metadata missing column: ', cloneIdxCol))
+  }
+
+  validCol <- paste0(chainId, '_ValidForClustering')
+  if (! validCol %in% names(metadata)) {
+    stop(paste0('Metadata missing column: ', validCol))
+  }
+
+  metadata <- metadata[!is.na(metadata[[cloneIdxCol]]) & metadata[[validCol]],]
+  message(paste0('Initial rows: ', initialRows, ', after dropping invalid clones: ', nrow(metadata)))
+
+  # Filter out unique/rare clones
+  if (minimumCloneSize > 1) {
+    if ('IsSpikeInClone' %in% names(metadata)) {
+      metadata <- metadata |>
+        dplyr::group_by(dplyr::across(dplyr::all_of(c(cloneIdxCol, 'IsSpikeInClone')))) |>
+        dplyr::mutate(count = dplyr::n()) |>
+        dplyr::filter(!IsSpikeInClone & count >= minimumCloneSize) |>
+        dplyr::ungroup()
+    } else {
+      metadata <- metadata |>
+        dplyr::group_by(dplyr::across(dplyr::all_of(cloneIdxCol))) |>
+        dplyr::mutate(count = dplyr::n()) |>
+        dplyr::filter(count >= minimumCloneSize) |>
+        dplyr::ungroup()
+    }
+
+    message(paste0('Rows remaining after filtering clones with cloneSize less than ', minimumCloneSize, ': ', nrow(metadata)))
+  }
+
+  if ('IsSpikeInClone' %in% names(metadata)) {
+    metadata <- metadata |>
+      dplyr::select(-IsSpikeInClone)
+  }
+
+  # Construct the grouping columns based on the supplied chains. This deliberately drops TRB if only TRA is selected:
+  grouping_columns <- c(cloneIdxCol, 'count')
+  for (chain in chains) {
+    grouping_columns <- c(grouping_columns, c(chain, paste0(chain, "_V"), paste0(chain, "_J")))
+  }
+
+  if (any(! grouping_columns %in% names(metadata))) {
+    missing <- grouping_columns[! grouping_columns %in% names(metadata)]
+    stop('Missing columns after grouping: ', paste0(missing, collapse = ','))
+  }
+
+  metadata <- metadata |>
+    dplyr::group_by(dplyr::across(dplyr::all_of(grouping_columns))) |>
+    unique.data.frame()
+
+  message(paste0('Unique metadata rows after grouping: ', nrow(metadata)))
+
+  # Reformat data for tcrDist3, iterate over chains specified:
+  formatted_data <- data.frame(CloneId = metadata[[cloneIdxCol]], count = metadata$count)
+
+  for (chain in chains){
+    charName <- substring(chain, 3)
+    if (! paste0('TR', charName) %in% names(metadata)) {
+      stop(paste0('missing column: ', paste0('TR', charName)))
+    }
+    formatted_data[[paste0('v_', tolower(charName), '_gene')]] <- .add_gene_suffix(metadata, paste0('TR', charName, '_V'))
+    formatted_data[[paste0('j_', tolower(charName), '_gene')]] <- .add_gene_suffix(metadata, paste0('TR', charName, '_J'))
+    formatted_data[[paste0('cdr3_', tolower(charName), '_aa')]] <- metadata[[paste0('TR', charName)]]
+    formatted_data[[paste0('cdr3_', tolower(charName), '_nucseq')]] <- sapply(metadata[[paste0('TR', charName)]], .reverse_translate_cdr3)
+  }
+
+  return(formatted_data)
 }

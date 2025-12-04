@@ -6,13 +6,10 @@
 \usage{
 FormatMetadataForTcrDist3(
   metadata,
-  outputPath = "./",
-  outputCsvName = NULL,
   chains = c("TRA", "TRB"),
   organism = "human",
-  summarizeClones = T,
-  imputeCloneNames = T,
-  minimumClonesPerSubject = 2,
+  sampleGroupingColumns = c("SubjectId"),
+  calculateChainPairs = TRUE,
   spikeInDataframe = NULL,
   verbose = FALSE
 )
@@ -20,19 +17,13 @@ FormatMetadataForTcrDist3(
 \arguments{
 \item{metadata}{Data frame containing metadata.}
 
-\item{outputPath}{The path where any output files will be written}
-
-\item{outputCsvName}{Optional path where the results will be written as a CSV file.}
-
 \item{chains}{TCR chains to include in the analysis. TRA/TRB supported and tested, but others likely work.}
 
 \item{organism}{Organism to use for tcrDist3. Default is 'human'.}
 
-\item{summarizeClones}{Boolean controlling whether to summarize clones by SubjectId, TRA, TRB, TRA_V, TRA_J, TRB_V, and TRB_J.}
+\item{sampleGroupingColumns}{The set of columns on which to group the data}
 
-\item{imputeCloneNames}{Boolean controlling whether to impute clone names if they are missing.}
-
-\item{minimumClonesPerSubject}{Minimum number of clones per subject to include in the analysis. Default is 2.}
+\item{calculateChainPairs}{If true, this will prepare the columns needed for A/B and/or  G/D (depending on values of chains}
 
 \item{spikeInDataframe}{Data frame containing spike-in data. Default is NULL. See examples for formatting requirements.}
 
