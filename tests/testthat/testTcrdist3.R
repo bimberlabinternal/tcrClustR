@@ -1,53 +1,20 @@
 library(testthat)
 
 test_that("tcrdist3 works", {
-  #define paths using a temporary directory
-  temp_dir <- tempdir()
-
-  print(temp_dir)
-  #debug statements
-  paste0('file.exists: ', file.exists(temp_dir))
-  paste0('dir.exists: ', dir.exists(temp_dir))
-  outFile <- tempfile(tmpdir =  temp_dir)
-  print(paste0('outfile: ', outFile))
-  paste0('file.exists: ', file.exists(outFile))
-  print('creating')
-  print(file.create(outFile))
-  print(paste0('file.exists after create: ', file.exists(outFile)))
-  print(paste0('python executable: ', Sys.which("python3")))
-
-  rdsOutputPath <- file.path(temp_dir, "tcrdist3DistanceMatrices")
-  filteredGeneSegmentsPath <- file.path(temp_dir, "filtered_TRB_gene_segments.csv")
-
   #read in a small Seurat object with TCR data
   seuratObj <- readRDS("../testdata/small_RIRA.rds")
   seuratObj <- subset(seuratObj, cells = SeuratObject::WhichCells(seuratObj, which(as.numeric(seuratObj$cDNA_ID) > 1 )))
 
   #test that the function runs without errors
-  testthat::expect_no_error(
-    seuratObj_TCR <- RunTcrdist3(
-             inputData = seuratObj,
-             chains = c("TRA", "TRB"),
-             minimumCloneSize = 2,
-             rdsOutputPath = rdsOutputPath,
-             debugTcrdist3 = TRUE)
+  tcrOutputs <- RunTcrdist3(
+           inputData = seuratObj,
+           chains = c("TRA", "TRB"),
+           minimumCloneSize = 2,
+           debugTcrdist3 = TRUE
   )
 
-  print(list.files(temp_dir))
-
-  #test that the "missing TCRs file" was created and properly stores the TCRs missing from the db
-  testthat::expect_true(file.exists(filteredGeneSegmentsPath))
-  testthat::expect_gt(file.size(filteredGeneSegmentsPath), 16)
-  
-  #validate files
-  filtered_content <- readr::read_csv(filteredGeneSegmentsPath, show_col_types = FALSE)
-  testthat::expect_gt(nrow(filtered_content), 0)  # Should have some filtered gene segments
-  testthat::expect_true("TRB_V" %in% colnames(filtered_content))  # Should have expected columns
-  testthat::expect_true("TRB_J" %in% colnames(filtered_content))
-
-  #test that the RDS distance matrices were created
-  testthat::expect_true(file.exists(file.path(rdsOutputPath, "pw_cdr3_a_aa.rds")))
-
+  print(list.files(tempdir()))
+  testthat::expect_equal(length(names(tcrOutputs)), 5)
 
   spikeInDataframe <- data.frame(CloneNames = rep(1:3),
                                  TRA_V = c("TRAV1-2", "TRAV1-2", "TRAV1-2"),
@@ -58,20 +25,16 @@ test_that("tcrdist3 works", {
                                  TRB = c("CASSAAAAAAAAFF", "CASSVVVVVVVVQF", "CASSWWWWWWWWQY")
   )
 
-  #test that spiking in TCRs works:
-  seuratObj_TCR <- NULL
-  testthat::expect_no_error(
-    seuratObj_TCR <- RunTcrdist3(
-             inputData = seuratObj,
-             chains = c("TRA", "TRB"),
-             minimumCloneSize = 2,
-             rdsOutputPath = rdsOutputPath,
-             debugTcrdist3 = TRUE,
-             spikeInDataframe = spikeInDataframe)
+  # Test that spiking in TCRs works:
+  seuratObj_TCR <- RunTcrdist3(
+           inputData = seuratObj,
+           chains = c("TRA", "TRB"),
+           minimumCloneSize = 2,
+           debugTcrdist3 = TRUE,
+           spikeInDataframe = spikeInDataframe
   )
 
   testthat::expect_true(sum(grepl("spikeIn", seuratObj_TCR$SubjectId)) == 3)
-  testthat::expect_true(file.exists(file.path(rdsOutputPath, "pw_cdr3_a_aa.rds")))
 
   #test calculateChainPairs functionality
   seuratObj_TCR_multichain <- NULL
@@ -80,7 +43,6 @@ test_that("tcrdist3 works", {
              inputData = seuratObj,
              chains = c("TRA", "TRB"),
              minimumCloneSize = 2,
-             rdsOutputPath = rdsOutputPath,
              debugTcrdist3 = TRUE,
              calculateChainPairs = TRUE,
              verbose = TRUE)

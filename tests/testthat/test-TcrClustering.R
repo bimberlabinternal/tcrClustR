@@ -6,12 +6,10 @@ setup_test_data <- function() {
   seuratObj <- readRDS("../testdata/small_RIRA.rds")
   seuratObj <- subset(seuratObj, cells = SeuratObject::WhichCells(seuratObj, which(as.numeric(seuratObj$cDNA_ID) > 1)))
 
-  rdsOutputPath <- file.path(temp_dir, "tcrdist3DistanceMatrices")
-
   seuratObj_TCR <- RunTcrdist3(inputData = seuratObj,
                                chains = c("TRA", "TRB"),
                                minimumCloneSize = 2,
-                               rdsOutputPath = rdsOutputPath)
+                               )
 
   return(list(seuratObj = seuratObj, seuratObj_TCR = seuratObj_TCR))
 }
@@ -191,17 +189,11 @@ test_that("Spike-in functionality works", {
   seuratObj <- readRDS("../testdata/small_RIRA.rds")
   seuratObj <- subset(seuratObj, cells = SeuratObject::WhichCells(seuratObj, which(as.numeric(seuratObj$cDNA_ID) > 1)))
 
-    rdsOutputPath <- file.path(temp_dir, "tcrdist3DistanceMatrices_spikeins")
+  resultList <- RunTcrdist3(inputData = seuratObj,
+                               chains = c("TRA", "TRB"),
+                               minimumCloneSize = 2,
+                               spikeInDataframe = spikeInDataframe
+  )
 
-  testthat::expect_no_error({
-    seuratObj_TCR <- RunTcrdist3(inputData = seuratObj,
-                                 chains = c("TRA", "TRB"),
-                                 minimumCloneSize = 2,
-                                 rdsOutputPath = rdsOutputPath,
-                                 spikeInDataframe = spikeInDataframe)
-  })
-
-  # TODO: verify spike-ins are present
-  tcrdist3Input <- readr::read_csv(postFormattingMetadataCsvPath, show_col_types = FALSE)
-  testthat::expect_true(sum(grepl("spikeIn", tcrdist3Input$subject)) == 3)
+  testthat::expect_true(sum(grepl("spikeIn", resultList$metadata$SubjectId)) == 3)
 })

@@ -137,7 +137,6 @@ tryCatch({
     chains = chains,
     cleanMetadata = cleanMetadata,
     minimumCloneSize = minimumCloneSize,
-    rdsOutputPath = file.path(outputPath, "tcrdist3DistanceMatrices"),
     pythonExecutable = pythonExecutable,
     verbose = verbose
   )

@@ -107,7 +107,6 @@ seuratObj_TCR <- RunTcrdist3(
   inputData = seuratObj,
   chains = chains,
   minimumCloneSize = minimumCloneSize,
-  rdsOutputPath = file.path(outputPath, "tcrdist3DistanceMatrices"),
   verbose = verbose
 )
 

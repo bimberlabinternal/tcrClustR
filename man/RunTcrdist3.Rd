@@ -11,9 +11,8 @@ RunTcrdist3(
   spikeInDataframe = NULL,
   minimumCloneSize = 2,
   calculateChainPairs = FALSE,
-  rdsOutputPath = "./tcrdist3DistanceMatrices/",
   pythonExecutable = NULL,
-  debugTcrdist3 = TRUE,
+  debugTcrdist3 = FALSE,
   verbose = FALSE
 )
 }
@@ -24,35 +23,31 @@ RunTcrdist3(
 
 \item{chains}{Vector of TCR chains to include in the analysis. Default is c("TRA", "TRB").}
 
-\item{spikeInDataframe}{Data frame containing known CDR3s and gene segments to be included in the clustering. Default is NULL.}
+\item{spikeInDataframe}{An optional data frame containing additional CDR3s and gene segments to be included in the clustering, such as published clonotypes.}
 
 \item{minimumCloneSize}{Minimum number of clones per subject to include in the analysis. Default is 2.}
 
-\item{calculateChainPairs}{Boolean controlling whether to compute joint multi-chain distance matrices for observed chain combinations. Default is FALSE.}
-
-\item{rdsOutputPath}{Path to the output directory for the RDS files containing the distance matrices. Default is "./tcrdist3DistanceMatrices/".}
+\item{calculateChainPairs}{Boolean controlling whether to compute joint multi-chain distance matrices for observed chain combinations.}
 
 \item{pythonExecutable}{Path to the python executable. Default is reticulate::py_exe().}
 
-\item{debugTcrdist3}{Boolean controlling whether to run tcrdist3 in debug mode. Default is TRUE.}
+\item{debugTcrdist3}{Boolean controlling whether to run tcrdist3 in debug mode.}
 
-\item{verbose}{Boolean controlling whether to display processing steps. Default is FALSE.}
+\item{verbose}{Boolean controlling whether to display processing steps.}
 }
 \description{
 This function runs the tcrdist3 pipeline on a set of CDR3 sequences in a Seurat Object.
 }
 \examples{
 \dontrun{
-  seuratObj_TCR<- RunTcrdist3(inputData = seuratObj@meta.data,
+  resultList <- RunTcrdist3(inputData = seuratObj@meta.data,
               chains = c("TRA", "TRB"),
               minimumCloneSize = 2,
               calculateChainPairs = FALSE,
-              rdsOutputPath = "./tcrdist3DistanceMatrices/",
-              pythonExecutable = reticulate::py_exe(),
               verbose = FALSE)
 
   # Example with calculateChainPairs analysis
-  seuratObj_TCR<- RunTcrdist3(inputData = seuratObj,
+  resultList <- RunTcrdist3(inputData = seuratObj,
               chains = c("TRA", "TRB", "TRG", "TRD"),
               calculateChainPairs = TRUE,
               verbose = TRUE)

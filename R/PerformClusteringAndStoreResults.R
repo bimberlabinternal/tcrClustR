@@ -3,19 +3,15 @@
 #'
 #' @param seuratObj The Seurat object
 #' @param outputDir Directory to write parquet files. Default = "./tcrclustering_output/".
-#' @param outputPrefix Optional prefix for output filenames. Default = "clustering".
 #' @param verbose Logical. Print progress. Default = TRUE.
 #' @return A seurat object with clustering information stored as assays
 #' @export
-PerformClusteringAndStoreResults <- function(seuratObj, outputDir, outputPrefix = 'TCR.clustering', chains, verbose = TRUE, minimumCloneSize) {
-  rdsOutputPath <- file.path(outputDir, ".tcrdist3DistanceMatrices")
-
+PerformClusteringAndStoreResults <- function(seuratObj, outputDir, chains, verbose = TRUE, minimumCloneSize) {
   distDistOutput <- RunTcrdist3(
     inputData = seuratObj,
     calculateChainPairs = TRUE,
     chains = chains,
     minimumCloneSize = 2,
-    rdsOutputPath = rdsOutputPath,
     verbose = verbose
   )
    

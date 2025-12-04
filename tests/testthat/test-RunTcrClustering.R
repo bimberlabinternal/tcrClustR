@@ -24,9 +24,11 @@ test_that("RunTcrClustering filters invalid clones correctly", {
   seurat_obj <- CreateSeuratObject(counts = dummy_counts, meta.data = metadata)
   
   # Run tcrdist3
-  tcr_obj <- RunTcrdist3(seurat_obj, chains = "TRB", calculateChainPairs = FALSE,
-                         minimumCloneSize = 1, rdsOutputPath = tempdir(),
-                         verbose = FALSE, pythonExecutable = Sys.which("python3"))
+  tcr_obj <- RunTcrdist3(seurat_obj, chains = "TRB",
+                         calculateChainPairs = FALSE,
+                         minimumCloneSize = 1,
+                         verbose = FALSE,
+                         )
   
   # Test with filtering
   output_dir <- file.path(tempdir(), "test_filtered")
@@ -71,9 +73,11 @@ test_that("RunTcrClustering strips alleles correctly", {
                          dimnames = list(paste0("gene_", 1:10), rownames(metadata)))
   seurat_obj <- CreateSeuratObject(counts = dummy_counts, meta.data = metadata)
   
-  tcr_obj <- RunTcrdist3(seurat_obj, chains = "TRB", calculateChainPairs = FALSE,
-                         minimumCloneSize = 1, rdsOutputPath = tempdir(),
-                         verbose = FALSE, pythonExecutable = Sys.which("python3"))
+  tcr_obj <- RunTcrdist3(seurat_obj, chains = "TRB",
+                         calculateChainPairs = FALSE,
+                         minimumCloneSize = 1,
+                         verbose = FALSE,
+                         )
   
   # With allele stripping (default)
   output_dir_stripped <- file.path(tempdir(), "test_no_alleles")
@@ -163,9 +167,11 @@ test_that("RunTcrClustering respects outputPrefix parameter", {
                          dimnames = list(paste0("gene_", 1:10), rownames(metadata)))
   seurat_obj <- CreateSeuratObject(counts = dummy_counts, meta.data = metadata)
   
-  tcr_obj <- RunTcrdist3(seurat_obj, chains = "TRB", calculateChainPairs = FALSE,
-                         minimumCloneSize = 1, rdsOutputPath = tempdir(),
-                         verbose = FALSE, pythonExecutable = Sys.which("python3"))
+  tcr_obj <- RunTcrdist3(seurat_obj, chains = "TRB",
+                         calculateChainPairs = FALSE,
+                         minimumCloneSize = 1,
+                         verbose = FALSE,
+                         )
   
   output_dir <- file.path(tempdir(), "test_prefix")
   unlink(output_dir, recursive = TRUE)

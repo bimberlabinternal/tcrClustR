@@ -127,9 +127,11 @@ FormatMetadataForTcrDist3 <- function(metadata,
     metadata <- metadata |>
       tibble::rownames_to_column('RowNames_') |>
       dplyr::group_by(dplyr::across(dplyr::all_of(tcr_grouping_columns))) |>
-      dplyr::mutate(`_CloneIdx_` = paste0(chain, '_', 'Clone_', dplyr::cur_group_id())) |>
+      dplyr::mutate(`_CloneIdx_` = paste0(chain, '-', 'Clone-', dplyr::cur_group_id())) |>
       dplyr::ungroup() %>%
       tibble::column_to_rownames('RowNames_')
+
+    metadata[['_CloneIdx_']][!metadata$IsValidForChain] <- NA
 
     # There might be a more elegant solution to this:
     names(metadata)[names(metadata) == '_CloneIdx_'] <- paste0(chain, '-CloneIdx')
@@ -148,17 +150,17 @@ FormatMetadataForTcrDist3 <- function(metadata,
     }
 
     for (chainId in toTest) {
-      message(paste0('Computing columns for: ', chainId))
-
       chains <- unlist(strsplit(chainId, split = '_'))
       metadata$IsValidForChain <- metadata[[paste0(chains[1], '_ValidForClustering')]] & metadata[[paste0(chains[2], '_ValidForClustering')]]
       tcr_grouping_columns <- c(chains[1], paste0(chains[1], "_V"), paste0(chains[1], "_J"), chains[2], paste0(chains[2], "_V"), paste0(chains[2], "_J"))
       metadata <- metadata |>
         tibble::rownames_to_column('RowNames_') |>
         dplyr::group_by(dplyr::across(dplyr::all_of(tcr_grouping_columns))) |>
-        dplyr::mutate(`_CloneIdx_` = paste0(chainId, '_', 'Clone_', dplyr::cur_group_id())) |>
+        dplyr::mutate(`_CloneIdx_` = paste0(chainId, '-', 'Clone-', dplyr::cur_group_id())) |>
         dplyr::ungroup() %>%
         tibble::column_to_rownames('RowNames_')
+
+      metadata[['_CloneIdx_']][!metadata$IsValidForChain] <- NA
 
       # There might be a more elegant solution to this:
       names(metadata)[names(metadata) == '_CloneIdx_'] <- paste0(chainId, '-CloneIdx')
@@ -224,7 +226,9 @@ FormatMetadataForTcrDist3 <- function(metadata,
   cdr3_nuc_seq <- sapply(strsplit(as.character(cdr3_aa_seq), NULL)[[1]], function(aa) {
     # Check if amino acid exists in codon table
     if (aa %in% names(codon_table) && length(codon_table[[aa]]) > 0) {
-      sample(codon_table[[aa]], 1)
+      # TODO: GW, do you see problems with this?
+      # NOTE: arbitrarily take the first codon when multiple are available, which ensures we can uniquely group rows by CDR3/V/J:
+      codon_table[[aa]][1]
     } else {
       # Return AAA for unknown amino acids
       warning("Unknown amino acid '", aa, "' in CDR3 sequence '", cdr3_aa_seq, "'. Using AAA.")
@@ -574,7 +578,7 @@ TCRDistanceHeatmaps <- function(
       message("Cluster levels for ", assay, ": ", paste(cluster_levels, collapse = ", "))
       message("Number of cluster levels: ", length(cluster_levels))
     }
-    cluster_colors <- setNames(
+    cluster_colors <- stats::setNames(
       if (length(cluster_levels) <= 8) {
         RColorBrewer::brewer.pal(length(cluster_levels), "Set2")
       } else if (length(cluster_levels) <= 12) {
@@ -658,7 +662,7 @@ TCRDistanceHistograms <- function(
   }
 
   # precompute how many cells each assay has
-  cell_counts <- setNames(
+  cell_counts <- stats::setNames(
     vapply(assays, function(a) {
       ncol(Seurat::GetAssayData(seuratObj_TCR, assay = a, layer = "counts"))
     }, integer(1)),
@@ -690,7 +694,7 @@ TCRDistanceHistograms <- function(
     # Build palette
     n_clust <- length(levels(cluster_info))
     pal     <- RColorBrewer::brewer.pal(min(n_clust, 8), "Set2")
-    cl_cols <- setNames(pal, levels(cluster_info))
+    cl_cols <- stats::setNames(pal, levels(cluster_info))
 
     df <- data.frame(
       DistanceSum = rowSums(dist_mat),
@@ -818,6 +822,7 @@ GetExampleMarkdown <- function(dest) {
     if (sum(unknown_v_segments) > 0) {
       unk <- sort(unique(toTest[unknown_v_segments]))
       warning('The following ', length(unk), ' ', vCol, ' values were not found in the DB: ', paste0(unk, collapse = ','))
+      warning(paste0("Run tcrClustR:::.PullTcrdist3Db(organism = '", organism, "', outputFilePath = '...') to obtain the list of known segments."))
       metadata[[validCol]][unknown_v_segments] <- FALSE
     }
 
@@ -825,8 +830,8 @@ GetExampleMarkdown <- function(dest) {
     unknown_j_segments <- metadata[[validCol]] & !is.na(toTest) & !(toTest %in% gene_segments_in_db)
     if (sum(unknown_j_segments) > 0) {
       unk <- sort(unique(toTest[unknown_j_segments]))
-      print(typeof(unk))
       warning('The following ', length(unk), ' ', jCol, ' values were not found in the DB: ', paste0(unk, collapse = ','))
+      warning(paste0("Run tcrClustR:::.PullTcrdist3Db(organism = '", organism, "', outputFilePath = '...') to obtain the list of known segments."))
       metadata[[validCol]][unknown_j_segments] <- FALSE
     }
 

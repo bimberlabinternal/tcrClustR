@@ -7,7 +7,6 @@
 PerformClusteringAndStoreResults(
   seuratObj,
   outputDir,
-  outputPrefix = "TCR.clustering",
   chains,
   verbose = TRUE,
   minimumCloneSize
@@ -17,8 +16,6 @@ PerformClusteringAndStoreResults(
 \item{seuratObj}{The Seurat object}
 
 \item{outputDir}{Directory to write parquet files. Default = "./tcrclustering_output/".}
-
-\item{outputPrefix}{Optional prefix for output filenames. Default = "clustering".}
 
 \item{verbose}{Logical. Print progress. Default = TRUE.}
 }

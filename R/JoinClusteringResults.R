@@ -239,7 +239,7 @@ JoinClusteringResults <- function(seuratObj,
   parquet_key <- paste(cluster_data$v_gene, cluster_data$j_gene, cluster_data$CDR3, sep = "|||")
 
   # Create lookup table (parquet_key -> Cluster)
-  lookup <- setNames(cluster_data$Cluster, parquet_key)
+  lookup <- stats::setNames(cluster_data$Cluster, parquet_key)
 
   # Match metadata keys to parquet keys
   cluster_assignments <- lookup[metadata_key]
