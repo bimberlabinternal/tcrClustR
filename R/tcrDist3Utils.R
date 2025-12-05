@@ -127,7 +127,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
     metadata <- metadata |>
       tibble::rownames_to_column('RowNames_') |>
       dplyr::group_by(dplyr::across(dplyr::all_of(tcr_grouping_columns))) |>
-      dplyr::mutate(`_CloneIdx_` = paste0(chain, '-', 'Clone-', dplyr::cur_group_id())) |>
+      dplyr::mutate(`_CloneIdx_` = paste0(chain, '-', 'Clone-', dplyr::cur_group_id()), `_CloneSize_` = dplyr::n()) |>
       dplyr::ungroup() %>%
       tibble::column_to_rownames('RowNames_')
 
@@ -135,6 +135,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
 
     # There might be a more elegant solution to this:
     names(metadata)[names(metadata) == '_CloneIdx_'] <- paste0(chain, '-CloneIdx')
+    names(metadata)[names(metadata) == '_CloneSize_'] <- paste0(chain, '-CloneSize')
     metadata$IsValidForChain <- NULL
   }
 
@@ -156,7 +157,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
       metadata <- metadata |>
         tibble::rownames_to_column('RowNames_') |>
         dplyr::group_by(dplyr::across(dplyr::all_of(tcr_grouping_columns))) |>
-        dplyr::mutate(`_CloneIdx_` = paste0(chainId, '-', 'Clone-', dplyr::cur_group_id())) |>
+        dplyr::mutate(`_CloneIdx_` = paste0(chainId, '-', 'Clone-', dplyr::cur_group_id()), `_CloneSize_` = dplyr::n()) |>
         dplyr::ungroup() %>%
         tibble::column_to_rownames('RowNames_')
 
@@ -164,6 +165,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
 
       # There might be a more elegant solution to this:
       names(metadata)[names(metadata) == '_CloneIdx_'] <- paste0(chainId, '-CloneIdx')
+      names(metadata)[names(metadata) == '_CloneSize_'] <- paste0(chainId, '-CloneSize')
       metadata$IsValidForChain <- NULL
     }
   }

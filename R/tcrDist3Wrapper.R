@@ -222,6 +222,8 @@ RunTcrdist3 <- function(inputData = NULL,
 }
 
 .combine_matrices <- function(metadata, chain1, chain2, matSuffix, seuratObj) {
+  print(paste0('Calculating joint distance matrix for: ', chain1, ' and ', chain2))
+
   assayName <- paste0(chain1, '-', chain2, matSuffix)
   cloneIdxField1 <- paste0(chain1, '-CloneIdx')
   cloneIdxField2 <- paste0(chain2, '-CloneIdx')
@@ -231,56 +233,56 @@ RunTcrdist3 <- function(inputData = NULL,
 
   for (fn in c(cloneIdxField1, cloneIdxField2, cloneIdxFieldBoth, cloneValidField1, cloneValidField2)) {
     if (! fn %in% names(metadata)) {
-      print(paste0(names(metadata), collapse = ','))
       stop(paste0('Missing field in metadata: ', fn))
     }
   }
 
   sel <- !is.na(metadata[[cloneValidField1]]) & metadata[[cloneValidField1]] & !is.na(metadata[[cloneValidField2]]) & metadata[[cloneValidField2]]
   if (sum(sel) == 0) {
-    print('No passing dual chains!')
-    print(sum(!is.na(metadata[[cloneValidField1]])))
-    print(sum(metadata[[cloneValidField1]]))
-    print(sum((!is.na(metadata[[cloneValidField2]]))))
-    print(sum(metadata[[cloneValidField2]]))
-    stop('ERROR: No passing dual chains!')
+    warning('ERROR: No passing dual chains, skipping')
+    return(seuratObj)
   }
 
   print(paste0(assayName, ', total passing cells: ', sum(sel)))
+  cloneMapping <- metadata[sel, c(cloneIdxFieldBoth, cloneIdxField1, cloneIdxField2)] %>%
+    unique()
 
-  toWrite <- metadata[c(chain1, chain2, paste0(chain1,'_V'), paste0(chain1,'_J'), paste0(chain2,'_V'), paste0(chain2,'_J'), cloneIdxField1, cloneIdxField2, cloneIdxFieldBoth, cloneValidField1, cloneValidField2)]
-  toWrite$IsSelected <- sel
-  write.table(toWrite, file = '/users/bimber/downloads/combine.txt', sep = '\t', quote = FALSE)
+  if (any(duplicated(cloneMapping[[cloneIdxFieldBoth]]))) {
+    stop('There were duplicated clone IDs')
+  }
+  rownames(cloneMapping) <- cloneMapping[[cloneIdxFieldBoth]]
 
-
-  validClones1 <- unique(metadata[[cloneIdxField1]][sel])
-  print(typeof(validClones1))
-  validClones1 <- as.character(validClones1)
   mat1 <- Seurat::GetAssayData(seuratObj, assay = paste0(chain1, matSuffix), layer = 'counts')
-  if (any(!validClones1 %in% rownames(mat1))) {
-    missing <- sort(validClones1[!validClones1 %in% rownames(mat1)])
-    print(missing)
-    print(head(sort(rownames(mat1))))
-    stop('The first matrix rows did not match expected clones!')
-  }
-  print(dim(mat1))
-  mat1 <- mat1[validClones1,]
-  print(dim(mat1))
-
-  validClones2 <- unique(metadata[[cloneIdxField2]][sel])
-  validClones2 <- as.character(validClones2)
   mat2 <- Seurat::GetAssayData(seuratObj, assay = paste0(chain2, matSuffix), layer = 'counts')
-  if (any(!validClones2 %in% rownames(mat2))) {
-    print(head(validClones2))
-    print(head(rownames(mat2)))
-    stop('The second matrix rows did not match expected clones!')
-  }
 
-  print(dim(mat2))
-  mat2 <- mat2[validClones2,]
-  print(dim(mat2))
-  print(head(rownames(mat2)))
-  print(head(colnames(mat2)))
+  # NOTE: due to the cloneSize filter, this can be a superset of clones in the distance matrix
+  validClones1 <- cloneMapping[[cloneIdxField1]]
+  validClones1 <- intersect(validClones1, rownames(mat1))
+  print(paste0('Total valid chain 1 clones: ', length(validClones1)))
+
+  validClones2 <- cloneMapping[[cloneIdxField2]]
+  validClones2 <- intersect(validClones2, rownames(mat2))
+  print(paste0('Total valid chain 2 clones: ', length(validClones2)))
+
+  translation1 <- data.frame(x = rownames(mat1)) %>%
+    dplyr::inner_join(cloneMapping, by = c('x' = cloneIdxField1))
+  rownames(translation1) <- translation1[[cloneIdxFieldBoth]]
+
+  translation2 <- data.frame(x = rownames(mat2)) %>%
+    dplyr::inner_join(cloneMapping, by = c('x' = cloneIdxField2))
+  rownames(translation2) <- translation2[[cloneIdxFieldBoth]]
+
+  sharedClones <- intersect(translation1[[cloneIdxFieldBoth]], translation2[[cloneIdxFieldBoth]])
+
+  # Now find the intersect across chain1/2:
+  translation1 <- translation1[sharedClones,]
+  translation2 <- translation2[sharedClones,]
+
+  mat1 <- mat1[translation1$x,]
+  rownames(mat1) <- sharedClones
+
+  mat2 <- mat2[translation2$x,]
+  rownames(mat2) <- sharedClones
 
   if (any(colnames(mat1) != colnames(mat2))) {
     stop('Matrix 1 and 2 column names did not match!')
@@ -288,14 +290,21 @@ RunTcrdist3 <- function(inputData = NULL,
 
   mat <- Seurat::as.sparse(as.matrix(mat1) + as.matrix(mat2))
   colnames(mat) <- colnames(mat1)
-  rownames(mat) <- metadata[[cloneIdxFieldBoth]][sel]
-  print(head(rownames(mat)))
-  print('XXXXXXXXXX')
-  print(dim(mat))
-  print(dim(mat1))
-  print(dim(mat2))
-
+  rownames(mat) <- rownames(mat1)
   seuratObj[[assayName]] <- Seurat::CreateAssayObject(counts = mat)
+
+  # Now make the raw distance matrix:
+  mat1 <- seuratObj@misc$TCR_Distances[[paste0(chain1, matSuffix)]]
+  mat1 <- mat1[translation1$x, translation1$x]
+
+  mat2 <- seuratObj@misc$TCR_Distances[[paste0(chain2, matSuffix)]]
+  mat2 <- mat2[translation2$x, translation2$x]
+
+  mat <- Seurat::as.sparse(as.matrix(mat1) + as.matrix(mat2))
+  colnames(mat) <- sharedClones
+  rownames(mat) <- sharedClones
+
+  seuratObj@misc$TCR_Distances[[assayName]] <- mat
 
   return(seuratObj)
 }
@@ -350,8 +359,6 @@ RunTcrdist3 <- function(inputData = NULL,
   }
 
   if (any(rownames(assayMeta) != rownames(new_mat))) {
-    print(head(rownames(new_mat)))
-    print(head(rownames(assayMeta)))
     stop('Rownames on new_mat do not match assayMeta')
   }
 
