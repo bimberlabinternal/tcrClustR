@@ -66,7 +66,7 @@ FormatMetadataForTcrDist3 <- function(metadata,
   metadata$RowName <- rownames(metadata)
   if (!is.null(spikeInDataframe)) {
     # Check that the spikeInDataframe has columns that match the chains requested
-    for (chainName in chains) {
+    for (chain in chains) {
       if (! .has_chain_columns(spikeInDataframe, chain)) {
         stop(paste0("The spikeInDataframe must have the columns '", chain, "' (the CDR3), '", paste0(chain, '_V'), "', and '", paste0(chain, '_J'), "'"))
       }
