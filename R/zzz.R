@@ -13,7 +13,7 @@
 #' @description
 #' This function validates the Python installation, checks for required modules,
 #' and installs dependencies if needed. It's designed to be called before any
-#' tcrClustR functions that rely on Python (e.g., RunTcrdist3, FormatMetadataForTcrDist3).
+#' tcrClustR functions that rely on Python (e.g., RunTcrdist3, .FormatMetadata).
 #'
 #' @param pythonExecutable Path to the Python executable. If NULL (default), will
 #'   use reticulate::py_exe() or fall back to system Python3.

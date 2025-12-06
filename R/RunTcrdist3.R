@@ -1,4 +1,6 @@
-
+#' @include Utils.R
+#' @include FormatMetadata.R
+#'
 utils::globalVariables(
   names = c('SubjectId', 'TRA_V', 'TRA_J', 'TRB_V', 'TRB_J', 'CloneNames', 'count'),
   package = 'tcrClustR',
@@ -14,83 +16,21 @@ utils::globalVariables(
 #' @param spikeInDataframe An optional data frame containing additional CDR3s and gene segments to be included in the clustering, such as published clonotypes.
 #' @param minimumCloneSize Minimum number of clones per subject to include in the analysis. Default is 2.
 #' @param calculateChainPairs Boolean controlling whether to compute joint multi-chain distance matrices for observed chain combinations.
-#' @param pythonExecutable Path to the python executable. Default is reticulate::py_exe().
 #' @param debugTcrdist3 Boolean controlling whether to run tcrdist3 in debug mode.
 #' @param verbose Boolean controlling whether to display processing steps.
 #' @import Matrix
 #' @importFrom methods as
 #' @importFrom methods is
-#' @examples
-#' \dontrun{
-#'   resultList <- RunTcrdist3(inputData = seuratObj@meta.data,
-#'               chains = c("TRA", "TRB"),
-#'               minimumCloneSize = 2,
-#'               calculateChainPairs = FALSE,
-#'               verbose = FALSE)
-#'
-#'   # Example with calculateChainPairs analysis
-#'   resultList <- RunTcrdist3(inputData = seuratObj,
-#'               chains = c("TRA", "TRB", "TRG", "TRD"),
-#'               calculateChainPairs = TRUE,
-#'               verbose = TRUE)
-#'
-#'     spikeInDataframe <- data.frame(CloneNames = rep(1:3),
-#'                                  TRA_V = c("TRAV1-2", "TRAV1-2", "TRAV1-2"),
-#'                                  TRA_J = c("TRAJ33", "TRAJ20", "TRAJ33"),
-#'                                  TRA = c("CAVRDSNYQLIW", "CAVSLQDYKLSF", "CAVRDSNYQLIW"),
-#'                                  TRB_V = c("TRBV6-4", "TRBV6-4", "TRBV6-4"),
-#'                                  TRB_J = c("TRBJ1-1", "TRBJ2-1", "TRBJ2-3"),
-#'                                  TRB = c("CASSAAAAAAAAFF", "CASSVVVVVVVVQF", "CASSWWWWWWWWQY"))
-#' }
-#'
-#' @export
-
-#TODO: flesh out examples demonstrating formatting requirements for spikeInDataframe
-
-
 RunTcrdist3 <- function(inputData = NULL,
                         organism = 'human',
                         chains = c("TRA", "TRB"),
                         spikeInDataframe = NULL,
                         minimumCloneSize = 2,
                         calculateChainPairs = FALSE,
-                        pythonExecutable = NULL,
                         debugTcrdist3 = FALSE,
                         verbose = FALSE
 ) {
-
-  if (is.null(inputData)) {
-    stop("Please provide either a Seurat Object or the Seurat Object's metadata as input.")
-  }
-
-  if (typeof(inputData) == 'S4' && class(inputData)[1] == 'Seurat' ){
-    metadata <- inputData@meta.data
-  }
-
-  if (!is.data.frame(metadata)) {
-    stop('Expected inputData to be either a Seurat object or a data.frame')
-  }
-
-  if (is.null(pythonExecutable)) {
-    pythonExecutable <- reticulate::py_exe()
-
-    #if reticulate doesn't provide a valid executable, try system default
-    if (is.null(pythonExecutable) || pythonExecutable == "" || !file.exists(pythonExecutable)) {
-      pythonExecutable <- Sys.which("python3")
-      if (pythonExecutable == "") {
-        pythonExecutable <- Sys.which("python")
-      }
-    }
-
-    if (pythonExecutable == "" || !file.exists(pythonExecutable)) {
-      stop("No valid Python executable found. Please specify pythonExecutable parameter or ensure Python is in PATH.")
-    }
-  }
-
-  #validate Python environment and required packages
-  if (verbose) {
-    message(paste("Using Python executable:", pythonExecutable))
-  }
+  pythonExecutable <- .get_python_executable(verbose)
 
   # NOTE: The package is installed as 'tcrdist3' but imported as 'tcrdist'
   #test if required packages are available
@@ -105,12 +45,8 @@ RunTcrdist3 <- function(inputData = NULL,
     stop("Python environment may not have required packages (tcrdist3, rpy2). This may cause failures.")
   }
 
-  rdsOutputPath <- tempdir()
-  rdsOutputPath <- gsub(rdsOutputPath, pattern = '\\\\', replacement = '/')
-
-  pythonExecutable <- R.utils::getAbsolutePath(pythonExecutable)
-
-  formatted_metadata <- FormatMetadataForTcrDist3(metadata = metadata,
+  rdsOutputPath <- gsub(tempdir(), pattern = '\\\\', replacement = '/')
+  formatted_metadata <- .FormatMetadata(metadata = metadata,
                                                   chains = chains,
                                                   spikeInDataframe = spikeInDataframe,
                                                   calculateChainPairs = calculateChainPairs,
@@ -118,13 +54,13 @@ RunTcrdist3 <- function(inputData = NULL,
   )
 
   if (nrow(formatted_metadata[!formatted_metadata$IsSpikeInClone,]) != nrow(metadata)) {
-    stop('Incorrect row count after FormatMetadataForTcrDist3')
+    stop('Incorrect row count after .FormatMetadata')
   }
 
   if (any(rownames(formatted_metadata[!formatted_metadata$IsSpikeInClone,]) != rownames(metadata))) {
     print(head(rownames(formatted_metadata[!formatted_metadata$IsSpikeInClone,])))
     print(head(rownames(metadata)))
-    stop('Rownames did not match after FormatMetadataForTcrDist3')
+    stop('Rownames did not match after .FormatMetadata')
   }
 
   seuratObj <- NULL
@@ -228,8 +164,8 @@ RunTcrdist3 <- function(inputData = NULL,
   cloneIdxField1 <- paste0(chain1, '-CloneIdx')
   cloneIdxField2 <- paste0(chain2, '-CloneIdx')
   cloneIdxFieldBoth <- paste0(chain1, '_', chain2, '-CloneIdx')
-  cloneValidField1 <- paste0(chain1, '_ValidForClustering')
-  cloneValidField2 <- paste0(chain2, '_ValidForClustering')
+  cloneValidField1 <- paste0(chain1, '-ValidForClustering')
+  cloneValidField2 <- paste0(chain2, '-ValidForClustering')
 
   for (fn in c(cloneIdxField1, cloneIdxField2, cloneIdxFieldBoth, cloneValidField1, cloneValidField2)) {
     if (! fn %in% names(metadata)) {
@@ -294,17 +230,17 @@ RunTcrdist3 <- function(inputData = NULL,
   seuratObj[[assayName]] <- Seurat::CreateAssayObject(counts = mat)
 
   # Now make the raw distance matrix:
-  mat1 <- seuratObj@misc$TCR_Distances[[paste0(chain1, matSuffix)]]
+  mat1 <- Seurat::GetAssayData(seuratObj@misc$TCR_Distances[[paste0(chain1, matSuffix)]], layer = 'counts')
   mat1 <- mat1[translation1$x, translation1$x]
 
-  mat2 <- seuratObj@misc$TCR_Distances[[paste0(chain2, matSuffix)]]
+  mat2 <- Seurat::GetAssayData(seuratObj@misc$TCR_Distances[[paste0(chain2, matSuffix)]], layer = 'counts')
   mat2 <- mat2[translation2$x, translation2$x]
 
   mat <- Seurat::as.sparse(as.matrix(mat1) + as.matrix(mat2))
   colnames(mat) <- sharedClones
   rownames(mat) <- sharedClones
 
-  seuratObj@misc$TCR_Distances[[assayName]] <- mat
+  seuratObj@misc$TCR_Distances[[assayName]] <- Seurat::CreateAssayObject(counts = mat)
 
   return(seuratObj)
 }
@@ -370,22 +306,22 @@ RunTcrdist3 <- function(inputData = NULL,
   }
 
   seuratObj[[assayName]] <- Seurat::AddMetaData(seuratObj[[assayName]], metadata = assayMeta)
-  seuratObj@misc$TCR_Distances[[assayName]] <- mat
+  seuratObj@misc$TCR_Distances[[assayName]] <- Seurat::CreateAssayObject(counts = Seurat::as.sparse(mat))
 
   return(seuratObj)
 }
 
-# This is an internal method that expects the dataframe produced by FormatMetadataForTcrDist3. This dataframe should contain columns to uniquely identify each
+# This is an internal method that expects the dataframe produced by .FormatMetadata. This dataframe should contain columns to uniquely identify each
 .filter_and_group_for_tcrdist3 <- function(metadata, chains, minimumCloneSize = 1) {
   initialRows <- nrow(metadata)
 
-  chainId <- paste0(chains, collapse = '_')
+  chainId <- paste0(chains, collapse = '-')
   cloneIdxCol <- paste0(chainId, '-CloneIdx')
   if (! cloneIdxCol %in% names(metadata)) {
     stop(paste0('Metadata missing column: ', cloneIdxCol))
   }
 
-  validCol <- paste0(chainId, '_ValidForClustering')
+  validCol <- paste0(chainId, '-ValidForClustering')
   if (! validCol %in% names(metadata)) {
     stop(paste0('Metadata missing column: ', validCol))
   }

@@ -20,7 +20,7 @@ test_that("RunTcrClustering filters invalid clones correctly", {
   rownames(metadata) <- paste0("clone_", seq_len(nrow(metadata)))
   
   dummy_counts <- matrix(rnorm(nrow(metadata) * 10), nrow = 10, ncol = nrow(metadata),
-                         dimnames = list(paste0("gene_", 1:10), rownames(metadata)))
+                         dimnames = list(paste0("gene-", 1:10), rownames(metadata)))
   seurat_obj <- CreateSeuratObject(counts = dummy_counts, meta.data = metadata)
   
   # Run tcrdist3
@@ -37,7 +37,7 @@ test_that("RunTcrClustering filters invalid clones correctly", {
   
   results <- RunTcrClustering(
     seuratObj = tcr_obj,
-    assays = "TRB",
+    assays = "TRB_fl",
     clusteringMethod = "DIANA",
     dianaHeight = 20,
     clusterSizeThreshold = 2,

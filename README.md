@@ -22,7 +22,7 @@ The fastest way to cluster TCR data:
 library(tcrClustR)
 
 #Step 1: compute TCR distance matrices (stored as Seurat assays)
-seuratObj_TCR <- RunTcrdist3(
+seuratObj_TCR <- CalculateTcrDistances(
   inputData = seuratObj,
   chains = c("TRA", "TRB"),
   minimumCloneSize = 2
@@ -30,21 +30,20 @@ seuratObj_TCR <- RunTcrdist3(
 
 #Step 2: cluster and export results to parquet files
 results <- RunTcrClustering(
-  seuratObj_TCR = seuratObj_TCR,
-  clusteringMethod = "DIANA",
-  outputDir = "./tcrclustering_output/"
+  seuratObj_TCR = seuratObj_TCR
 )
 
-#Step 3: join parquet clustering results back to the original Seurat object
-seurat_with_families <- JoinClusteringResults(
-  seuratObj = seuratObj,
-  parquetFiles = results$parquet_files,
-  metadataColumnPrefix = "TcrFamily"
+# Cluster results are stored in the metadata 
+DimPlot(
+  seuratObj_TCR,
+  reduction = "umap",
+  group.by = 'TRB-ClusterIdx',
+  label = TRUE
 )
 
-#Parquet outputs contain cluster assignments for single and paired assays.
-#Single-chain: chain, v_gene, j_gene, CDR3, Cluster, ...
-#Paired-chain: chain_1/2, v_gene_1/2, j_gene_1/2, CDR3_1/2, Cluster, ...
+# And the pairwise distances are stored as well:
+distance_mat <- GetDistanceMatrix(seuratObj_TCR, chains = 'TRA')
+
 ```
 
 ## Overview
@@ -155,7 +154,7 @@ SetupPythonEnvironment(pythonExecutable = "/usr/bin/python3")
 
 # Error: "tcrdist3_gene_segments.txt generation failed"
 # Solution: Check Python dependencies with verbose mode:
-FormatMetadataForTcrDist3(..., verbose = TRUE)
+.FormatMetadata(..., verbose = TRUE)
 ```
 
 ## Usage Examples
@@ -230,7 +229,7 @@ TCRDistanceHeatmaps(
 
 ```r
 # Clean and validate TCR data before clustering
-formatted_metadata <- FormatMetadataForTcrDist3(
+formatted_metadata <- .FormatMetadata(
   metadata = seuratObj@meta.data,
   chains = c("TRA", "TRB"),
   minimumCloneSize = 2
@@ -257,7 +256,7 @@ Complete workflow for automated analysis:
 
 ```r
 # 1. Format metadata
-formatted <- FormatMetadataForTcrDist3(
+formatted <- .FormatMetadata(
   metadata = seuratObj@meta.data,
   chains = c("TRA", "TRB"),
   minimumCloneSize = 2
@@ -315,7 +314,7 @@ Clustering results stored as columns in metadata:
 devtools::test()
 
 # Run specific test file
-testthat::test_file("tests/testthat/test-RunTcrClustering.R")
+testthat::test_file("tests/testthat/test-runTcrClustering.R")
 ```
 
 ### Building Documentation

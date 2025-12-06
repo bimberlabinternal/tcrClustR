@@ -120,5 +120,5 @@ def writeTcrDistances(csv_path,
             if debug:
                 print(f"Saved {matrix_name} to {output_file}")
    
-#this file serves as a template. tcrDist3Wrapper.R will copy this function, add a string with arguments to the end, and then call the whole file. 
+#this file serves as a template. RunTcrdist3.R will copy this function, add a string with arguments to the end, and then call the whole file.
 

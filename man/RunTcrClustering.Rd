@@ -6,52 +6,28 @@
 \usage{
 RunTcrClustering(
   seuratObj_TCR = NULL,
-  metadata = NULL,
-  assaysToCluster = NULL,
+  chainsToCluster = NULL,
   clusteringMethod = "DIANA",
   dianaHeight = 20,
-  leidenResolution = 0.3,
   clusterSizeThreshold = 2,
-  outputDir = "./tcrclustering_output/",
-  outputPrefix = "clustering",
-  maxChainsToRecord = 2,
-  stripAlleles = TRUE,
-  filterInvalidClones = TRUE,
-  verbose = TRUE,
-  ...
+  verbose = TRUE
 )
 }
 \arguments{
 \item{seuratObj_TCR}{Seurat object produced by RunTcrdist3 (contains distance assays and metadata). If NULL, provide \code{metadata} and \code{distance_matrices} instead.}
 
-\item{metadata}{Optional metadata data.frame (row.names must match clone IDs). If NULL the function will use \code{seuratObj_TCR@meta.data}.}
-
-\item{assaysToCluster}{Character vector of assay names to cluster. If NULL, all assays in \code{seuratObj_TCR} will be processed.}
+\item{chainsToCluster}{Character vector of assay names to cluster. If NULL, all assays in \code{seuratObj_TCR} will be processed.}
 
 \item{clusteringMethod}{"DIANA" or "Leiden". Default = "DIANA". If "Leiden", ClusterTcrs() is used.}
 
 \item{dianaHeight}{DIANA cut height (used when clusteringMethod == "DIANA"). Default = 20.}
 
-\item{leidenResolution}{Resolution for Leiden (passed to ClusterTcrs if used). Default = 0.3.}
-
 \item{clusterSizeThreshold}{Minimum cluster size to keep (clusters below set to 0). Default = 2.}
 
-\item{outputDir}{Directory to write parquet files. Default = "./tcrclustering_output/".}
-
-\item{outputPrefix}{Optional prefix for output filenames. Default = "clustering".}
-
-\item{maxChainsToRecord}{Max number of chains to record for paired output. Default = 2.}
-
-\item{stripAlleles}{Logical. If TRUE (default), strip allele suffixes (e.g., "*01") from V/J gene names.}
-
-\item{filterInvalidClones}{Logical. If TRUE (default), filter clones with concatenated values (commas/semicolons) or NA values in chain-specific columns before clustering.}
-
 \item{verbose}{Logical. Print progress. Default = TRUE.}
-
-\item{...}{Additional arguments forwarded to ClusterTcrs when Leiden is used.}
 }
 \value{
-A list with \code{parquet_files} (vector of files written) and \code{summary} (data.frame summary per assay)
+A seurat_TCR object with the cluster assignments stored in the metadata
 }
 \description{
 Cluster TCR distance assays in a single Seurat/tcr object and write compact tables to disk.

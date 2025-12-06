@@ -1,12 +1,12 @@
 library(testthat)
 
-test_that("tcrdist3 works", {
+test_that("CalculateTcrDistances works", {
   #read in a small Seurat object with TCR data
   seuratObj <- readRDS("../testdata/small_RIRA.rds")
   seuratObj <- subset(seuratObj, cells = SeuratObject::WhichCells(seuratObj, which(as.numeric(seuratObj$cDNA_ID) > 1 )))
 
   #test that the function runs without errors
-  seuratObj_TCR <- RunTcrdist3(
+  seuratObj_TCR <- CalculateTcrDistances(
            inputData = seuratObj,
            chains = c("TRA", "TRB"),
            minimumCloneSize = 2,
@@ -27,7 +27,7 @@ test_that("tcrdist3 works", {
   )
 
   # Test that spiking in TCRs works:
-  seuratObj_TCR <- RunTcrdist3(
+  seuratObj_TCR <- CalculateTcrDistances(
            inputData = seuratObj,
            chains = c("TRA", "TRB"),
            minimumCloneSize = 2,
@@ -37,7 +37,7 @@ test_that("tcrdist3 works", {
 
   testthat::expect_equal(sum(grepl("SpikeIn", seuratObj_TCR$SubjectId)), 3)
 
-  seuratObj_TCR_multichain <- RunTcrdist3(
+  seuratObj_TCR_multichain <- CalculateTcrDistances(
            inputData = seuratObj,
            chains = c("TRA", "TRB"),
            minimumCloneSize = 2,
@@ -57,5 +57,5 @@ test_that("tcrdist3 works", {
   testthat::expect_gt(nrow(joint_matrix), 0)
   testthat::expect_gt(ncol(joint_matrix), 0)
   
-  #TODO: expand
+  #TODO: expand test cases
 })

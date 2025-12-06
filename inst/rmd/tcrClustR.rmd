@@ -97,7 +97,7 @@ print(paste0("Available TCR columns: ", paste(available_tcr_cols, collapse = ", 
 ```{r FormatMetadata}
 
 tryCatch({
-  formatted_metadata <- FormatMetadataForTcrDist3(
+  formatted_metadata <- .FormatMetadata(
     metadata = seuratObj@meta.data,
     chains = chains,
     minimumCloneSize = minimumCloneSize,
