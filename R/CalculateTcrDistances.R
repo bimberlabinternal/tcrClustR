@@ -19,14 +19,15 @@
 #' @importFrom methods is
 #' @examples
 #' \dontrun{
-#'   resultList <- CalculateTcrDistances(inputData = seuratObj@meta.data,
+#'   # When providing a dataframe, a new seurat object will be returned:
+#'   seuratObj_TCR <- CalculateTcrDistances(inputData = seuratObj@meta.data,
 #'               chains = c("TRA", "TRB"),
 #'               minimumCloneSize = 2,
 #'               calculateChainPairs = FALSE,
 #'               verbose = FALSE)
 #'
-#'   # Example with calculateChainPairs analysis
-#'   resultList <- CalculateTcrDistances(inputData = seuratObj,
+#'   # When providing a seuratObj, the original object will be returned, with the clustering results added as assays:
+#'   seuratObj <- CalculateTcrDistances(inputData = seuratObj,
 #'               chains = c("TRA", "TRB", "TRG", "TRD"),
 #'               calculateChainPairs = TRUE,
 #'               verbose = TRUE)
@@ -55,17 +56,68 @@ CalculateTcrDistances <- function(inputData = NULL,
     stop("Please provide either a Seurat Object or the Seurat Object's metadata as input.")
   }
 
+  isSeuratObj <- FALSE
   if (typeof(inputData) == 'S4' && class(inputData)[1] == 'Seurat' ){
     metadata <- inputData@meta.data
+    isSeuratObj <- TRUE
   }
 
   if (!is.data.frame(metadata)) {
     stop('Expected inputData to be either a Seurat object or a data.frame')
   }
 
+  formatted_metadata <- .FormatMetadata(metadata = metadata,
+                                        chains = chains,
+                                        spikeInDataframe = spikeInDataframe,
+                                        calculateChainPairs = calculateChainPairs,
+                                        verbose = verbose
+  )
+
+  if (nrow(formatted_metadata[!formatted_metadata$IsSpikeInClone,]) != nrow(metadata)) {
+    stop('Incorrect row count after .FormatMetadata')
+  }
+
+  if (any(rownames(formatted_metadata[!formatted_metadata$IsSpikeInClone,]) != rownames(metadata))) {
+    print(head(rownames(formatted_metadata[!formatted_metadata$IsSpikeInClone,])))
+    print(head(rownames(metadata)))
+    stop('Rownames did not match after .FormatMetadata')
+  }
+
+  seuratObj <- NULL
+  if (isSeuratObj && is.null(spikeInDataframe)) {
+    if (verbose) {
+      message('The results will be written to the original seurat object')
+    }
+    seuratObj <- inputData
+
+    cols <- sort(c(
+      grepl(names(formatted_metadata), pattern = '-CloneIdx$', value = TRUE),
+      grepl(names(formatted_metadata), pattern = '-CloneSize$', value = TRUE),
+      grepl(names(formatted_metadata), pattern = '-ValidForClustering$', value = TRUE)
+    ))
+    toAdd <- formatted_metadata[cols]
+    if (any(rownames(toAdd) != rownames(seuratObj@meta.data))) {
+      stop('Row names did not match when applying metadata')
+    }
+
+    seuratObj <- Seurat::AddMetaData(seuratObj, toAdd)
+  } else {
+    if (isSeuratObj && !is.null(spikeInDataframe) && verbose) {
+        message('The results will be written to the original seurat object')
+    }
+
+    # NOTE: we need to create a dummy GEX assay, which we can drop later:
+    dummy_mat <- matrix(rep(1, 100), ncol = 10, dimnames = list(c(LETTERS[1:10]), c(LETTERS[1:10])))
+    seuratObj <- Seurat::CreateSeuratObject(counts = Seurat::as.sparse(dummy_mat), assay = '~PLACEHOLDER~', meta.data = formatted_metadata)
+  }
+
+  if ('TCR_Distances' %in% names(seuratObj@misc)) {
+    seuratObj@misc$TCR_Distances <- list()
+  }
+
   if (method == 'tcrdist3') {
-    return(RunTcrdist3(
-      inputData = inputData,
+    seuratObj <- RunTcrdist3(
+      seuratObj = seuratObj,
       organism = organism,
       chains = chains,
       spikeInDataframe = spikeInDataframe,
@@ -73,8 +125,14 @@ CalculateTcrDistances <- function(inputData = NULL,
       calculateChainPairs = calculateChainPairs,
       debugTcrdist3 = debugMode,
       verbose = verbose
-    ))
+    )
   } else {
     stop(paste0('Unknown method: ', method))
   }
+
+  if ('~PLACEHOLDER~' %in% names(seuratObj@assays)) {
+    seuratObj[['~PLACEHOLDER~']] <- NULL
+  }
+
+  return(seuratObj)
 }

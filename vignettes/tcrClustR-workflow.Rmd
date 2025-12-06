@@ -165,27 +165,6 @@ hist(
 
 If you want to use `TCRDistanceHeatmaps()`, use `ClusterTcrs()` instead of `RunTcrClustering()`:
 
-```{r clusterTcrsExample, eval=FALSE}
-# Alternative workflow using ClusterTcrs() instead of RunTcrClustering()
-# This adds clustering metadata directly to the Seurat object
-seuratObj_clustered <- ClusterTcrs(
-  seuratObj_TCR = seuratObj_TCR,
-  resolutionParameters = c(0.1),
-  usePCA = TRUE,
-  pcaComponents = 50,
-  verbose = TRUE
-)
-
-
-heatmap <- TCRDistanceHeatmaps(
-  seuratObj_TCR = seuratObj_clustered$singleChainSeuratObject,
-  assayList = c("TRB"),
-  annotate_clusters = FALSE,
-  verbose = FALSE
-)
-heatmap
-```
-
 The primary workflow demonstrated in this vignette (`RunTcrClustering()`) focuses on creating compact parquet output files for downstream analysis, while `ClusterTcrs()` is better suited for interactive exploration with built-in visualization functions.
 
 ## Understanding the Results

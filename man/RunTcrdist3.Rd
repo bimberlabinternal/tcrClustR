@@ -5,10 +5,9 @@
 \title{RunTcrdist3}
 \usage{
 RunTcrdist3(
-  inputData = NULL,
+  seuratObj,
   organism = "human",
   chains = c("TRA", "TRB"),
-  spikeInDataframe = NULL,
   minimumCloneSize = 2,
   calculateChainPairs = FALSE,
   debugTcrdist3 = FALSE,
@@ -16,13 +15,11 @@ RunTcrdist3(
 )
 }
 \arguments{
-\item{inputData}{Either a seurat Object containing TCR information or a dataframe containing metadata}
+\item{seuratObj}{The seuratObj containing formatted metadata}
 
 \item{organism}{Organism to use for tcrdist3. Default is 'human'.}
 
 \item{chains}{Vector of TCR chains to include in the analysis. Default is c("TRA", "TRB").}
-
-\item{spikeInDataframe}{An optional data frame containing additional CDR3s and gene segments to be included in the clustering, such as published clonotypes.}
 
 \item{minimumCloneSize}{Minimum number of clones per subject to include in the analysis. Default is 2.}
 

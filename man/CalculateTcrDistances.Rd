@@ -40,14 +40,15 @@ This function calculates pairwise TCR distances and stores them in a Seurat Obje
 }
 \examples{
 \dontrun{
-  resultList <- CalculateTcrDistances(inputData = seuratObj@meta.data,
+  # When providing a dataframe, a new seurat object will be returned:
+  seuratObj_TCR <- CalculateTcrDistances(inputData = seuratObj@meta.data,
               chains = c("TRA", "TRB"),
               minimumCloneSize = 2,
               calculateChainPairs = FALSE,
               verbose = FALSE)
 
-  # Example with calculateChainPairs analysis
-  resultList <- CalculateTcrDistances(inputData = seuratObj,
+  # When providing a seuratObj, the original object will be returned, with the clustering results added as assays:
+  seuratObj <- CalculateTcrDistances(inputData = seuratObj,
               chains = c("TRA", "TRB", "TRG", "TRD"),
               calculateChainPairs = TRUE,
               verbose = TRUE)
