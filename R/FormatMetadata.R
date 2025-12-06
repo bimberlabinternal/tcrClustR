@@ -391,8 +391,7 @@ utils::globalVariables(
     unknown_v_segments <- metadata[[validCol]] & !is.na(toTest) & !(toTest %in% gene_segments_in_db)
     if (sum(unknown_v_segments) > 0) {
       unk <- sort(unique(toTest[unknown_v_segments]))
-      warning('The following ', length(unk), ' ', vCol, ' values were not found in the DB: ', paste0(unk, collapse = ','))
-      warning(paste0("Run tcrClustR:::.PullTcrdist3Db(organism = '", organism, "', outputFilePath = '...') to obtain the list of known segments."))
+      warning('The following ', length(unk), ' ', vCol, ' values were not found in the DB: ', paste0(unk, collapse = ','), '. ', paste0("Run tcrClustR:::.PullTcrdist3Db(organism = '", organism, "', outputFilePath = '...') to obtain the list of known segments."))
       metadata[[validCol]][unknown_v_segments] <- FALSE
     }
 
@@ -400,8 +399,7 @@ utils::globalVariables(
     unknown_j_segments <- metadata[[validCol]] & !is.na(toTest) & !(toTest %in% gene_segments_in_db)
     if (sum(unknown_j_segments) > 0) {
       unk <- sort(unique(toTest[unknown_j_segments]))
-      warning('The following ', length(unk), ' ', jCol, ' values were not found in the DB: ', paste0(unk, collapse = ','))
-      warning(paste0("Run tcrClustR:::.PullTcrdist3Db(organism = '", organism, "', outputFilePath = '...') to obtain the list of known segments."))
+      warning('The following ', length(unk), ' ', jCol, ' values were not found in the DB: ', paste0(unk, collapse = ','), '. ', paste0("Run tcrClustR:::.PullTcrdist3Db(organism = '", organism, "', outputFilePath = '...') to obtain the list of known segments."))
       metadata[[validCol]][unknown_j_segments] <- FALSE
     }
 

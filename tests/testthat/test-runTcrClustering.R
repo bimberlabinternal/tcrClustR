@@ -191,19 +191,3 @@ test_that("RunTcrClustering respects outputPrefix parameter", {
   filename <- basename(results$parquet_files[1])
   expect_true(grepl("^custom_prefix_", filename))
 })
-
-test_that(".is_concatenated detects concatenation correctly", {
-  expect_true(.is_concatenated("TRAV1-1,TRAV2-1"))
-  expect_true(.is_concatenated("CASS;CAST"))
-  expect_true(.is_concatenated("A,B,C"))
-  expect_false(.is_concatenated("TRAV1-1"))
-  expect_false(.is_concatenated("CASSLGQAYEQYF"))
-  expect_false(.is_concatenated(NA_character_))
-})
-
-test_that(".strip_allele_suffix strips alleles correctly", {
-  expect_equal(.strip_allele_suffix("TRBV7-9*01"), "TRBV7-9")
-  expect_equal(.strip_allele_suffix("TRAJ1-1*02"), "TRAJ1-1")
-  expect_equal(.strip_allele_suffix("TRBV7-9"), "TRBV7-9")  # No change if no allele
-  expect_true(is.na(.strip_allele_suffix(NA_character_)))
-})

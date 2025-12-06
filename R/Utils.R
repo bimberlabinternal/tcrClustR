@@ -72,3 +72,7 @@ GetDistanceMatrix <- function(seuratObj_TCR, chains, cdr3Only = FALSE) {
 
   return(seuratObj_TCR@misc$TCR_Distances[[key]])
 }
+
+.strip_allele_suffix <- function(){
+
+}

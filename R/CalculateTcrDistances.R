@@ -60,6 +60,8 @@ CalculateTcrDistances <- function(inputData = NULL,
   if (typeof(inputData) == 'S4' && class(inputData)[1] == 'Seurat' ){
     metadata <- inputData@meta.data
     isSeuratObj <- TRUE
+  } else {
+    metadata <- inputData
   }
 
   if (!is.data.frame(metadata)) {
@@ -91,9 +93,9 @@ CalculateTcrDistances <- function(inputData = NULL,
     seuratObj <- inputData
 
     cols <- sort(c(
-      grepl(names(formatted_metadata), pattern = '-CloneIdx$', value = TRUE),
-      grepl(names(formatted_metadata), pattern = '-CloneSize$', value = TRUE),
-      grepl(names(formatted_metadata), pattern = '-ValidForClustering$', value = TRUE)
+      grep(names(formatted_metadata), pattern = '-CloneIdx$', value = TRUE),
+      grep(names(formatted_metadata), pattern = '-CloneSize$', value = TRUE),
+      grep(names(formatted_metadata), pattern = '-ValidForClustering$', value = TRUE)
     ))
     toAdd <- formatted_metadata[cols]
     if (any(rownames(toAdd) != rownames(seuratObj@meta.data))) {
@@ -120,7 +122,6 @@ CalculateTcrDistances <- function(inputData = NULL,
       seuratObj = seuratObj,
       organism = organism,
       chains = chains,
-      spikeInDataframe = spikeInDataframe,
       minimumCloneSize = minimumCloneSize,
       calculateChainPairs = calculateChainPairs,
       debugTcrdist3 = debugMode,
