@@ -13,7 +13,7 @@ from rpy2.robjects.packages import importr
 def getTcrDistances(csv_path, 
                     organism='human', 
                     chainsString="alpha,beta", 
-                    db_file='alphabeta_gammadelta_db.tsv', 
+                    db_file='combo_xcr_2024-03-05',
                     debug = True):
     #read in the csv file
     df = pd.read_csv(csv_path)
@@ -98,7 +98,7 @@ def getTcrDistances(csv_path,
 def writeTcrDistances(csv_path, 
                       organism='human', 
                       chainsString="alpha,beta", 
-                      db_file='alphabeta_gammadelta_db.tsv',
+                      db_file='combo_xcr_2024-03-05',
                       rds_output_path='./tcrdist3DistanceMatrices/', 
                       debug=True):
     """
@@ -116,6 +116,8 @@ def writeTcrDistances(csv_path,
         #save all available distance matrices, which were constructed in the return of getTcrDistances
         for matrix_name, matrix_data in distances.items():
             output_file = os.path.join(rds_output_path, f'{matrix_name}.rds')
+
+            # TODO: GW, can we find/store row/col names at this stage? Or verify the CloneId order matches the input CSV
             base.saveRDS(matrix_data, output_file)
             if debug:
                 print(f"Saved {matrix_name} to {output_file}")
