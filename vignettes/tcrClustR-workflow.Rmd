@@ -161,14 +161,6 @@ hist(
 )
 ```
 
-### Using TCRDistanceHeatmaps() with ClusterTcrs()
-
-**Note:** The built-in `TCRDistanceHeatmaps()` function requires clustering metadata columns (e.g., `TcrClustR_TRB_0.1`) which are added by the `ClusterTcrs()` function, not by `RunTcrClustering()`. 
-
-If you want to use `TCRDistanceHeatmaps()`, use `ClusterTcrs()` instead of `RunTcrClustering()`:
-
-The primary workflow demonstrated in this vignette (`RunTcrClustering()`) focuses on creating compact parquet output files for downstream analysis, while `ClusterTcrs()` is better suited for interactive exploration with built-in visualization functions.
-
 ## Understanding the Results
 
 The tcrClustR workflow produces several key outputs:

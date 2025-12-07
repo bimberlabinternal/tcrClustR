@@ -28,7 +28,7 @@ seuratObj_TCR <- CalculateTcrDistances(
   minimumCloneSize = 2
 )
 
-#Step 2: cluster and export results to parquet files
+#Step 2: cluster and save results to the seurat object's metadata:
 results <- RunTcrClustering(
   seuratObj_TCR = seuratObj_TCR
 )
@@ -56,17 +56,14 @@ T-cell receptor (TCR) clustering groups TCR sequences based on similarity metric
 
 1. **Format & Validate**: Clean TCR metadata, filter low-quality clones
 2. **Compute Distances**: Calculate pairwise TCR distances using tcrdist3 (BLOSUM62 matrix)
-3. **Cluster**: Apply network-based (Leiden) or hierarchical (DIANA) clustering
-4. **Export**: Generate parquet tables with cluster assignments for downstream analysis
-5. **Visualize**: Create heatmaps and plots to explore clustering results
+3. **Cluster**: Apply hierarchical (DIANA) clustering
+4. **Visualize**: Create heatmaps and plots to explore clustering results
 
 ### Key Features
 
 - **Flexible clustering**: DIANA (hierarchical) or Leiden (network-based) algorithms
 - **Single & paired chain analysis**: TRA, TRB, or combined TRA+TRB distances
 - **Automatic data filtering**: Remove NA and concatenated values (optional)
-- **Allele normalization**: Strip allele suffixes like `*01` for cleaner analysis
-- **Compact outputs**: Parquet files optimized for large-scale analysis
 
 ## Installation
 
@@ -152,93 +149,7 @@ Common error messages and solutions:
 # Solution: Install Python 3.8+ or specify path:
 SetupPythonEnvironment(pythonExecutable = "/usr/bin/python3")
 
-# Error: "tcrdist3_gene_segments.txt generation failed"
-# Solution: Check Python dependencies with verbose mode:
-.FormatMetadata(..., verbose = TRUE)
 ```
-
-## Usage Examples
-
-### Example 1: Primary Workflow (RunTcrClustering -> JoinClusteringResults)
-
-**`RunTcrClustering()`** is the recommended function for most users who have already subset their data:
-
-```r
-library(tcrClustR)
-
-#Compute distances
-seuratObj_TCR <- RunTcrdist3(
-  inputData = seuratObj,
-  chains = c("TRA", "TRB"),
-  minimumCloneSize = 2
-)
-
-#Cluster with automatic filtering and allele stripping
-results <- RunTcrClustering(
-  seuratObj_TCR = seuratObj_TCR,
-  clusteringMethod = "DIANA",       # or "Leiden"
-  dianaHeight = 20,                  # cut height for DIANA
-  clusterSizeThreshold = 2,          # min cluster size
-  filterInvalidClones = TRUE,        # remove NA/concatenated (default)
-  stripAlleles = TRUE,               # remove *01 suffixes (default)
-  outputDir = "./clustering_output/"
-)
-
-#Join results back to the original Seurat object
-seurat_with_families <- JoinClusteringResults(
-  seuratObj = seuratObj,
-  parquetFiles = results$parquet_files,
-  metadataColumnPrefix = "TcrFamily",
-  stripAlleles = TRUE
-)
-
-#Read parquet directly if desired
-library(arrow)
-clusters <- read_parquet(results$parquet_files[1])
-head(clusters)
-```
-
-### Example 2: Advanced Clustering with ClusterTcrs (Seurat-integrated)
-
-For interactive analysis with full Seurat integration:
-
-```r
-#Compute distances
-seuratObj_TCR <- RunTcrdist3(
-  inputData = seuratObj,
-  chains = c("TRA", "TRB"),
-  minimumCloneSize = 2
-)
-
-#Cluster with multiple resolutions
-clustered_results <- ClusterTcrs(
-  seuratObj_TCR = seuratObj_TCR,
-  resolutionParameters = c(0.1, 0.2, 0.5),
-  usePCA = TRUE,
-  pcaComponents = 50
-)
-
-# Visualize
-TCRDistanceHeatmaps(
-  seuratObj_TCR = clustered_results$singleChainSeuratObject,
-  resolution = 0.1
-)
-```
-
-### Example 3: Format and Validate TCR Metadata
-
-```r
-# Clean and validate TCR data before clustering
-formatted_metadata <- .FormatMetadata(
-  metadata = seuratObj@meta.data,
-  chains = c("TRA", "TRB"),
-  minimumCloneSize = 2
-)
-```
-
-## Workflows
-
-### Interactive Analysis
 
 For exploratory analysis with RMarkdown:
 
@@ -249,54 +160,6 @@ GetExampleMarkdown(dest = 'tcrClustR_workflow.Rmd')
 # Or view built-in vignettes
 browseVignettes("tcrClustR")
 ```
-
-### Programmatic Pipeline
-
-Complete workflow for automated analysis:
-
-```r
-# 1. Format metadata
-formatted <- .FormatMetadata(
-  metadata = seuratObj@meta.data,
-  chains = c("TRA", "TRB"),
-  minimumCloneSize = 2
-)
-
-# 2. Compute distances
-tcr_obj <- RunTcrdist3(
-  inputData = seuratObj,
-  chains = c("TRA", "TRB"),
-  minimumCloneSize = 2
-)
-
-# 3. Cluster
-results <- RunTcrClustering(
-  seuratObj_TCR = tcr_obj,
-  outputDir = "./results/"
-)
-```
-
-## Output File Formats
-
-### Parquet Tables (from RunTcrClustering)
-
-**Single-chain format** (TRA, TRB, TRA_cdr3, TRB_cdr3):
-```
-chain | v_gene  | j_gene  | CDR3          | Cluster | Cluster_Size_Threshold | Clustering_Method
-TRB   | TRBV7-9 | TRBJ2-1 | CASSLGQAYEQYF | 1       | 2                     | DIANA
-```
-
-**Paired-chain format** (TRA_TRB, TRACDR3_TRB):
-```
-chain_1 | v_gene_1 | j_gene_1 | CDR3_1 | chain_2 | v_gene_2 | j_gene_2 | CDR3_2       | Cluster
-TRA     | TRAV1-1  | TRAJ1-1  | CAAA   | TRB     | TRBV7-9  | TRBJ2-1  | CASSLGQAYEQYF| 1
-```
-
-### Seurat Object Metadata (from ClusterTcrs)
-
-Clustering results stored as columns in metadata:
-- `TcrClustR_{assay}_{resolution}` - cluster assignments
-- Dimensionality reductions stored in `@reductions` slot (e.g., `TcrClustR_pca.TRA`)
 
 ## <a name="issues">Known Issues</a>
 
