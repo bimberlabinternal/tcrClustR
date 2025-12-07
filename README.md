@@ -37,7 +37,7 @@ results <- RunTcrClustering(
 DimPlot(
   seuratObj_TCR,
   reduction = "umap",
-  group.by = 'TRB-ClusterIdx',
+  group.by = 'TRB_ClusterIdx',
   label = TRUE
 )
 

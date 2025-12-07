@@ -1,5 +1,7 @@
 .pythonConfig <- new.env(parent=emptyenv());
 
+ASSAY_MULTI_CHAIN_DELIM <- '_'
+
 #' @title SetPythonExecutable
 #' @description Can be used to set the python executable used by tcrClustR
 #'
@@ -58,10 +60,10 @@ SetPythonExecutable <- function(pythonExecutable = ""){
 #' @export
 GetDistanceMatrix <- function(seuratObj_TCR, chains, cdr3Only = FALSE) {
   if (length(chains) > 1) {
-    chains <- paste0(chains, collapse = '-')
+    chains <- .get_chain_field_prefix(chains)
   }
 
-  key <- paste0(chains, '-', ifelse(cdr3Only, yes = 'cdr3', no = 'fl'))
+  key <- paste0(chains, '_', ifelse(cdr3Only, yes = 'cdr3', no = 'fl'))
   if (!'TCR_Distances' %in% names(seuratObj_TCR@misc)) {
     stop('This seuratObj does not contain TCR_Distances in the misc slot. Only seurat objects created by ')
   }
@@ -70,9 +72,20 @@ GetDistanceMatrix <- function(seuratObj_TCR, chains, cdr3Only = FALSE) {
     stop(paste0('Matrix not found, expected: ', key))
   }
 
-  return(seuratObj_TCR@misc$TCR_Distances[[key]])
+  return(Seurat::GetAssayData(seuratObj_TCR@misc$TCR_Distances[[key]], layer = 'counts'))
 }
 
-.strip_allele_suffix <- function(){
+# The primary purpose of this function is to ensure consistent order for TRA/TRB and TRG/TRD on joint assays:
+.get_chain_field_prefix <- function(chains) {
+  if (length(chains) == 1){
+    return(chains)
+  }
 
+  if ('TRA' %in% chains && 'TRB' %in% chains) {
+    return('TRA_TRB')
+  } else if ('TRG' %in% chains && 'TRD' %in% chains) {
+    return('TRG_TRD')
+  } else {
+    stop(paste0('Unexpected chain combination: ', paste0(chains, collapse = ',')))
+  }
 }

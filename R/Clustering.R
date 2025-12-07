@@ -1097,77 +1097,77 @@
 # }
 #
 #
-# #' @title .DianaClustering
-# #' @description Internal function to perform DIANA (Divisive Analysis) hierarchical clustering
-# #' on a distance matrix and cut the dendrogram at a specified height.
-# #' @param distanceMatrix Distance matrix (as matrix or dist object)
-# #' @param cutHeight Height at which to cut the dendrogram. Default is 20.
-# #' @param verbose Boolean indicating whether to print verbose output. Default is FALSE.
-# #' @return A list containing the clustering assignments and dendrogram object
-# #' @keywords internal
-# .DianaClustering <- function(distanceMatrix, cutHeight = 20, verbose = FALSE) {
-#   if (verbose) {
-#     message("Running DIANA clustering with cutHeight = ", cutHeight)
-#   }
-#
-#   #convert to dist object if necessary
-#   if (is.matrix(distanceMatrix)) {
-#     distObj <- stats::as.dist(distanceMatrix)
-#   } else {
-#     distObj <- distanceMatrix
-#   }
-#
-#   #run DIANA clustering
-#   diana_result <- cluster::diana(distObj, diss = TRUE)
-#
-#   #cut dendrogram at specified height
-#   cluster_assignments <- stats::cutree(stats::as.hclust(diana_result), h = cutHeight)
-#
-#   if (verbose) {
-#     message("DIANA clustering produced ", length(unique(cluster_assignments)), " clusters")
-#   }
-#
-#   return(list(
-#     clustering = cluster_assignments,
-#     diana_object = diana_result,
-#     cutHeight = cutHeight
-#   ))
-# }
-#
-#
-# #' @title .ThresholdClustersBySize
-# #' @description Internal function to filter clusters by minimum number of unique clones
-# #' @param clusterAssignments Named vector of cluster assignments (names are cell/clone IDs)
-# #' @param minClusterSize Minimum number of unique clones required to keep a cluster. Default is 2.
-# #' @param verbose Boolean indicating whether to print verbose output. Default is FALSE.
-# #' @return Named vector of cluster assignments with singletons/small clusters removed (set to 0)
-# #' @keywords internal
-# .ThresholdClustersBySize <- function(clusterAssignments, minClusterSize = 2, verbose = FALSE) {
-#   if (verbose) {
-#     message("Thresholding clusters with minimum size = ", minClusterSize)
-#   }
-#
-#   #count cluster sizes
-#   cluster_sizes <- table(clusterAssignments)
-#
-#   #identify clusters below threshold
-#   small_clusters <- names(cluster_sizes[cluster_sizes < minClusterSize])
-#
-#   #set small clusters to 0 (noise/unassigned)
-#   filtered_assignments <- clusterAssignments
-#   filtered_assignments[clusterAssignments %in% small_clusters] <- 0
-#
-#   if (verbose) {
-#     n_removed <- sum(clusterAssignments %in% small_clusters)
-#     message("Removed ", length(small_clusters), " clusters with < ", minClusterSize, " clones")
-#     message("Total clones removed: ", n_removed)
-#     message("Remaining clusters: ", length(unique(filtered_assignments[filtered_assignments != 0])))
-#   }
-#
-#   return(filtered_assignments)
-# }
-#
-#
+#' @title .DianaClustering
+#' @description Internal function to perform DIANA (Divisive Analysis) hierarchical clustering
+#' on a distance matrix and cut the dendrogram at a specified height.
+#' @param distanceMatrix Distance matrix (as matrix or dist object)
+#' @param cutHeight Height at which to cut the dendrogram. Default is 20.
+#' @param verbose Boolean indicating whether to print verbose output. Default is FALSE.
+#' @return A list containing the clustering assignments and dendrogram object
+#' @keywords internal
+.DianaClustering <- function(distanceMatrix, cutHeight = 20, verbose = FALSE) {
+  if (verbose) {
+    message("Running DIANA clustering with cutHeight = ", cutHeight)
+  }
+
+  #convert to dist object if necessary
+  if (is.matrix(distanceMatrix)) {
+    distObj <- stats::as.dist(distanceMatrix)
+  } else {
+    distObj <- distanceMatrix
+  }
+
+  #run DIANA clustering
+  diana_result <- cluster::diana(distObj, diss = TRUE)
+
+  #cut dendrogram at specified height
+  cluster_assignments <- stats::cutree(stats::as.hclust(diana_result), h = cutHeight)
+
+  if (verbose) {
+    message("DIANA clustering produced ", length(unique(cluster_assignments)), " clusters")
+  }
+
+  return(list(
+    clustering = cluster_assignments,
+    diana_object = diana_result,
+    cutHeight = cutHeight
+  ))
+}
+
+
+#' @title .ThresholdClustersBySize
+#' @description Internal function to filter clusters by minimum number of unique clones
+#' @param clusterAssignments Named vector of cluster assignments (names are cell/clone IDs)
+#' @param minClusterSize Minimum number of unique clones required to keep a cluster. Default is 2.
+#' @param verbose Boolean indicating whether to print verbose output. Default is FALSE.
+#' @return Named vector of cluster assignments with singletons/small clusters removed (set to 0)
+#' @keywords internal
+.ThresholdClustersBySize <- function(clusterAssignments, minClusterSize = 2, verbose = FALSE) {
+  if (verbose) {
+    message("Thresholding clusters with minimum size = ", minClusterSize)
+  }
+
+  #count cluster sizes
+  cluster_sizes <- table(clusterAssignments)
+
+  #identify clusters below threshold
+  small_clusters <- names(cluster_sizes[cluster_sizes < minClusterSize])
+
+  #set small clusters to 0 (noise/unassigned)
+  filtered_assignments <- clusterAssignments
+  filtered_assignments[clusterAssignments %in% small_clusters] <- 0
+
+  if (verbose) {
+    n_removed <- sum(clusterAssignments %in% small_clusters)
+    message("Removed ", length(small_clusters), " clusters with < ", minClusterSize, " clones")
+    message("Total clones removed: ", n_removed)
+    message("Remaining clusters: ", length(unique(filtered_assignments[filtered_assignments != 0])))
+  }
+
+  return(filtered_assignments)
+}
+
+
 # #' @title .WriteClusteringResultsToParquet
 # #' @description Internal function to write clustering results in columnar format to parquet file
 # #' @param metadata Data frame containing TCR metadata with columns for chains and gene segments

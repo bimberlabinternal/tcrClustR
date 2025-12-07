@@ -109,7 +109,7 @@ RunTcrdist3 <- function(seuratObj,
     rownames(distanceMatrix_CDR3) <- as.character(dat$CloneId)
     unlink(rdsFile)
 
-    fieldName <- paste0(chain, '-CloneIdx')
+    fieldName <- paste0(chain, '_CloneIdx')
     seuratObj <- .validate_distance_mat_and_store(seuratObj, distanceMatrix_full_length, fieldName, assayName = paste0(chain, '_fl'), assayMeta = dat)
     seuratObj <- .validate_distance_mat_and_store(seuratObj, distanceMatrix_CDR3, fieldName, assayName = paste0(chain, '_cdr3'), assayMeta = dat)
 
@@ -137,14 +137,14 @@ RunTcrdist3 <- function(seuratObj,
 }
 
 .combine_matrices <- function(seuratObj, chain1, chain2, matSuffix) {
-  print(paste0('Calculating joint distance matrix for: ', chain1, ' and ', chain2))
+  message(paste0('Calculating joint distance matrix for: ', chain1, ' and ', chain2))
 
-  assayName <- paste0(chain1, '-', chain2, matSuffix)
-  cloneIdxField1 <- paste0(chain1, '-CloneIdx')
-  cloneIdxField2 <- paste0(chain2, '-CloneIdx')
-  cloneIdxFieldBoth <- paste0(chain1, '_', chain2, '-CloneIdx')
-  cloneValidField1 <- paste0(chain1, '-ValidForClustering')
-  cloneValidField2 <- paste0(chain2, '-ValidForClustering')
+  assayName <- paste0(chain1, ASSAY_MULTI_CHAIN_DELIM, chain2, matSuffix)
+  cloneIdxField1 <- paste0(chain1, '_CloneIdx')
+  cloneIdxField2 <- paste0(chain2, '_CloneIdx')
+  cloneIdxFieldBoth <- paste0(chain1, ASSAY_MULTI_CHAIN_DELIM, chain2, '_CloneIdx')
+  cloneValidField1 <- paste0(chain1, '_ValidForClustering')
+  cloneValidField2 <- paste0(chain2, '_ValidForClustering')
 
   for (fn in c(cloneIdxField1, cloneIdxField2, cloneIdxFieldBoth, cloneValidField1, cloneValidField2)) {
     if (! fn %in% names(seuratObj@meta.data)) {
@@ -158,7 +158,7 @@ RunTcrdist3 <- function(seuratObj,
     return(seuratObj)
   }
 
-  print(paste0(assayName, ', total passing cells: ', sum(sel)))
+  message(paste0(assayName, ', total passing cells: ', sum(sel)))
   cloneMapping <- seuratObj@meta.data[sel, c(cloneIdxFieldBoth, cloneIdxField1, cloneIdxField2)] %>%
     unique()
 
@@ -173,11 +173,11 @@ RunTcrdist3 <- function(seuratObj,
   # NOTE: due to the cloneSize filter, this can be a superset of clones in the distance matrix
   validClones1 <- cloneMapping[[cloneIdxField1]]
   validClones1 <- intersect(validClones1, rownames(mat1))
-  print(paste0('Total valid chain 1 clones: ', length(validClones1)))
+  message(paste0('Total valid chain 1 clones: ', length(validClones1)))
 
   validClones2 <- cloneMapping[[cloneIdxField2]]
   validClones2 <- intersect(validClones2, rownames(mat2))
-  print(paste0('Total valid chain 2 clones: ', length(validClones2)))
+  message(paste0('Total valid chain 2 clones: ', length(validClones2)))
 
   translation1 <- data.frame(x = rownames(mat1)) %>%
     dplyr::inner_join(cloneMapping, by = c('x' = cloneIdxField1))
@@ -196,10 +196,6 @@ RunTcrdist3 <- function(seuratObj,
   # Now make the raw distance matrix:
   mat1 <- mat1[translation1$x, translation1$x]
   mat2 <- mat2[translation2$x, translation2$x]
-
-  if (any(colnames(mat1) != colnames(mat2))) {
-    stop('Matrix 1 and 2 column names did not match!')
-  }
 
   mat <- Seurat::as.sparse(as.matrix(mat1) + as.matrix(mat2))
   colnames(mat) <- sharedClones
@@ -234,7 +230,7 @@ RunTcrdist3 <- function(seuratObj,
 
 ExpandDistancesToMatchSeuratObj <- function(seuratObj, chains) {
   if (length(chains) > 1) {
-    chains <- paste0(chains, collapse = '-')
+    chains <- .get_chain_field_prefix(chains)
   }
   cloneFieldName <- paste0(chains, '-ClonexIdx')
   if (!cloneFieldName %in% names(seuratObj@meta.data)) {
@@ -295,14 +291,16 @@ ExpandDistancesToMatchSeuratObj <- function(seuratObj, chains) {
 .filter_and_group_for_tcrdist3 <- function(metadata, chains, minimumCloneSize = 1) {
   initialRows <- nrow(metadata)
 
-  chainId <- paste0(chains, collapse = '-')
-  cloneIdxCol <- paste0(chainId, '-CloneIdx')
+  chainId <- .get_chain_field_prefix(chains)
+  cloneIdxCol <- paste0(chainId, '_CloneIdx')
   if (! cloneIdxCol %in% names(metadata)) {
+    print(names(metadata))
     stop(paste0('Metadata missing column: ', cloneIdxCol))
   }
 
-  validCol <- paste0(chainId, '-ValidForClustering')
+  validCol <- paste0(chainId, '_ValidForClustering')
   if (! validCol %in% names(metadata)) {
+    print(names(metadata))
     stop(paste0('Metadata missing column: ', validCol))
   }
 

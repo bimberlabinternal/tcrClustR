@@ -90,7 +90,7 @@ utils::globalVariables(
   }
 
   for (chain in chains) {
-    colName <- paste0(chain, '-ValidForClustering')
+    colName <- paste0(chain, '_ValidForClustering')
     if (! colName %in% names(metadata)) {
       stop(paste0('Missing column: ', colName))
     }
@@ -108,8 +108,8 @@ utils::globalVariables(
     metadata[['_CloneIdx_']][!metadata$IsValidForChain] <- NA
 
     # There might be a more elegant solution to this:
-    names(metadata)[names(metadata) == '_CloneIdx_'] <- paste0(chain, '-CloneIdx')
-    names(metadata)[names(metadata) == '_CloneSize_'] <- paste0(chain, '-CloneSize')
+    names(metadata)[names(metadata) == '_CloneIdx_'] <- paste0(chain, '_CloneIdx')
+    names(metadata)[names(metadata) == '_CloneSize_'] <- paste0(chain, '_CloneSize')
     metadata$IsValidForChain <- NULL
   }
 
@@ -117,16 +117,26 @@ utils::globalVariables(
   if (calculateChainPairs) {
     toTest <- c()
     if ('TRA' %in% chains && 'TRB' %in% chains) {
-      toTest <- c(toTest, 'TRA_TRB')
+      toTest <- c(toTest, .get_chain_field_prefix(c('TRA', 'TRB')))
     }
 
     if ('TRG' %in% chains && 'TRD' %in% chains) {
-      toTest <- c(toTest, 'TRG_TRD')
+      toTest <- c(toTest, .get_chain_field_prefix(c('TRG', 'TRD')))
     }
 
     for (chainId in toTest) {
-      chains <- unlist(strsplit(chainId, split = '-'))
-      metadata$IsValidForChain <- metadata[[paste0(chains[1], '-ValidForClustering')]] & metadata[[paste0(chains[2], '-ValidForClustering')]]
+      chains <- unlist(strsplit(chainId, split = ASSAY_MULTI_CHAIN_DELIM))
+      col1 <- paste0(chains[1], '_ValidForClustering')
+      if (!col1 %in% names(metadata)) {
+        stop(paste0('Missing column: ', col1))
+      }
+
+      col2 <- paste0(chains[2], '_ValidForClustering')
+      if (!col2 %in% names(metadata)) {
+        stop(paste0('Missing column: ', col2))
+      }
+
+      metadata$IsValidForChain <- metadata[[col1]] & metadata[[col2]]
       tcr_grouping_columns <- c(chains[1], paste0(chains[1], "_V"), paste0(chains[1], "_J"), chains[2], paste0(chains[2], "_V"), paste0(chains[2], "_J"))
       metadata <- metadata |>
         tibble::rownames_to_column('RowNames_') |>
@@ -138,8 +148,8 @@ utils::globalVariables(
       metadata[['_CloneIdx_']][!metadata$IsValidForChain] <- NA
 
       # There might be a more elegant solution to this:
-      names(metadata)[names(metadata) == '_CloneIdx_'] <- paste0(chainId, '-CloneIdx')
-      names(metadata)[names(metadata) == '_CloneSize_'] <- paste0(chainId, '-CloneSize')
+      names(metadata)[names(metadata) == '_CloneIdx_'] <- paste0(chainId, '_CloneIdx')
+      names(metadata)[names(metadata) == '_CloneSize_'] <- paste0(chainId, '_CloneSize')
       metadata$IsValidForChain <- NULL
     }
   }
@@ -356,7 +366,7 @@ utils::globalVariables(
     vCol <- paste0(chain, '_V')
     jCol <- paste0(chain, '_J')
     chainColumns <- c(chains, vCol, jCol)
-    validCol <- paste0(chain, '-ValidForClustering')
+    validCol <- paste0(chain, '_ValidForClustering')
 
     if (verbose) {
       message("Processing chain: ", chain)

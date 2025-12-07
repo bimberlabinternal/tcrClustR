@@ -13,9 +13,10 @@ test_that("CalculateTcrDistances works", {
            debugTcrdist3 = TRUE
   )
 
-
-  testthat::expect_equal(length(names(seuratObj_TCR@misc$TCR_Distances)), 4)
+  testthat::expect_equal(length(names(seuratObj_TCR@misc$TCR_Distances)), 5)
   testthat::expect_equal(length(names(seuratObj_TCR@assays)), 4)
+  testthat::expect_equal(ncol(seuratObj_TCR@assays$RNA), ncol(seuratObj@assays$RNA))
+  testthat::expect_true('umap' %in% names(seuratObj_TCR@reductions))
   
   spikeInDataframe <- data.frame(CloneNames = rep(1:3),
                                  TRA_V = c("TRAV1-2", "TRAV1-2", "TRAV1-2"),
@@ -35,7 +36,10 @@ test_that("CalculateTcrDistances works", {
            spikeInDataframe = spikeInDataframe
   )
 
+  testthat::expect_true(!'RNA' %in% names(seuratObj_TCR@assays))
+  testthat::expect_equal(length(names(seuratObj_TCR@assays)), 4)
   testthat::expect_equal(sum(grepl("SpikeIn", seuratObj_TCR$SubjectId)), 3)
+  testthat::expect_equal(length(names(seuratObj_TCR@misc$TCR_Distances)), 4)
 
   seuratObj_TCR_multichain <- CalculateTcrDistances(
            inputData = seuratObj,
@@ -46,10 +50,10 @@ test_that("CalculateTcrDistances works", {
            verbose = TRUE
   )
   
-  testthat::expect_equal(SeuratObject::Assays(seuratObj_TCR_multichain), c("TRA_fl", "TRA_cdr3", "TRB_fl", "TRB_cdr3", "TRA.TRB_fl", "TRA.TRB_cdr3"))
+  testthat::expect_equal(SeuratObject::Assays(seuratObj_TCR_multichain), c("RNA", "TRA_fl", "TRA_cdr3", "TRB_fl", "TRB_cdr3", "TRA_TRB_fl", "TRA_TRB_cdr3"))
   
   #test that joint distance matrices exist and have reasonable properties
-  joint_matrix <- SeuratObject::GetAssayData(seuratObj_TCR_multichain, assay = "TRA.TRB_fl", layer = "counts")
+  joint_matrix <- GetDistanceMatrix(seuratObj_TCR_multichain, chains = c("TRA", "TRB"))
   tra_matrix <- SeuratObject::GetAssayData(seuratObj_TCR_multichain, assay = "TRA_fl", layer = "counts")
   trb_matrix <- SeuratObject::GetAssayData(seuratObj_TCR_multichain, assay = "TRB_fl", layer = "counts")
   

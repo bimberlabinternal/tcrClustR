@@ -80,8 +80,6 @@ CalculateTcrDistances <- function(inputData = NULL,
   }
 
   if (any(rownames(formatted_metadata[!formatted_metadata$IsSpikeInClone,]) != rownames(metadata))) {
-    print(head(rownames(formatted_metadata[!formatted_metadata$IsSpikeInClone,])))
-    print(head(rownames(metadata)))
     stop('Rownames did not match after .FormatMetadata')
   }
 
@@ -93,9 +91,9 @@ CalculateTcrDistances <- function(inputData = NULL,
     seuratObj <- inputData
 
     cols <- sort(c(
-      grep(names(formatted_metadata), pattern = '-CloneIdx$', value = TRUE),
-      grep(names(formatted_metadata), pattern = '-CloneSize$', value = TRUE),
-      grep(names(formatted_metadata), pattern = '-ValidForClustering$', value = TRUE)
+      grep(names(formatted_metadata), pattern = '_CloneIdx$', value = TRUE),
+      grep(names(formatted_metadata), pattern = '_CloneSize$', value = TRUE),
+      grep(names(formatted_metadata), pattern = '_ValidForClustering$', value = TRUE)
     ))
     toAdd <- formatted_metadata[cols]
     if (any(rownames(toAdd) != rownames(seuratObj@meta.data))) {
