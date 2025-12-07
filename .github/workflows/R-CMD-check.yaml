@@ -30,6 +30,8 @@ jobs:
       use-base-image: true
       test-command: |
         Rscript -e "devtools::install_deps(dependencies = TRUE, upgrade = \"never\")" && \
+        # See: https://github.com/satijalab/seurat/issues/10180#event-3896304469
+        Rscript -e "devtools::install_github('satijalab/seurat', ref = 'fix/dimplot-data', force = TRUE)" \
         Rscript -e "devtools::test()" && \
         R CMD build . && \
         PKG=$(ls -1t *.tar.gz | head -n1) && \
