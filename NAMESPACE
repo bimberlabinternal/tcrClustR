@@ -2,6 +2,7 @@
 
 export("%>%")
 export(CalculateTcrDistances)
+export(ExpandDistancesToMatchSeuratObj)
 export(GetDistanceMatrix)
 export(GetExampleMarkdown)
 export(RunTcrClustering)

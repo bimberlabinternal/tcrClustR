@@ -44,13 +44,13 @@ RunTcrClustering <- function(seuratObj_TCR = NULL,
     
     # check if matrix is too small or empty
     if (nrow(dist_matrix) < 2 || ncol(dist_matrix) < 2) {
-      warning("Skipping assay ", assay, ": distance matrix too small (", nrow(dist_matrix), "x", ncol(dist_matrix), ")")
+      warning("Skipping assay ", assayName, ": distance matrix too small (", nrow(dist_matrix), "x", ncol(dist_matrix), ")")
       next
     }
 
     # check if matrix is too small or empty
     if (nrow(dist_matrix) != ncol(dist_matrix)) {
-      stop("Expected distance matrix tobe square for assay ", assay, ", was: ", nrow(dist_matrix), "x", ncol(dist_matrix))
+      stop("Expected distance matrix tobe square for assay ", assayName, ", was: ", nrow(dist_matrix), "x", ncol(dist_matrix))
     }
 
     # clustering
@@ -99,7 +99,7 @@ RunTcrClustering <- function(seuratObj_TCR = NULL,
     # Then the distance matrix:
     ad <- seuratObj_TCR@misc$TCR_Distances[[assayName]]
     # Difference behavior for Seurat4/5 assays:
-    if ('meta.features' %in% slotNames(ad)) {
+    if ('meta.features' %in% methods::slotNames(ad)) {
       if ( clusterIdxCol %in% names(ad@meta.features)) {
         message(paste0('Replacing existing clustering results for assay: ', assayName))
         ad@meta.features[[clusterIdxCol]] <- NULL

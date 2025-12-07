@@ -1,5 +1,5 @@
 utils::globalVariables(
-  names = c('TRA', 'TRA_V', 'TRA_J', 'TRB', 'TRB_V', 'TRB_J', 'CloneNames', 'count', 'Cluster', 'DistanceSum'),
+  names = c('TRA', 'TRA_V', 'TRA_J', 'TRB', 'TRB_V', 'TRB_J', 'CloneNames', 'count', 'Cluster', 'DistanceSum', 'gene_segments', 'IsSpikeInClone'),
   package = 'tcrClustR',
   add = TRUE
 )

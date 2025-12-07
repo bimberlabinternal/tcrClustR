@@ -58,7 +58,7 @@ RunTcrdist3 <- function(seuratObj,
       minimumCloneSize = minimumCloneSize
     )
 
-    write.table(dat, file = input_data_file, sep = ',', row.names = FALSE, quote = TRUE)
+    utils::write.table(dat, file = input_data_file, sep = ',', row.names = FALSE, quote = TRUE)
 
     #format and write the python function to the end of the script
     rdsOutputPath <- gsub(tempdir(), pattern = '\\\\', replacement = '/')
@@ -226,65 +226,6 @@ RunTcrdist3 <- function(seuratObj,
   seuratObj@misc$TCR_Distances[[assayName]] <- Seurat::AddMetaData(seuratObj@misc$TCR_Distances[[assayName]], metadata = assayMeta)
 
   return(seuratObj)
-}
-
-ExpandDistancesToMatchSeuratObj <- function(seuratObj, chains) {
-  if (length(chains) > 1) {
-    chains <- .get_chain_field_prefix(chains)
-  }
-  cloneFieldName <- paste0(chains, '-ClonexIdx')
-  if (!cloneFieldName %in% names(seuratObj@meta.data)) {
-    stop(paste0('Missing field: ', cloneFieldName, ', fields present: ', paste0(sort(names(seuratObj@meta.data)), collapse = ',')))
-  }
-
-  # NOTE: these can be duplicated:
-  cloneNames <- seuratObj@meta.data[[cloneFieldName]]
-
-  if (!all(colnames(mat) %in% cloneNames)) {
-    stop('The metadata cloneNames and matrix colnames did not match')
-  }
-
-  if (!all(rownames(mat) %in% cloneNames)) {
-    stop('The metadata cloneNames and matrix rownames did not match')
-  }
-
-  # The idea here is to duplicate very clone for each time it appeared in one of the input rows (cells). We can leave the rows/features alone
-  # TODO: GW: what's the right way to represent cells that were not compared (such as those lacking a given chain)? NAs might get converted to 0s in a sparse matrix. Zero implies 0-distance, wouldnt it?
-  new_mat <- NULL
-  for (colName in cloneNames) {
-    if (is.na(colName)) {
-      new_mat <- cbind(new_mat, stats::setNames(rep(nrow(mat), x = NA), rownames(mat)))
-    }
-    else if (colName %in% colnames(mat)) {
-      new_mat <- cbind(new_mat, mat[,colName])
-    } else {
-      new_mat <- cbind(new_mat, stats::setNames(rep(nrow(mat), x = NA), rownames(mat)))
-    }
-  }
-
-  # Treat these like cells
-  colnames(new_mat) <- rownames(seuratObj@meta.data)
-
-  # These are features/genes, and must be unique:
-  if (any(duplicated(rownames(new_mat)))) {
-    dups <- unique(rownames(new_mat)[duplicated(rownames(new_mat))])
-    stop(paste0('There were duplicated rownames on the final matrix: ', paste0(dups, collapse = ',')))
-  }
-
-  if (any(duplicated(colnames(new_mat)))) {
-    dups <- unique(colnames(new_mat)[duplicated(colnames(new_mat))])
-    stop(paste0('There were duplicated colnames on the final matrix: ', paste0(dups, collapse = ',')))
-  }
-
-  if (is.null(rownames(assayMeta))) {
-    stop('Missing rownames on assayMeta')
-  }
-
-  if (any(rownames(assayMeta) != rownames(new_mat))) {
-    stop('Rownames on new_mat do not match assayMeta')
-  }
-
-  return(Seurat::as.sparse(new_mat))
 }
 
 # This is an internal method that expects the dataframe produced by .FormatMetadata. This dataframe should contain columns to uniquely identify each
