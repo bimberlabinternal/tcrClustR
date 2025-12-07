@@ -100,7 +100,7 @@ RUN apt-get update && \
     pip install --no-cache-dir \
         numpy scipy scikit-learn scikit-misc matplotlib tqdm sympy \
         setuptools pandas pyyaml scanpy rpy2 && \
-    pip install --no-cache-dir git+https://github.com/kmayerb/tcrdist3.git@0.2.2 && \
+    pip install --no-cache-dir git+https://github.com/kmayerb/tcrdist3.git && \
     # Install conga - remove if exists (for base image compatibility)
     rm -rf /conga && \
     mkdir -p /conga && \

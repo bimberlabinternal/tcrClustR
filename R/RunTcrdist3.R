@@ -65,8 +65,7 @@ RunTcrdist3 <- function(seuratObj,
     command <- paste0("writeTcrDistances(csv_path = '", input_data_file,
                       "', organism = '", organism,
                       "', chainsString = '", .convert_chain_for_python(chain),
-                      # TODO: GW, we should review what DB this is using, and probably conditionalize based on organisms
-                      "', db_file = 'alphabeta_gammadelta_db.tsv",
+                      "', db_file = 'combo_xcr_2024-03-05.tsv",
                       "', rds_output_path = '", rdsOutputPath,
                       "', debug ='", ifelse(!is.null(debugTcrdist3) && debugTcrdist3, yes = 'True', no = 'False'),
                       "')")

@@ -253,7 +253,7 @@ utils::globalVariables(
     stop("Missing required Python modules: ", paste(missing_modules, collapse = ", "),
          "\n\nPlease run SetupPythonEnvironment() to install dependencies, or manually install with:\n",
          pythonExecutable, " -m pip install ", paste(missing_modules, collapse = " "),
-         "\n\nFor tcrdist3, use: ", pythonExecutable, " -m pip install git+https://github.com/kmayerb/tcrdist3.git@0.2.2")
+         "\n\nFor tcrdist3, use: ", pythonExecutable, " -m pip install git+https://github.com/kmayerb/tcrdist3.git")
   }
 
   outputFilePath <- R.utils::getAbsolutePath(outputFilePath)

@@ -69,22 +69,22 @@ test_that("CalculateTcrDistances works", {
   testthat::expect_equal(ncol(tra_matrix), 28)
 })
 
-# test_that("CalculateTcrDistances works for rhesus", {
-#   #read in a small Seurat object with TCR data
-#   seuratObj <- readRDS("../testdata/small_RIRA.rds")
-#   seuratObj <- subset(seuratObj, cells = SeuratObject::WhichCells(seuratObj, which(as.numeric(seuratObj$cDNA_ID) > 1 )))
-#
-#   #test that the function runs without errors
-#   seuratObj_TCR <- CalculateTcrDistances(
-#     inputData = seuratObj,
-#     chains = c("TRA", "TRB"),
-#     minimumCloneSize = 2,
-#     organism = 'rhesus',
-#     debugMode = TRUE
-#   )
-#
-#   testthat::expect_equal(length(names(seuratObj_TCR@misc$TCR_Distances)), 4)
-#   testthat::expect_equal(length(names(seuratObj_TCR@assays)), 1)
-#   testthat::expect_equal(ncol(seuratObj_TCR@assays$RNA), ncol(seuratObj@assays$RNA))
-#   testthat::expect_true('umap' %in% names(seuratObj_TCR@reductions))
-# })
+test_that("CalculateTcrDistances works for rhesus", {
+  #read in a small Seurat object with TCR data
+  seuratObj <- readRDS("../testdata/small_RIRA.rds")
+  seuratObj <- subset(seuratObj, cells = SeuratObject::WhichCells(seuratObj, which(as.numeric(seuratObj$cDNA_ID) > 1 )))
+
+  #test that the function runs without errors
+  seuratObj_TCR <- CalculateTcrDistances(
+    inputData = seuratObj,
+    chains = c("TRA", "TRB"),
+    minimumCloneSize = 2,
+    organism = 'rhesus',
+    debugMode = TRUE
+  )
+
+  testthat::expect_equal(length(names(seuratObj_TCR@misc$TCR_Distances)), 4)
+  testthat::expect_equal(length(names(seuratObj_TCR@assays)), 1)
+  testthat::expect_equal(ncol(seuratObj_TCR@assays$RNA), ncol(seuratObj@assays$RNA))
+  testthat::expect_true('umap' %in% names(seuratObj_TCR@reductions))
+})
