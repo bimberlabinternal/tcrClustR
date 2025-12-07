@@ -117,15 +117,15 @@ utils::globalVariables(
   if (calculateChainPairs) {
     toTest <- c()
     if ('TRA' %in% chains && 'TRB' %in% chains) {
-      toTest <- c(toTest, .get_chain_field_prefix(c('TRA', 'TRB')))
+      toTest <- c(toTest, .get_chain_field_prefix(c('TRA', 'TRB'), delim = '-'))
     }
 
     if ('TRG' %in% chains && 'TRD' %in% chains) {
-      toTest <- c(toTest, .get_chain_field_prefix(c('TRG', 'TRD')))
+      toTest <- c(toTest, .get_chain_field_prefix(c('TRG', 'TRD'), delim = '-'))
     }
 
     for (chainId in toTest) {
-      chains <- unlist(strsplit(chainId, split = ASSAY_MULTI_CHAIN_DELIM))
+      chains <- unlist(strsplit(chainId, split = '-'))
       col1 <- paste0(chains[1], '_ValidForClustering')
       if (!col1 %in% names(metadata)) {
         stop(paste0('Missing column: ', col1))
@@ -147,9 +147,10 @@ utils::globalVariables(
 
       metadata[['_CloneIdx_']][!metadata$IsValidForChain] <- NA
 
-      # There might be a more elegant solution to this:
-      names(metadata)[names(metadata) == '_CloneIdx_'] <- paste0(chainId, '_CloneIdx')
-      names(metadata)[names(metadata) == '_CloneSize_'] <- paste0(chainId, '_CloneSize')
+      # NOTE: Seurat doesnt handle hypthens in column names well, so substitute:
+      chainIdForColNames <- gsub(chainId, pattern = '-', replacement = '_')
+      names(metadata)[names(metadata) == '_CloneIdx_'] <- paste0(chainIdForColNames, '_CloneIdx')
+      names(metadata)[names(metadata) == '_CloneSize_'] <- paste0(chainIdForColNames, '_CloneSize')
       metadata$IsValidForChain <- NULL
     }
   }

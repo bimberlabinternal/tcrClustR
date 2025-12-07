@@ -76,15 +76,15 @@ GetDistanceMatrix <- function(seuratObj_TCR, chains, cdr3Only = FALSE) {
 }
 
 # The primary purpose of this function is to ensure consistent order for TRA/TRB and TRG/TRD on joint assays:
-.get_chain_field_prefix <- function(chains) {
+.get_chain_field_prefix <- function(chains, delim = '_') {
   if (length(chains) == 1){
     return(chains)
   }
 
   if ('TRA' %in% chains && 'TRB' %in% chains) {
-    return('TRA_TRB')
+    return(paste0('TRA', delim, 'TRB'))
   } else if ('TRG' %in% chains && 'TRD' %in% chains) {
-    return('TRG_TRD')
+    return(paste0('TRG', delim, 'TRD'))
   } else {
     stop(paste0('Unexpected chain combination: ', paste0(chains, collapse = ',')))
   }

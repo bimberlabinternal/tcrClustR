@@ -103,11 +103,11 @@ CalculateTcrDistances <- function(inputData = NULL,
     seuratObj <- Seurat::AddMetaData(seuratObj, toAdd)
   } else {
     if (isSeuratObj && !is.null(spikeInDataframe) && verbose) {
-        message('The results will be written to the original seurat object')
+        message('The results will be written to a new object because spike-in data was used')
     }
 
     # NOTE: we need to create a dummy GEX assay, which we can drop later:
-    dummy_mat <- matrix(rep(1, 100), ncol = 10, dimnames = list(c(LETTERS[1:10]), c(LETTERS[1:10])))
+    dummy_mat <- matrix(rep(0, nrow(formatted_metadata)*2), nrow = 2, dimnames = list(c(LETTERS[1:2]), rownames(formatted_metadata)))
     seuratObj <- Seurat::CreateSeuratObject(counts = Seurat::as.sparse(dummy_mat), assay = '~PLACEHOLDER~', meta.data = formatted_metadata)
   }
 
@@ -130,7 +130,11 @@ CalculateTcrDistances <- function(inputData = NULL,
   }
 
   if ('~PLACEHOLDER~' %in% names(seuratObj@assays)) {
-    seuratObj[['~PLACEHOLDER~']] <- NULL
+    if (length(names(seuratObj@assays)) > 1) {
+      seuratObj[['~PLACEHOLDER~']] <- NULL
+    } else {
+      message('Seurat objects require one assay, so will not delete the PLACEHOLDER counts')
+    }
   }
 
   return(seuratObj)

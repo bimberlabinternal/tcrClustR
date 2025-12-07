@@ -329,7 +329,8 @@ ExpandDistancesToMatchSeuratObj <- function(seuratObj, chains) {
     message(paste0('Rows remaining after filtering clones with cloneSize less than ', minimumCloneSize, ': ', nrow(metadata), ' (total dropped: ', (before_filter - nrow(metadata)), ')'))
   }
 
-  if ('IsSpikeInClone' %in% names(metadata)) {
+  # Drop the column if unused:
+  if ('IsSpikeInClone' %in% names(metadata) && length(unique(metadata$IsSpikeInClone)) == 1) {
     metadata <- metadata |>
       dplyr::select(-IsSpikeInClone)
   }

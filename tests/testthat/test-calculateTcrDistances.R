@@ -10,11 +10,11 @@ test_that("CalculateTcrDistances works", {
            inputData = seuratObj,
            chains = c("TRA", "TRB"),
            minimumCloneSize = 2,
-           debugTcrdist3 = TRUE
+           debugMode = TRUE
   )
 
-  testthat::expect_equal(length(names(seuratObj_TCR@misc$TCR_Distances)), 5)
-  testthat::expect_equal(length(names(seuratObj_TCR@assays)), 4)
+  testthat::expect_equal(length(names(seuratObj_TCR@misc$TCR_Distances)), 4)
+  testthat::expect_equal(length(names(seuratObj_TCR@assays)), 1)
   testthat::expect_equal(ncol(seuratObj_TCR@assays$RNA), ncol(seuratObj@assays$RNA))
   testthat::expect_true('umap' %in% names(seuratObj_TCR@reductions))
   
@@ -32,34 +32,37 @@ test_that("CalculateTcrDistances works", {
            inputData = seuratObj,
            chains = c("TRA", "TRB"),
            minimumCloneSize = 2,
-           debugTcrdist3 = TRUE,
+           debugMode = TRUE,
            spikeInDataframe = spikeInDataframe
   )
 
   testthat::expect_true(!'RNA' %in% names(seuratObj_TCR@assays))
-  testthat::expect_equal(length(names(seuratObj_TCR@assays)), 4)
-  testthat::expect_equal(sum(grepl("SpikeIn", seuratObj_TCR$SubjectId)), 3)
+  testthat::expect_equal(length(names(seuratObj_TCR@assays)), 1)
+  testthat::expect_equal(sum(!is.na(seuratObj_TCR$CloneNames)), 3)
+  testthat::expect_equal(sum(seuratObj_TCR$IsSpikeInClone), 3)
   testthat::expect_equal(length(names(seuratObj_TCR@misc$TCR_Distances)), 4)
 
   seuratObj_TCR_multichain <- CalculateTcrDistances(
            inputData = seuratObj,
            chains = c("TRA", "TRB"),
            minimumCloneSize = 2,
-           debugTcrdist3 = TRUE,
+           debugMode = TRUE,
            calculateChainPairs = TRUE,
            verbose = TRUE
   )
   
-  testthat::expect_equal(SeuratObject::Assays(seuratObj_TCR_multichain), c("RNA", "TRA_fl", "TRA_cdr3", "TRB_fl", "TRB_cdr3", "TRA_TRB_fl", "TRA_TRB_cdr3"))
+  testthat::expect_equal(SeuratObject::Assays(seuratObj_TCR_multichain), c("RNA"))
+  testthat::expect_equal(names(seuratObj_TCR_multichain@misc$TCR_Distances), c("TRA_fl", "TRA_cdr3", "TRB_fl", "TRB_cdr3", "TRA_TRB_fl", "TRA_TRB_cdr3"))
   
-  #test that joint distance matrices exist and have reasonable properties
   joint_matrix <- GetDistanceMatrix(seuratObj_TCR_multichain, chains = c("TRA", "TRB"))
-  tra_matrix <- SeuratObject::GetAssayData(seuratObj_TCR_multichain, assay = "TRA_fl", layer = "counts")
-  trb_matrix <- SeuratObject::GetAssayData(seuratObj_TCR_multichain, assay = "TRB_fl", layer = "counts")
+  testthat::expect_equal(nrow(joint_matrix), 21)
+  testthat::expect_equal(ncol(joint_matrix), 21)
   
-  #joint matrix should exist and be non-empty
-  testthat::expect_gt(nrow(joint_matrix), 0)
-  testthat::expect_gt(ncol(joint_matrix), 0)
+  tra_matrix <- GetDistanceMatrix(seuratObj_TCR_multichain, chains = c("TRA"))
+  testthat::expect_equal(nrow(tra_matrix), 28)
+  testthat::expect_equal(ncol(tra_matrix), 28)
   
-  #TODO: expand test cases
+  trb_matrix <- GetDistanceMatrix(seuratObj_TCR_multichain, chains = c("TRB"))
+  testthat::expect_equal(nrow(tra_matrix), 28)
+  testthat::expect_equal(ncol(tra_matrix), 28)
 })
