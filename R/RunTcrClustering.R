@@ -80,7 +80,7 @@ RunTcrClustering <- function(seuratObj_TCR = NULL,
     }
 
     if ( clusterIdxCol %in% names(seuratObj_TCR@meta.data)) {
-      stop(paste0('Replacing existing clustering data: ', clusterIdxCol))
+      message(paste0('Replacing existing clustering data: ', clusterIdxCol))
       seuratObj_TCR[[clusterIdxCol]] <- NULL
     }
 
@@ -101,12 +101,12 @@ RunTcrClustering <- function(seuratObj_TCR = NULL,
     # Difference behavior for Seurat4/5 assays:
     if ('meta.features' %in% slotNames(ad)) {
       if ( clusterIdxCol %in% names(ad@meta.features)) {
-        stop(paste0('Replacing existing clustering results for assay: ', assayName))
+        message(paste0('Replacing existing clustering results for assay: ', assayName))
         ad@meta.features[[clusterIdxCol]] <- NULL
       }
     } else {
       if ( clusterIdxCol %in% names(ad@meta.data)) {
-        stop(paste0('Replacing existing clustering results for assay: ', assayName))
+        message(paste0('Replacing existing clustering results for assay: ', assayName))
         ad@meta.data[[clusterIdxCol]] <- NULL
       }
     }
