@@ -2340,12 +2340,12 @@ margin-left: 0 !important;
 <div id="tcr-data-formatting" class="section level1">
 <h1>TCR Data Formatting</h1>
 <div class="sourceCode" id="cb21"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" tabindex="-1"></a><span class="fu">tryCatch</span>({</span>
-<span id="cb21-2"><a href="#cb21-2" tabindex="-1"></a>  formatted_metadata <span class="ot">&lt;-</span> <span class="fu">FormatMetadataForTcrDist3</span>(</span>
+<span id="cb21-2"><a href="#cb21-2" tabindex="-1"></a>  formatted_metadata <span class="ot">&lt;-</span> <span class="fu">.FormatMetadata</span>(</span>
 <span id="cb21-3"><a href="#cb21-3" tabindex="-1"></a>    <span class="at">metadata =</span> seuratObj<span class="sc">@</span>meta.data,</span>
 <span id="cb21-4"><a href="#cb21-4" tabindex="-1"></a>    <span class="at">chains =</span> chains,</span>
 <span id="cb21-5"><a href="#cb21-5" tabindex="-1"></a>    <span class="at">cleanMetadata =</span> cleanMetadata,</span>
 <span id="cb21-6"><a href="#cb21-6" tabindex="-1"></a>    <span class="at">summarizeClones =</span> summarizeClones,</span>
-<span id="cb21-7"><a href="#cb21-7" tabindex="-1"></a>    <span class="at">minimumClonesPerSubject =</span> minimumClonesPerSubject,</span>
+<span id="cb21-7"><a href="#cb21-7" tabindex="-1"></a>    <span class="at">minimumClonesPerSample =</span> minimumClonesPerSample,</span>
 <span id="cb21-8"><a href="#cb21-8" tabindex="-1"></a>    <span class="at">outputCsv =</span> <span class="fu">file.path</span>(outputPath, <span class="st">&#39;tcrDist3Input.csv&#39;</span>),</span>
 <span id="cb21-9"><a href="#cb21-9" tabindex="-1"></a>    <span class="at">pythonExecutable =</span> pythonExecutable,</span>
 <span id="cb21-10"><a href="#cb21-10" tabindex="-1"></a>    <span class="at">verbose =</span> verbose</span>
@@ -2401,7 +2401,7 @@ margin-left: 0 !important;
 <tbody>
 <tr class="odd">
 <td align="left">33156</td>
-<td align="left">dummy_epitope</td>
+<td align="left">Unknown</td>
 <td align="right">2</td>
 <td align="left">TRAV20*01</td>
 <td align="left">TRAJ13*01</td>
@@ -2414,7 +2414,7 @@ margin-left: 0 !important;
 </tr>
 <tr class="even">
 <td align="left">33156</td>
-<td align="left">dummy_epitope</td>
+<td align="left">Unknown</td>
 <td align="right">2</td>
 <td align="left">TRAV1-2*01</td>
 <td align="left">TRAJ26*01</td>
@@ -2427,7 +2427,7 @@ margin-left: 0 !important;
 </tr>
 <tr class="odd">
 <td align="left">34012</td>
-<td align="left">dummy_epitope</td>
+<td align="left">Unknown</td>
 <td align="right">2</td>
 <td align="left">TRAV9-1*01</td>
 <td align="left">TRAJ12*01</td>
@@ -2440,7 +2440,7 @@ margin-left: 0 !important;
 </tr>
 <tr class="even">
 <td align="left">34268</td>
-<td align="left">dummy_epitope</td>
+<td align="left">Unknown</td>
 <td align="right">2</td>
 <td align="left">TRAV25*01</td>
 <td align="left">TRAJ16*01</td>
@@ -2453,7 +2453,7 @@ margin-left: 0 !important;
 </tr>
 <tr class="odd">
 <td align="left">34474</td>
-<td align="left">dummy_epitope</td>
+<td align="left">Unknown</td>
 <td align="right">2</td>
 <td align="left">TRAV6*01</td>
 <td align="left">TRAJ22*01</td>
@@ -2479,7 +2479,7 @@ margin-left: 0 !important;
 <span id="cb23-8"><a href="#cb23-8" tabindex="-1"></a>    <span class="at">seuratObj =</span> seuratObj,</span>
 <span id="cb23-9"><a href="#cb23-9" tabindex="-1"></a>    <span class="at">chains =</span> chains,</span>
 <span id="cb23-10"><a href="#cb23-10" tabindex="-1"></a>    <span class="at">cleanMetadata =</span> cleanMetadata,</span>
-<span id="cb23-11"><a href="#cb23-11" tabindex="-1"></a>    <span class="at">minimumClonesPerSubject =</span> minimumClonesPerSubject,</span>
+<span id="cb23-11"><a href="#cb23-11" tabindex="-1"></a>    <span class="at">minimumClonesPerSample =</span> minimumClonesPerSample,</span>
 <span id="cb23-12"><a href="#cb23-12" tabindex="-1"></a>    <span class="at">rdsOutputPath =</span> <span class="fu">file.path</span>(outputPath, <span class="st">&quot;tcrdist3DistanceMatrices&quot;</span>),</span>
 <span id="cb23-13"><a href="#cb23-13" tabindex="-1"></a>    <span class="at">pythonExecutable =</span> pythonExecutable,</span>
 <span id="cb23-14"><a href="#cb23-14" tabindex="-1"></a>    <span class="at">verbose =</span> verbose</span>

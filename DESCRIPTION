@@ -33,7 +33,8 @@ Imports:
     arrow,
     cluster,
     NatParksPalettes,
-    dbscan
+    dbscan,
+    tibble
 Remotes:
     kevinsblake/NatParksPalettes
 Roxygen: list(markdown = TRUE)
@@ -44,3 +45,15 @@ Suggests:
     rmarkdown
 VignetteBuilder: knitr
 Config/testthat/edition: 3
+Collate: 
+    'FormatMetadata.R'
+    'Utils.R'
+    'RunTcrdist3.R'
+    'CalculateTcrDistances.R'
+    'Clustering.R'
+    'RunTcrClustering.R'
+    'Visualization.R'
+    'congaUtils.R'
+    'congaWrapper.R'
+    'utils-pipe.R'
+    'zzz.R'

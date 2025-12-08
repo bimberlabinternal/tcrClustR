@@ -28,8 +28,10 @@ jobs:
       bioc-version: '3.20'
       python-version: '3.8.10'
       use-base-image: true
+      # See: https://github.com/satijalab/seurat/issues/10180#event-3896304469 for background on fix/dimplot-data
       test-command: |
-        Rscript -e "devtools::install_deps(dependencies = TRUE, upgrade = \"never\")" && \
+        Rscript -e "devtools::install_deps(dependencies = TRUE, upgrade = \"never\")" && \        
+        Rscript -e "devtools::install_github(\"satijalab/seurat\", ref = \"fix/dimplot-data\", force = TRUE)" && \
         Rscript -e "devtools::test()" && \
         R CMD build . && \
         PKG=$(ls -1t *.tar.gz | head -n1) && \

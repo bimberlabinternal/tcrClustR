@@ -39,9 +39,7 @@ outputPath <- tempdir()
 
 #set default values for optional parameters
 chains <- if(exists('chains')) chains else c("TRA", "TRB")
-cleanMetadata <- if(exists('cleanMetadata')) cleanMetadata else TRUE
-summarizeClones <- if(exists('summarizeClones')) summarizeClones else TRUE
-minimumClonesPerSubject <- if(exists('minimumClonesPerSubject')) minimumClonesPerSubject else 2
+minimumCloneSize <- if(exists('minimumCloneSize')) minimumCloneSize else 2
 resolutionParameters <- if(exists('resolutionParameters')) resolutionParameters else c(0.1)
 pcaComponents <- if(exists('pcaComponents')) pcaComponents else 50
 usePCA <- if(exists('usePCA')) usePCA else TRUE
@@ -99,14 +97,12 @@ print(paste0("Available TCR columns: ", paste(available_tcr_cols, collapse = ", 
 ```{r FormatMetadata}
 
 tryCatch({
-  formatted_metadata <- FormatMetadataForTcrDist3(
+  formatted_metadata <- .FormatMetadata(
     metadata = seuratObj@meta.data,
     chains = chains,
-    cleanMetadata = cleanMetadata,
-    summarizeClones = summarizeClones,
-    minimumClonesPerSubject = minimumClonesPerSubject,
-    outputCsv = file.path(outputPath, 'tcrDist3Input.csv'),
-    pythonExecutable = pythonExecutable,
+    minimumCloneSize = minimumCloneSize,
+    outputPath = outputPath,
+    outputCsvName = 'tcrDist3Input.csv',
     verbose = verbose
   )
   
@@ -137,11 +133,10 @@ if (is.null(formatted_metadata) || nrow(formatted_metadata) == 0) {
 
 tryCatch({
   seuratObj_TCR <- RunTcrdist3(
-    seuratObj = seuratObj,
+    inputData = seuratObj,
     chains = chains,
     cleanMetadata = cleanMetadata,
-    minimumClonesPerSubject = minimumClonesPerSubject,
-    rdsOutputPath = file.path(outputPath, "tcrdist3DistanceMatrices"),
+    minimumCloneSize = minimumCloneSize,
     pythonExecutable = pythonExecutable,
     verbose = verbose
   )

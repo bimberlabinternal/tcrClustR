@@ -30,7 +30,7 @@ Invisible logical: TRUE if all dependencies are available, FALSE otherwise.
 \description{
 This function validates the Python installation, checks for required modules,
 and installs dependencies if needed. It's designed to be called before any
-tcrClustR functions that rely on Python (e.g., RunTcrdist3, FormatMetadataForTcrDist3).
+tcrClustR functions that rely on Python (e.g., RunTcrdist3, .FormatMetadata).
 }
 \details{
 This function performs the following steps:

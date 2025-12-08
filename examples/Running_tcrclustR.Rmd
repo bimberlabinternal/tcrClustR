@@ -28,16 +28,10 @@ seuratObj.Stims <- Rdiscvr::DownloadAndAppendTcrClonotypes(seruatObj.Stims)
 # Distance Matrix Calculation
 
 ```{r }
-seuratObj_TCR <- NULL 
- seuratObj_TCR <- RunTcrdist3(seuratObj = seuratObj.Stims,
-             metadata = NULL,
-             formatMetadata = T,
-             postFormattingMetadataCsvPath = './tcrdist3Input.csv',
+
+ resultList <- RunTcrdist3(inputData = seuratObj.Stims,
              chains = c("TRA", "TRB"),
-             cleanMetadata = T,
-             minimumClonesPerSubject = 2, 
-             rdsOutputPath = "./tcrdist3DistanceMatrices/",
-             pythonExecutable = reticulate::py_exe(),
+             minimumCloneSize = 2,
              debugTcrdist3 = "True")
 ```
 
