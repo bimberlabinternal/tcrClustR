@@ -1,9 +1,9 @@
 # Python dependencies for tcrClustR R package
 # Install with: pip install -r requirements.txt
-
+# Note: fork of tcrdist3 is used to resolve this warning and provide a fixed version: https://github.com/kmayerb/tcrdist3/pull/122
 numpy>=1.19.0
 scipy>=1.5.0
 scikit-learn>=0.23.0
 pandas>=1.1.0
 rpy2>=3.4.0
-tcrdist3>=0.2.2
+tcrdist3 @ git+https://github.com/bimberlabinternal/tcrdist3@0.3
