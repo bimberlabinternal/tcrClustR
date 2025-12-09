@@ -54,7 +54,5 @@ Collate:
     'Clustering.R'
     'RunTcrClustering.R'
     'Visualization.R'
-    'congaUtils.R'
-    'congaWrapper.R'
     'utils-pipe.R'
     'zzz.R'
