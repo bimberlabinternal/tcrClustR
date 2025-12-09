@@ -126,6 +126,7 @@ RUN apt-get update && apt-get install -y r-base r-base-dev && \
     echo "local({options(repos = BiocManager::repositories())})" >> ~/.Rprofile && \
     Rscript -e "BiocManager::install('ComplexHeatmap', ask = FALSE, update = TRUE)" && \
     Rscript -e "install.packages(c('clusterCrit', 'dbscan', 'cluster', 'arrow', 'RColorBrewer', 'patchwork'), lib='/usr/local/lib/R/site-library', dependencies=TRUE, ask = FALSE)" && \
+    Rscript -e "devtools::install_github(\"satijalab/seurat\", ref = \"fix/dimplot-data\", force = TRUE)" && \
     Rscript -e "remotes::install_github('kevinsblake/NatParksPalettes', lib='/usr/local/lib/R/site-library')" && \
     rm -rf /var/lib/apt/lists/* /tmp/downloaded_packages/ /tmp/*.rds
 
