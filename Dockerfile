@@ -110,7 +110,7 @@ RUN apt-get update && apt-get install -y r-base r-base-dev && \
         echo 'Setting GH_PAT'; \
         export GITHUB_PAT="${GH_PAT}"; \
     fi && \
-    Rscript -e "install.packages(c('remotes', 'devtools', 'BiocManager', 'pryr', 'rmdformats', 'knitr', 'logger', 'Matrix', 'kernlab', 'tidyverse', 'Seurat', 'leidenbase', 'igraph', 'FNN'), lib='/usr/local/lib/R/site-library', dependencies=TRUE, ask = FALSE, upgrade = 'always')" && \
+    Rscript -e "install.packages(c('remotes', 'devtools', 'BiocManager', 'pryr', 'rmdformats', 'knitr', 'logger', 'Matrix', 'kernlab', 'tidyverse', 'leidenbase', 'igraph', 'FNN'), lib='/usr/local/lib/R/site-library', dependencies=TRUE, ask = FALSE, upgrade = 'always')" && \
     echo "local({options(repos = BiocManager::repositories())})" >> ~/.Rprofile && \
     Rscript -e "BiocManager::install('ComplexHeatmap', ask = FALSE, update = TRUE)" && \
     Rscript -e "install.packages(c('clusterCrit', 'dbscan', 'cluster', 'arrow', 'RColorBrewer', 'patchwork'), lib='/usr/local/lib/R/site-library', dependencies=TRUE, ask = FALSE)" && \
