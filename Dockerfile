@@ -90,6 +90,7 @@ FROM base AS deps
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG GH_PAT='NOT_SET'
+COPY requirements.txt /tmp/requirements.txt
 
 # Install Python packages in a virtual environment
 RUN apt-get update && \
@@ -97,7 +98,7 @@ RUN apt-get update && \
     python3 -m venv /opt/venv && \
     . /opt/venv/bin/activate && \
     pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir -r /tmp/requirements.txt && \
     rm -rf /var/lib/apt/lists/*
 
 # Add virtual environment to PATH so Python scripts can find packages
