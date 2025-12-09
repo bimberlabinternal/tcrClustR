@@ -97,20 +97,7 @@ RUN apt-get update && \
     python3 -m venv /opt/venv && \
     . /opt/venv/bin/activate && \
     pip install --upgrade pip && \
-    pip install --no-cache-dir \
-        numpy scipy scikit-learn scikit-misc matplotlib tqdm sympy \
-        setuptools pandas pyyaml scanpy rpy2 && \
-    pip install --no-cache-dir git+https://github.com/bimberlabinternal/tcrdist3.git@0.3 && \
-    # Install conga - remove if exists (for base image compatibility)
-    rm -rf /conga && \
-    mkdir -p /conga && \
-    cd /conga && \
-    git clone https://github.com/phbradley/conga.git && \
-    cd conga/tcrdist_cpp && \
-    make && \
-    cd ../ && \
-    pip install -e . && \
-    cd / && \
+    pip install --no-cache-dir -r requirements.txt && \
     rm -rf /var/lib/apt/lists/*
 
 # Add virtual environment to PATH so Python scripts can find packages
@@ -126,8 +113,6 @@ RUN apt-get update && apt-get install -y r-base r-base-dev && \
     echo "local({options(repos = BiocManager::repositories())})" >> ~/.Rprofile && \
     Rscript -e "BiocManager::install('ComplexHeatmap', ask = FALSE, update = TRUE)" && \
     Rscript -e "install.packages(c('clusterCrit', 'dbscan', 'cluster', 'arrow', 'RColorBrewer', 'patchwork'), lib='/usr/local/lib/R/site-library', dependencies=TRUE, ask = FALSE)" && \
-    Rscript -e "devtools::install_github(\"satijalab/seurat\", ref = \"fix/dimplot-data\", force = TRUE)" && \
-    Rscript -e "remotes::install_github('kevinsblake/NatParksPalettes', lib='/usr/local/lib/R/site-library')" && \
     rm -rf /var/lib/apt/lists/* /tmp/downloaded_packages/ /tmp/*.rds
 
 # ============================================================================
