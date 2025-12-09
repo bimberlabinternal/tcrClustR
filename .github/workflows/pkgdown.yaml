@@ -1,54 +1,41 @@
 name: Deploy pkgdown Documentation
 
 on:
-  push:
+  # Trigger after R Build and Checks workflow completes on main branch
+  workflow_run:
+    workflows: ["R Build and Checks"]
+    types:
+      - completed
     branches: [main]
   workflow_dispatch:
 
 jobs:
   pkgdown:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+    # Only run if the triggering workflow succeeded (or if manually triggered)
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    
+    container:
+      image: ghcr.io/bimberlabinternal/tcrclustr:latest
+      options: --user root
     
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
-      RETICULATE_PYTHON: /usr/bin/python3
     
     steps:
       - uses: actions/checkout@v4
       
-      - uses: bimberlabinternal/DevOps/githubActions/r-gh-setup@master
-        with:
-          r_version: '4.4'
-          bioc_version: '3.20'
-          cache_version: ${{ secrets.CACHE_VERSION }}
-        env:
-          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Install system dependencies
+      - name: Set RETICULATE_PYTHON
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libcurl4-openssl-dev \
-            libssl-dev \
-            libxml2-dev \
-            libfontconfig1-dev \
-            libharfbuzz-dev \
-            libfribidi-dev \
-            libfreetype6-dev \
-            libpng-dev \
-            libtiff5-dev \
-            libjpeg-dev \
-            cmake
+          PYTHON_PATH=$(which python3)
+          echo "RETICULATE_PYTHON=${PYTHON_PATH}" >> $GITHUB_ENV
+          echo "Using Python: ${PYTHON_PATH}"
       
-      - name: Install Python dependencies
+      - name: Install pkgdown and dependencies
         run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install --user -r requirements.txt
-      
-      - name: Install R package dependencies
-        run: |
-          Rscript -e 'install.packages(c("pkgdown", "devtools", "BiocManager"))'
-          Rscript -e 'devtools::install_deps(dependencies = TRUE, upgrade = "never")'
+          Rscript -e 'if (!require("pkgdown")) install.packages("pkgdown", repos="https://cloud.r-project.org")'
+          Rscript -e 'if (!require("remotes")) install.packages("remotes", repos="https://cloud.r-project.org")'
+          Rscript -e 'remotes::install_deps(dependencies = TRUE, upgrade = "never")'
       
       - name: Install package
         run: R CMD INSTALL .
