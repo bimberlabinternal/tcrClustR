@@ -117,7 +117,7 @@ If you prefer manual installation:
 ```bash
 # install individual packages
 pip install pandas numpy scikit-learn rpy2
-pip install git+https://github.com/kmayerb/tcrdist3.git
+pip install git+https://github.com/bimberlabinternal/tcrdist3.git0.3
 
 #optional: install from requirements.txt in this repo
 pip install -r requirements.txt
