@@ -83,12 +83,15 @@ RunTcrdist3 <- function(seuratObj,
     }
     distanceMatrix_full_length <- readRDS(rdsFile)
 
-    # TODO: GW, can we count on the row/column order being identical to our input??
+    # validate dimnames preserved from Python match cell_df order
+    expectedNames <- as.character(dat$CloneId)
+    if (!identical(rownames(distanceMatrix_full_length), expectedNames) ||
+        !identical(colnames(distanceMatrix_full_length), expectedNames)) {
+      stop('RDS matrix dimnames do not match input cell_df CloneId order')
+    }
     if (nrow(distanceMatrix_full_length) != nrow(dat) || ncol(distanceMatrix_full_length) != nrow(dat)) {
       stop('Expected tcrdist3 fl matrix to have the same dimensions as input')
     }
-    colnames(distanceMatrix_full_length) <- as.character(dat$CloneId)
-    rownames(distanceMatrix_full_length) <- as.character(dat$CloneId)
 
     unlink(rdsFile)
 
@@ -100,12 +103,13 @@ RunTcrdist3 <- function(seuratObj,
       stop(paste0("Pairwise CDR3 tcrdist3 distance matrix RDS file not found: ", rdsFile))
     }
     distanceMatrix_CDR3 <- readRDS(rdsFile)
-    if (nrow(distanceMatrix_CDR3) != nrow(dat) || ncol(distanceMatrix_CDR3) != nrow(dat)) {
-      stop('Expected tcrdist3 fl matrix to have the same dimensions as input')
+    if (!identical(rownames(distanceMatrix_CDR3), expectedNames) ||
+        !identical(colnames(distanceMatrix_CDR3), expectedNames)) {
+      stop('serialized CDR3 matrix dimnames do not match expected CloneId order.')
     }
-
-    colnames(distanceMatrix_CDR3) <- as.character(dat$CloneId)
-    rownames(distanceMatrix_CDR3) <- as.character(dat$CloneId)
+    if (nrow(distanceMatrix_CDR3) != nrow(dat) || ncol(distanceMatrix_CDR3) != nrow(dat)) {
+      stop('Expected tcrdist3 CDR3 matrix to have the same dimensions as input')
+    }
     unlink(rdsFile)
 
     fieldName <- paste0(chain, '_CloneIdx')

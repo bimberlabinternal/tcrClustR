@@ -103,22 +103,25 @@ def writeTcrDistances(csv_path,
                       debug=True):
     """
     Compute TCR distance matrices using tcrdist3 and save them as RDS files for use in R.
+    Matrices saved with row/colnames matching cell_df CloneId order.
     """
-    #instantiate output directory if it doesn't exist.
     os.makedirs(rds_output_path, exist_ok=True)
-
-    #compute distances
+    
+    # Read CloneIds to preserve as row/colnames (cell_df order)
+    clone_ids = pd.read_csv(csv_path)['CloneId'].astype(str).tolist()
+    
     distances = getTcrDistances(csv_path, organism, chainsString, db_file, debug)
 
     base = importr('base')
-    #context manager to handle numpy <-> R conversion
+    from rpy2 import robjects
     with localconverter(default_converter + numpy2ri.converter):
-        #save all available distance matrices, which were constructed in the return of getTcrDistances
         for matrix_name, matrix_data in distances.items():
             output_file = os.path.join(rds_output_path, f'{matrix_name}.rds')
-
-            # TODO: GW, can we find/store row/col names at this stage? Or verify the CloneId order matches the input CSV
-            base.saveRDS(matrix_data, output_file)
+            r_matrix = numpy2ri.py2rpy(matrix_data)
+            r_names = robjects.StrVector(clone_ids)
+            #set dimnames(matrix) <- list(cloneIds, cloneIds)
+            r_matrix = robjects.r['`dimnames<-`'](r_matrix, robjects.ListVector({'row': r_names, 'col': r_names}))
+            base.saveRDS(r_matrix, output_file)
             if debug:
                 print(f"Saved {matrix_name} to {output_file}")
    
