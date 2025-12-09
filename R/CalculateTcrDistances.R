@@ -69,6 +69,7 @@ CalculateTcrDistances <- function(inputData = NULL,
   }
 
   formatted_metadata <- .FormatMetadata(metadata = metadata,
+                                        organism = organism,
                                         chains = chains,
                                         spikeInDataframe = spikeInDataframe,
                                         calculateChainPairs = calculateChainPairs,
