@@ -93,7 +93,7 @@ test_that("clone_ids are correctly written and used for dimnames", {
   seuratObj <- readRDS("../testdata/small_RIRA.rds")
   seuratObj <- subset(seuratObj, cells = SeuratObject::WhichCells(seuratObj, which(as.numeric(seuratObj$cDNA_ID) > 1 )))
 
-  #spikeIn clones with known order
+  #spikeIn clones with known ordering (after FormatMetadata.R)
   spikeInDataframe <- data.frame(
     CloneNames = c("SpikeA", "SpikeB", "SpikeC"),
     TRA_V = c("TRAV1-2", "TRAV1-2", "TRAV1-2"),

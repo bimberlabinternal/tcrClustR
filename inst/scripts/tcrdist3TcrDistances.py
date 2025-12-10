@@ -32,25 +32,16 @@ def getTcrDistances(csv_path,
     if 'CloneId' not in df.columns:
         raise ValueError("Input CSV must contain a 'CloneId' column for order validation")
     original_clone_ids = df['CloneId'].tolist()
-    
-    #determine the CDR3 column name based on chain type for validation
-    #this will be set once we know the chains
-    cdr3_validation_col = None
-
     #regex the chainsString argument to get the chains
     chains = []
     if re.search(r'alpha', chainsString):
         chains.append('alpha')
-        cdr3_validation_col = cdr3_validation_col or 'cdr3_a_aa'
     if re.search(r'beta', chainsString):
         chains.append('beta')
-        cdr3_validation_col = cdr3_validation_col or 'cdr3_b_aa'
     if re.search(r'gamma', chainsString):
         chains.append('gamma')
-        cdr3_validation_col = cdr3_validation_col or 'cdr3_g_aa'
     if re.search(r'delta', chainsString):
         chains.append('delta')
-        cdr3_validation_col = cdr3_validation_col or 'cdr3_d_aa'
     
     if debug:
         print(f"debug: Original CloneId order (first 5): {original_clone_ids[:5]}")
@@ -62,23 +53,37 @@ def getTcrDistances(csv_path,
                 chains = chains, 
                 db_file = db_file)
     
-    #primary validation: verify cell_df matches original input
     #cell_df is the input after TCRrep receives it - should be identical to our input
     cell_df = getattr(tr, 'cell_df', None)
     if cell_df is None:
         raise ValueError("TCRrep object missing cell_df attribute")
-    
-    if cdr3_validation_col and cdr3_validation_col in df.columns and cdr3_validation_col in cell_df.columns:
-        mismatches = sum(df[cdr3_validation_col] != cell_df[cdr3_validation_col])
-        if mismatches > 0:
-            raise ValueError(f"Mismatched {cdr3_validation_col}! TCRrep cell_df differs from input. Mismatches: {mismatches}")
-        print(f"validation: row order for {cdr3_validation_col} matches input")
-    
-    #secondary validation: get clone_df which contains grouped/collapsed clones
-    #clone_df is what we need for matrix indexing - it may be shorter than cell_df if there are duplicate clones
+
+    #get clone_df which contains grouped/collapsed clones
     clone_df = getattr(tr, 'clone_df', None)
     if clone_df is None:
         raise ValueError("TCRrep object missing clone_df attribute - cannot validate clone order")
+
+    #validate CloneId to guard against reordering across the three dataframes
+    #we deduplicate in df upstream, so all three dataframes should have the same CloneId order
+    #CloneId must match exactly between the input df, the TCRrep cell_df, and TCRrep clone_df
+    #Note: In this pipeline, we expect 1:1 mapping (no collapsing), so clone_df must also match df
+    
+    # first, check df vs cell_df
+    if not df['CloneId'].equals(cell_df['CloneId']):
+        if df['CloneId'].tolist() != cell_df['CloneId'].tolist():
+            raise ValueError(f"CloneId mismatch between input df and TCRrep cell_df! \nInput head: {df['CloneId'].head().tolist()}\nCell_df head: {cell_df['CloneId'].head().tolist()}")
+        print("warning: CloneId Series found unequal (likely index mismatch) but values/order are identical between df and cell_df.")
+
+    # second, check df vs clone_df
+    if 'CloneId' not in clone_df.columns:
+         raise ValueError(f"TCRrep clone_df missing CloneId column. Available columns: {clone_df.columns.tolist()}")
+
+    if not df['CloneId'].equals(clone_df['CloneId']):
+        if df['CloneId'].tolist() != clone_df['CloneId'].tolist():
+             raise ValueError(f"CloneId mismatch between input df and TCRrep clone_df! \nInput head: {df['CloneId'].head().tolist()}\nClone_df head: {clone_df['CloneId'].head().tolist()}")
+        print("warning: CloneId Series found unequal (likely index mismatch) but values/order are identical between df and clone_df.")
+    #if both checks pass, then CloneId order matches input
+    print(f"validation: row order for CloneId matches input")
     
     if debug:
         print(f"debug: cell_df length: {len(cell_df)}")
