@@ -70,43 +70,68 @@ RunTcrdist3 <- function(seuratObj,
                       "', debug ='", ifelse(!is.null(debugTcrdist3) && debugTcrdist3, yes = 'True', no = 'False'),
                       "')")
     readr::write_file(command, script, append = TRUE)
-    system2(pythonExecutable, script)
+    pythonOutput <- system2(pythonExecutable, script, stdout = TRUE, stderr = TRUE)
+    if (length(pythonOutput) > 0) {
+      message(paste(pythonOutput, collapse = "\n"))
+    }
+    
+    #ensure cell_df vs clone_df order validation occured in the python layer
+    chain_tcrdist3 <- .convert_chain_for_python(chain)
+    chain_cdr3_id <- tolower(strsplit(chain_tcrdist3, split = "")[[1]][1])
+    expectedValidation <- "validation: row order for CloneId matches input"
+    if (!any(grepl(expectedValidation, pythonOutput, fixed = TRUE))) {
+      stop(paste0("Python validation message not found in output: ", expectedValidation))
+    }
 
     unlink(input_data_file)
     unlink(script)
 
     #read the RDS files
-    chain_tcrdist3 <- .convert_chain_for_python(chain)
+    
+    #read clone_ids from Python (dimnames set in R since rpy2 dimnames assignment fails)
+    cloneIdsFile <- paste0(rdsOutputPath, "/clone_ids.rds")
+    if (!file.exists(cloneIdsFile)) {
+      stop(paste0("Clone IDs RDS file not found: ", cloneIdsFile))
+    }
+    python_clone_ids <- readRDS(cloneIdsFile)
+    
+    #validate clone_ids match input data
+    if (length(python_clone_ids) != nrow(dat)) {
+      stop(paste0('Clone IDs length (', length(python_clone_ids), ') does not match input data rows (', nrow(dat), ')'))
+    }
+    if (!identical(as.character(python_clone_ids), as.character(dat$CloneId))) {
+      stop('Clone IDs from Python do not match input CloneId values (order or content mismatch)')
+    }
+    
     rdsFile <- paste0(rdsOutputPath, "/pw_", chain_tcrdist3, ".rds")
     if (!file.exists(rdsFile)) {
       stop(paste0("Pairwise 'full' tcrdist3 distance matrix RDS file not found: ", rdsFile))
     }
     distanceMatrix_full_length <- readRDS(rdsFile)
 
-    # TODO: GW, can we count on the row/column order being identical to our input??
-    if (nrow(distanceMatrix_full_length) != nrow(dat) || ncol(distanceMatrix_full_length) != nrow(dat)) {
-      stop('Expected tcrdist3 fl matrix to have the same dimensions as input')
+    if (nrow(distanceMatrix_full_length) != length(python_clone_ids) || ncol(distanceMatrix_full_length) != length(python_clone_ids)) {
+      stop('Expected tcrdist3 fl matrix to have the same dimensions as clone_ids')
     }
-    colnames(distanceMatrix_full_length) <- as.character(dat$CloneId)
-    rownames(distanceMatrix_full_length) <- as.character(dat$CloneId)
+    colnames(distanceMatrix_full_length) <- as.character(python_clone_ids)
+    rownames(distanceMatrix_full_length) <- as.character(python_clone_ids)
 
     unlink(rdsFile)
 
     #process the CDR3 only TCR distance matrix
     #grab the first letter of the chain (distance matrices for the cdr3 are stored as "pw_cdr3_b_aa.rds" for a beta chain)
-    chain_cdr3_id <- tolower(strsplit(chain_tcrdist3, split = "")[[1]][1])
     rdsFile <- paste0(rdsOutputPath, "/pw_cdr3_", chain_cdr3_id, "_aa.rds")
     if (!file.exists(rdsFile)) {
       stop(paste0("Pairwise CDR3 tcrdist3 distance matrix RDS file not found: ", rdsFile))
     }
     distanceMatrix_CDR3 <- readRDS(rdsFile)
-    if (nrow(distanceMatrix_CDR3) != nrow(dat) || ncol(distanceMatrix_CDR3) != nrow(dat)) {
-      stop('Expected tcrdist3 fl matrix to have the same dimensions as input')
+    if (nrow(distanceMatrix_CDR3) != length(python_clone_ids) || ncol(distanceMatrix_CDR3) != length(python_clone_ids)) {
+      stop('Expected tcrdist3 cdr3 matrix to have the same dimensions as clone_ids')
     }
 
-    colnames(distanceMatrix_CDR3) <- as.character(dat$CloneId)
-    rownames(distanceMatrix_CDR3) <- as.character(dat$CloneId)
+    colnames(distanceMatrix_CDR3) <- as.character(python_clone_ids)
+    rownames(distanceMatrix_CDR3) <- as.character(python_clone_ids)
     unlink(rdsFile)
+    unlink(cloneIdsFile)
 
     fieldName <- paste0(chain, '_CloneIdx')
     seuratObj <- .validate_distance_mat_and_store(seuratObj, distanceMatrix_full_length, fieldName, assayName = paste0(chain, '_fl'), assayMeta = dat)
