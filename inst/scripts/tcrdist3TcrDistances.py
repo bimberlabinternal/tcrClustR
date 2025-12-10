@@ -25,25 +25,75 @@ def getTcrDistances(csv_path,
         debug = False
     
     if debug:
-        print("DataFrame shape:\n", df.shape)
-        print("DataFrame columns:\n", df.columns)
+        print("debug: DataFrame shape:\n", df.shape)
+        print("debug: DataFrame columns:\n", df.columns)
+
+    #store original data for validation after TCRrep processing
+    if 'CloneId' not in df.columns:
+        raise ValueError("Input CSV must contain a 'CloneId' column for order validation")
+    original_clone_ids = df['CloneId'].tolist()
+    
+    #determine the CDR3 column name based on chain type for validation
+    #this will be set once we know the chains
+    cdr3_validation_col = None
 
     #regex the chainsString argument to get the chains
     chains = []
     if re.search(r'alpha', chainsString):
         chains.append('alpha')
+        cdr3_validation_col = cdr3_validation_col or 'cdr3_a_aa'
     if re.search(r'beta', chainsString):
         chains.append('beta')
+        cdr3_validation_col = cdr3_validation_col or 'cdr3_b_aa'
     if re.search(r'gamma', chainsString):
         chains.append('gamma')
+        cdr3_validation_col = cdr3_validation_col or 'cdr3_g_aa'
     if re.search(r'delta', chainsString):
         chains.append('delta')
+        cdr3_validation_col = cdr3_validation_col or 'cdr3_d_aa'
+    
+    if debug:
+        print(f"debug: Original CloneId order (first 5): {original_clone_ids[:5]}")
+        print(f"debug: Input dataframe length: {len(df)}")
 
-    print("Computing distances for chains: ", chains)
+    print("info: Computing distances for chains: ", chains)
     tr = TCRrep(cell_df = df, 
                 organism = organism, 
                 chains = chains, 
                 db_file = db_file)
+    
+    #primary validation: verify cell_df matches original input
+    #cell_df is the input after TCRrep receives it - should be identical to our input
+    cell_df = getattr(tr, 'cell_df', None)
+    if cell_df is None:
+        raise ValueError("TCRrep object missing cell_df attribute")
+    
+    if cdr3_validation_col and cdr3_validation_col in df.columns and cdr3_validation_col in cell_df.columns:
+        mismatches = sum(df[cdr3_validation_col] != cell_df[cdr3_validation_col])
+        if mismatches > 0:
+            raise ValueError(f"Mismatched {cdr3_validation_col}! TCRrep cell_df differs from input. Mismatches: {mismatches}")
+        print(f"validation: row order for {cdr3_validation_col} matches input")
+    
+    #secondary validation: get clone_df which contains grouped/collapsed clones
+    #clone_df is what we need for matrix indexing - it may be shorter than cell_df if there are duplicate clones
+    clone_df = getattr(tr, 'clone_df', None)
+    if clone_df is None:
+        raise ValueError("TCRrep object missing clone_df attribute - cannot validate clone order")
+    
+    if debug:
+        print(f"debug: cell_df length: {len(cell_df)}")
+        print(f"debug: clone_df length: {len(clone_df)}")
+        print(f"debug: clone_df columns: {list(clone_df.columns)}")
+    
+    #get the CloneId values from clone_df 
+    if 'CloneId' in clone_df.columns:
+        clone_df_ids = clone_df['CloneId'].tolist()
+    else:
+        raise ValueError(f"TCRrep clone_df missing CloneId column. Available columns: {clone_df.columns.tolist()}")
+    
+    if debug:
+        print(f"debug: clone_df CloneId order (first 5): {clone_df_ids[:5]}")
+    
     #TODO: there seems to be an internal swap at n > 10,000 to returning pairwise distances as "rw"s instead 
     #of "pw"s, which we may want to use? 
     '''
@@ -74,24 +124,64 @@ def getTcrDistances(csv_path,
     
     #build the expected return dict dynamically based on available chains and distance matrices
     result = {}
-    for chain in chains:
-        attr_name = f'pw_{chain}'
-        if hasattr(tr, attr_name):
-            result[attr_name] = getattr(tr, attr_name)
     
     #look-up table for chain to attribute name mapping for CDR3-only distances
-    chain_mapping = {
+    chain_cdr3_mapping = {
         'alpha': 'pw_cdr3_a_aa',
         'beta': 'pw_cdr3_b_aa', 
         'gamma': 'pw_cdr3_g_aa',
         'delta': 'pw_cdr3_d_aa'
     }
-    #add the CDR3-only amino acid distance matrices to the result dict
+    
     for chain in chains:
-        if chain in chain_mapping:
-            attr_name = chain_mapping[chain]
-            if hasattr(tr, attr_name):
-                result[attr_name] = getattr(tr, attr_name)
+        #full-length distance matrix
+        attr_name = f'pw_{chain}'
+        if hasattr(tr, attr_name):
+            mat = getattr(tr, attr_name)
+            #secondary validation: validate that full length dimensions match clone_df
+            if len(clone_df) != len(mat):
+                raise ValueError(
+                    f"Matrix {attr_name} row length did not match clone_df! "
+                    f"clone_df: {len(clone_df)}, matrix rows: {len(mat)}"
+                )
+            if len(clone_df) != len(mat[0]):
+                raise ValueError(
+                    f"Matrix {attr_name} column length did not match clone_df! "
+                    f"clone_df: {len(clone_df)}, matrix cols: {len(mat[0])}"
+                )
+            result[attr_name] = mat
+            if debug:
+                print(f"validation: {attr_name} dimensions validated, {len(mat)} x {len(mat[0])}")
+        
+        #CDR3-only distance matrix
+        if chain in chain_cdr3_mapping:
+            cdr3_attr_name = chain_cdr3_mapping[chain]
+            if hasattr(tr, cdr3_attr_name):
+                mat = getattr(tr, cdr3_attr_name)
+                #secondary validation: validate that cdr3 dimensions match clone_df
+                if len(clone_df) != len(mat):
+                    raise ValueError(
+                        f"Matrix {cdr3_attr_name} row length did not match clone_df! "
+                        f"clone_df: {len(clone_df)}, matrix rows: {len(mat)}"
+                    )
+                if len(clone_df) != len(mat[0]):
+                    raise ValueError(
+                        f"Matrix {cdr3_attr_name} column length did not match clone_df! "
+                        f"clone_df: {len(clone_df)}, matrix cols: {len(mat[0])}"
+                    )
+                result[cdr3_attr_name] = mat
+                if debug:
+                    print(f"validation: {cdr3_attr_name} dimensions validated, {len(mat)} x {len(mat[0])}")
+    
+    #return the clone_ids alongside matrices so dimnames can be set correctly
+    result['clone_ids'] = clone_df_ids
+    
+    if debug:
+        print(f"\nDebug Summary:")
+        print(f"debug:   Input df length: {len(df)}")
+        print(f"debug:   Output cell_df length: {len(cell_df)}")
+        print(f"debug:   Output clone_df length: {len(clone_df)}")
+        print(f"debug:   Matrices returned: {[k for k in result.keys() if k != 'clone_ids']}")
     
     return result
 
@@ -103,27 +193,41 @@ def writeTcrDistances(csv_path,
                       debug=True):
     """
     Compute TCR distance matrices using tcrdist3 and save them as RDS files for use in R.
-    Matrices saved with row/colnames matching cell_df CloneId order.
+    
+    The RDS files will have dimnames set to the CloneId values from clone_df,
+    ensuring proper row/column identification when loaded in R.
     """
+    #instantiate output directory if it doesn't exist.
     os.makedirs(rds_output_path, exist_ok=True)
-    
-    # Read CloneIds to preserve as row/colnames (cell_df order)
-    clone_ids = pd.read_csv(csv_path)['CloneId'].astype(str).tolist()
-    
+
+    #compute distances (returns dict with matrices + 'clone_ids' key)
     distances = getTcrDistances(csv_path, organism, chainsString, db_file, debug)
+    
+    #extract clone_ids (these come from clone_df, already validated to match matrix dimensions)
+    clone_ids = distances.pop('clone_ids')
+    
+    if debug:
+        print(f"\ndebug: Saving {len(clone_ids)} clone IDs from clone_df")
 
     base = importr('base')
-    from rpy2 import robjects
+    import rpy2.robjects as ro
+    
+    #context manager to handle numpy to R conversion
     with localconverter(default_converter + numpy2ri.converter):
+        #save all available distance matrices
         for matrix_name, matrix_data in distances.items():
             output_file = os.path.join(rds_output_path, f'{matrix_name}.rds')
-            r_matrix = numpy2ri.py2rpy(matrix_data)
-            r_names = robjects.StrVector(clone_ids)
-            #set dimnames(matrix) <- list(cloneIds, cloneIds)
-            r_matrix = robjects.r['`dimnames<-`'](r_matrix, robjects.ListVector({'row': r_names, 'col': r_names}))
-            base.saveRDS(r_matrix, output_file)
+            
+            base.saveRDS(matrix_data, output_file)
             if debug:
-                print(f"Saved {matrix_name} to {output_file}")
+                print(f"debug: Saved {matrix_name} to {output_file}")
+        
+        #save clone_ids as separate RDS file for R to set dimnames in R
+        clone_ids_file = os.path.join(rds_output_path, 'clone_ids.rds')
+        r_clone_ids = ro.StrVector([str(cid) for cid in clone_ids])
+        base.saveRDS(r_clone_ids, clone_ids_file)
+        if debug:
+            print(f"debug: Saved clone_ids to {clone_ids_file}")
    
 #this file serves as a template. RunTcrdist3.R will copy this function, add a string with arguments to the end, and then call the whole file.
 
