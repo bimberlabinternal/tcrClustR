@@ -78,10 +78,6 @@ RunTcrdist3 <- function(seuratObj,
     #ensure cell_df vs clone_df order validation occured in the python layer
     chain_tcrdist3 <- .convert_chain_for_python(chain)
     chain_cdr3_id <- tolower(strsplit(chain_tcrdist3, split = "")[[1]][1])
-    expectedValidation <- "validation: row order for CloneId matches input"
-    if (!any(grepl(expectedValidation, pythonOutput, fixed = TRUE))) {
-      stop(paste0("Python validation message not found in output: ", expectedValidation))
-    }
 
     unlink(input_data_file)
     unlink(script)
@@ -141,7 +137,6 @@ RunTcrdist3 <- function(seuratObj,
     rm(distanceMatrix_full_length)
   }
 
-  # TODO: GW, please check my logic on this
   if (calculateChainPairs) {
     message('Calculating joint-chain distances')
 

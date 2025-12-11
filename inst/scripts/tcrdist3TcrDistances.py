@@ -90,12 +90,8 @@ def getTcrDistances(csv_path,
         print(f"debug: clone_df length: {len(clone_df)}")
         print(f"debug: clone_df columns: {list(clone_df.columns)}")
     
-    #get the CloneId values from clone_df 
-    if 'CloneId' in clone_df.columns:
-        clone_df_ids = clone_df['CloneId'].tolist()
-    else:
-        raise ValueError(f"TCRrep clone_df missing CloneId column. Available columns: {clone_df.columns.tolist()}")
-    
+    clone_df_ids = clone_df['CloneId'].tolist()
+
     if debug:
         print(f"debug: clone_df CloneId order (first 5): {clone_df_ids[:5]}")
     
