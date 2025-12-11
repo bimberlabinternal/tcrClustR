@@ -70,9 +70,9 @@ RunTcrdist3 <- function(seuratObj,
                       "', debug ='", ifelse(!is.null(debugTcrdist3) && debugTcrdist3, yes = 'True', no = 'False'),
                       "')")
     readr::write_file(command, script, append = TRUE)
-    pythonOutput <- system2(pythonExecutable, script, stdout = TRUE, stderr = TRUE)
-    if (length(pythonOutput) > 0) {
-      message(paste(pythonOutput, collapse = "\n"))
+    exitCode <- system2(pythonExecutable, script)
+    if (exitCode != 0) {
+      stop(paste('Non-zero exist code from tcrdist3: ', exitCode))
     }
     
     #ensure cell_df vs clone_df order validation occured in the python layer
