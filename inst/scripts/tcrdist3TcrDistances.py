@@ -82,8 +82,6 @@ def getTcrDistances(csv_path,
         if df['CloneId'].tolist() != clone_df['CloneId'].tolist():
              raise ValueError(f"CloneId mismatch between input df and TCRrep clone_df! \nInput head: {df['CloneId'].head().tolist()}\nClone_df head: {clone_df['CloneId'].head().tolist()}")
         print("warning: CloneId Series found unequal (likely index mismatch) but values/order are identical between df and clone_df.")
-    #if both checks pass, then CloneId order matches input
-    print(f"validation: row order for CloneId matches input")
     
     if debug:
         print(f"debug: cell_df length: {len(cell_df)}")
