@@ -40,15 +40,13 @@ jobs:
       - name: Install package
         run: R CMD INSTALL .
 
-      - name: Change working dir
-        run: |
-          pwd
-          ls
-          echo $GITHUB_WORKSPACE
-          cd $GITHUB_WORKSPACE
-
       - name: Build pkgdown site
         run: |
+          pwd
+          ls -lah .
+          cd $GITHUB_WORKSPACE
+          ls -lah .
+          git status
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
           Rscript -e 'pkgdown::deploy_to_branch(new_process = FALSE, clean = TRUE)'
