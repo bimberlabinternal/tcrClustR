@@ -55,7 +55,9 @@ RunTcrdist3 <- function(seuratObj,
     dat <- .filter_and_group_for_tcrdist3(
       metadata = seuratObj@meta.data,
       chains = chain,
-      minimumCloneSize = minimumCloneSize
+      minimumCloneSize = minimumCloneSize,
+      organism = organism,
+      verbose = verbose
     )
 
     utils::write.table(dat, file = input_data_file, sep = ',', row.names = FALSE, quote = TRUE)
@@ -248,7 +250,7 @@ RunTcrdist3 <- function(seuratObj,
 }
 
 # This is an internal method that expects the dataframe produced by .FormatMetadata. This dataframe should contain columns to uniquely identify each
-.filter_and_group_for_tcrdist3 <- function(metadata, chains, minimumCloneSize = 1) {
+.filter_and_group_for_tcrdist3 <- function(metadata, chains, organism, minimumCloneSize = 1, verbose = FALSE) {
   initialRows <- nrow(metadata)
 
   chainId <- .get_chain_field_prefix(chains)
