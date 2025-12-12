@@ -209,6 +209,10 @@ RunTcrdist3 <- function(seuratObj,
   rownames(translation2) <- translation2[[cloneIdxFieldBoth]]
 
   sharedClones <- intersect(translation1[[cloneIdxFieldBoth]], translation2[[cloneIdxFieldBoth]])
+  if (length(sharedClones) == 0) {
+    message(paste0('No passing clones shared for chains: ', chain1, ' and ', chain2, '. skipping joint distance matrix'))
+    return(seuratObj)
+  }
 
   # Now find the intersect across chain1/2:
   translation1 <- translation1[sharedClones,]
