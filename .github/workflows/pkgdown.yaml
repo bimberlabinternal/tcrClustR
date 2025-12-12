@@ -39,7 +39,14 @@ jobs:
       
       - name: Install package
         run: R CMD INSTALL .
-      
+
+      - name: Change working dir
+        run: |
+          pwd
+          ls
+          echo $GITHUB_WORKSPACE
+          cd $GITHUB_WORKSPACE
+
       - name: Build pkgdown site
         run: |
           git config --local user.email "actions@github.com"
