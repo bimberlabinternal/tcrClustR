@@ -55,7 +55,9 @@ RunTcrdist3 <- function(seuratObj,
     dat <- .filter_and_group_for_tcrdist3(
       metadata = seuratObj@meta.data,
       chains = chain,
-      minimumCloneSize = minimumCloneSize
+      minimumCloneSize = minimumCloneSize,
+      organism = organism,
+      verbose = verbose
     )
 
     utils::write.table(dat, file = input_data_file, sep = ',', row.names = FALSE, quote = TRUE)
@@ -67,8 +69,8 @@ RunTcrdist3 <- function(seuratObj,
                       "', chainsString = '", .convert_chain_for_python(chain),
                       "', db_file = 'combo_xcr_2024-03-05.tsv",
                       "', rds_output_path = '", rdsOutputPath,
-                      "', debug ='", ifelse(!is.null(debugTcrdist3) && debugTcrdist3, yes = 'True', no = 'False'),
-                      "')")
+                      "', debug =", ifelse(!is.null(debugTcrdist3) && debugTcrdist3, yes = 'True', no = 'False'),
+                      ")")
     readr::write_file(command, script, append = TRUE)
     exitCode <- system2(pythonExecutable, script)
     if (exitCode != 0) {
@@ -248,7 +250,7 @@ RunTcrdist3 <- function(seuratObj,
 }
 
 # This is an internal method that expects the dataframe produced by .FormatMetadata. This dataframe should contain columns to uniquely identify each
-.filter_and_group_for_tcrdist3 <- function(metadata, chains, minimumCloneSize = 1) {
+.filter_and_group_for_tcrdist3 <- function(metadata, chains, organism, minimumCloneSize = 1, verbose = FALSE) {
   initialRows <- nrow(metadata)
 
   chainId <- .get_chain_field_prefix(chains)
@@ -320,13 +322,19 @@ RunTcrdist3 <- function(seuratObj,
     stop(paste0('There were duplicated CloneId values in .filter_and_group_for_tcrdist3(): ', paste0(dupes, collapse = ',')))
   }
 
+  gene_segments_in_db <- .get_gene_ref_segments(
+    organism = organism,
+    verbose = verbose
+  )
+
   for (chain in chains){
     charName <- substring(chain, 3)
     if (! paste0('TR', charName) %in% names(metadata)) {
       stop(paste0('missing column: ', paste0('TR', charName)))
     }
-    formatted_data[[paste0('v_', tolower(charName), '_gene')]] <- .add_gene_suffix(metadata, paste0('TR', charName, '_V'))
-    formatted_data[[paste0('j_', tolower(charName), '_gene')]] <- .add_gene_suffix(metadata, paste0('TR', charName, '_J'))
+
+    formatted_data[[paste0('v_', tolower(charName), '_gene')]] <- .add_gene_suffix(metadata, paste0('TR', charName, '_V'), ref_db = gene_segments_in_db)
+    formatted_data[[paste0('j_', tolower(charName), '_gene')]] <- .add_gene_suffix(metadata, paste0('TR', charName, '_J'), ref_db = gene_segments_in_db)
     formatted_data[[paste0('cdr3_', tolower(charName), '_aa')]] <- metadata[[paste0('TR', charName)]]
     formatted_data[[paste0('cdr3_', tolower(charName), '_nucseq')]] <- sapply(metadata[[paste0('TR', charName)]], .reverse_translate_cdr3)
   }
