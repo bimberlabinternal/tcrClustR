@@ -163,17 +163,24 @@ utils::globalVariables(
   return(metadata)
 }
 
-.add_gene_suffix <- function(df, colName, suffix = '*01') {
+.add_gene_suffix <- function(df, colName, ref_db) {
   if (!colName %in% names(df)) {
     stop('Missing df column: ', colName)
   }
 
   dat <- df[[colName]]
-  sel <- !grepl(dat, pattern = '\\*')
-  if (sum(sel) > 0) {
-    dat <- as.character(dat)
-    dat[sel] <- paste0(dat[sel], suffix)
-  }
+  dat <- unlist(sapply(as.character(dat), function(x) {
+    if (grepl(dat, pattern = '\\*')) {
+      return(x)
+    }
+
+    suffix <- ref_db$allele_num[ref_db$gene_segment == x]
+    if (!suffix) {
+      stop(paste0('No allele suffix found for: ', x))
+    }
+
+    return(paste0(x, '*', suffix))
+  }))
 
   return(dat)
 }
@@ -339,7 +346,7 @@ utils::globalVariables(
   return(all(c(chain, vCol, jCol) %in% colnames(df)))
 }
 
-.flag_valid_rows <- function(metadata, chains, organism, verbose) {
+.get_gene_ref_segments <- function(organism, verbose = FALSE) {
   segmentTempFile <- tempfile(fileext = '.txt')
   .PullTcrdist3Db(organism = organism,
                   outputFilePath = segmentTempFile,
@@ -347,16 +354,29 @@ utils::globalVariables(
   )
 
   gene_segments_in_db <- readr::read_csv(segmentTempFile, show_col_types = FALSE) |>
-    dplyr::mutate(gene_segments = gsub(pattern = "\\*[0-9]+$", replacement = "", gene_segments)) |>
-    unlist() |>
+    dplyr::mutate(
+      gene_segment = gsub(pattern = "\\*[0-9]+$", replacement = "", gene_segments),
+      allele_num = gsub(pattern = "^(.*)\\*", replacement = "", gene_segments),
+    ) |>
+    dplyr::group_by(gene_segment) |>
+    dplyr::summarize(allele_num = min(allele_num)) |>
+    as.data.frame() |>
     unique()
 
-  gene_segments_in_db <- as.character(gene_segments_in_db)
   if (verbose) {
-    message("Found ", length(gene_segments_in_db), " gene segments in tcrdist3 database")
+    message("Found ", nrow(gene_segments_in_db), " gene segments in tcrdist3 database")
   }
 
   unlink(segmentTempFile)
+
+  return(gene_segments_in_db)
+}
+
+.flag_valid_rows <- function(metadata, chains, organism, verbose) {
+  gene_segments_in_db <- .get_gene_ref_segments(
+    organism = organism,
+    verbose = verbose
+  )
 
   initial_rows <- nrow(metadata)
   if (verbose) {
@@ -399,7 +419,7 @@ utils::globalVariables(
 
     # Flag gene segments not found in conga's database
     toTest <- as.character(metadata[[vCol]])
-    unknown_v_segments <- metadata[[validCol]] & !is.na(toTest) & !(toTest %in% gene_segments_in_db)
+    unknown_v_segments <- metadata[[validCol]] & !is.na(toTest) & !(toTest %in% gene_segments_in_db$gene_segment)
     if (sum(unknown_v_segments) > 0) {
       unk <- sort(unique(toTest[unknown_v_segments]))
       warning('The following ', length(unk), ' ', vCol, ' values were not found in the DB: ', paste0(unk, collapse = ','), '. ', paste0("Run tcrClustR:::.PullTcrdist3Db(organism = '", organism, "', outputFilePath = '...') to obtain the list of known segments."))
@@ -407,7 +427,7 @@ utils::globalVariables(
     }
 
     toTest <- as.character(metadata[[jCol]])
-    unknown_j_segments <- metadata[[validCol]] & !is.na(toTest) & !(toTest %in% gene_segments_in_db)
+    unknown_j_segments <- metadata[[validCol]] & !is.na(toTest) & !(toTest %in% gene_segments_in_db$gene_segment)
     if (sum(unknown_j_segments) > 0) {
       unk <- sort(unique(toTest[unknown_j_segments]))
       warning('The following ', length(unk), ' ', jCol, ' values were not found in the DB: ', paste0(unk, collapse = ','), '. ', paste0("Run tcrClustR:::.PullTcrdist3Db(organism = '", organism, "', outputFilePath = '...') to obtain the list of known segments."))

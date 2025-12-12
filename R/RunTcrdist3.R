@@ -320,13 +320,19 @@ RunTcrdist3 <- function(seuratObj,
     stop(paste0('There were duplicated CloneId values in .filter_and_group_for_tcrdist3(): ', paste0(dupes, collapse = ',')))
   }
 
+  gene_segments_in_db <- .get_gene_ref_segments(
+    organism = organism,
+    verbose = verbose
+  )
+
   for (chain in chains){
     charName <- substring(chain, 3)
     if (! paste0('TR', charName) %in% names(metadata)) {
       stop(paste0('missing column: ', paste0('TR', charName)))
     }
-    formatted_data[[paste0('v_', tolower(charName), '_gene')]] <- .add_gene_suffix(metadata, paste0('TR', charName, '_V'))
-    formatted_data[[paste0('j_', tolower(charName), '_gene')]] <- .add_gene_suffix(metadata, paste0('TR', charName, '_J'))
+
+    formatted_data[[paste0('v_', tolower(charName), '_gene')]] <- .add_gene_suffix(metadata, paste0('TR', charName, '_V'), ref_db = gene_segments_in_db)
+    formatted_data[[paste0('j_', tolower(charName), '_gene')]] <- .add_gene_suffix(metadata, paste0('TR', charName, '_J'), ref_db = gene_segments_in_db)
     formatted_data[[paste0('cdr3_', tolower(charName), '_aa')]] <- metadata[[paste0('TR', charName)]]
     formatted_data[[paste0('cdr3_', tolower(charName), '_nucseq')]] <- sapply(metadata[[paste0('TR', charName)]], .reverse_translate_cdr3)
   }
