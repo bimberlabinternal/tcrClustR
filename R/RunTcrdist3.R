@@ -69,8 +69,8 @@ RunTcrdist3 <- function(seuratObj,
                       "', chainsString = '", .convert_chain_for_python(chain),
                       "', db_file = 'combo_xcr_2024-03-05.tsv",
                       "', rds_output_path = '", rdsOutputPath,
-                      "', debug ='", ifelse(!is.null(debugTcrdist3) && debugTcrdist3, yes = 'True', no = 'False'),
-                      "')")
+                      "', debug =", ifelse(!is.null(debugTcrdist3) && debugTcrdist3, yes = 'True', no = 'False'),
+                      ")")
     readr::write_file(command, script, append = TRUE)
     exitCode <- system2(pythonExecutable, script)
     if (exitCode != 0) {

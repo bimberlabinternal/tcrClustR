@@ -175,7 +175,7 @@ utils::globalVariables(
     }
 
     suffix <- ref_db$allele_num[ref_db$gene_segment == x]
-    if (!suffix) {
+    if (is.null(suffix)) {
       stop(paste0('No allele suffix found for: ', x))
     }
 
