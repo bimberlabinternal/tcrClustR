@@ -170,7 +170,7 @@ utils::globalVariables(
 
   dat <- df[[colName]]
   dat <- unlist(sapply(as.character(dat), function(x) {
-    if (grepl(dat, pattern = '\\*')) {
+    if (grepl(x, pattern = '\\*')) {
       return(x)
     }
 
