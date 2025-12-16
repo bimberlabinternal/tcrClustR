@@ -36,8 +36,7 @@ Imports:
     dbscan,
     tibble
 Remotes:
-    kevinsblake/NatParksPalettes,
-    satijalab/seurat@fix/dimplot-data
+    kevinsblake/NatParksPalettes
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 Suggests: 
