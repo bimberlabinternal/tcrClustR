@@ -43,6 +43,7 @@ RunTcrdist3 <- function(seuratObj,
     stop("Python environment may not have required packages (tcrdist3, rpy2). This may cause failures.")
   }
 
+  failedChains <- c()
   for (chain in chains) {
     message(paste0('Preparing chain: ', chain))
 
@@ -59,6 +60,12 @@ RunTcrdist3 <- function(seuratObj,
       organism = organism,
       verbose = verbose
     )
+
+    if (nrow(dat) == 0) {
+      print(paste0('No passing clones for chain: ', chain, ', skipping'))
+      failedChains <- c(failedChains, chain)
+      next
+    }
 
     utils::write.table(dat, file = input_data_file, sep = ',', row.names = FALSE, quote = TRUE)
 
@@ -143,12 +150,12 @@ RunTcrdist3 <- function(seuratObj,
     message('Calculating joint-chain distances')
 
     # The idea below is to subset to clones that are valid in both chains:
-    if ('TRA' %in% chains && 'TRB' %in% chains) {
+    if ('TRA' %in% chains && 'TRB' %in% chains && !'TRA' %in% failedChains && !'TRB' %in% failedChains) {
       seuratObj <- .combine_matrices(seuratObj, chain1 = 'TRA', chain2 = 'TRB', matSuffix = '_fl')
       seuratObj <- .combine_matrices(seuratObj, chain1 = 'TRA', chain2 = 'TRB', matSuffix = '_cdr3')
     }
 
-    if ('TRG' %in% chains && 'TRD' %in% chains) {
+    if ('TRG' %in% chains && 'TRD' %in% chains && !'TRG' %in% failedChains && !'TRD' %in% failedChains) {
       seuratObj <- .combine_matrices(seuratObj, chain1 = 'TRG', chain2 = 'TRD', matSuffix = '_fl')
       seuratObj <- .combine_matrices(seuratObj, chain1 = 'TRG', chain2 = 'TRD', matSuffix = '_cdr3')
     }
