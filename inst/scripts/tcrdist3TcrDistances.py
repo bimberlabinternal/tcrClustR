@@ -52,7 +52,11 @@ def getTcrDistances(csv_path,
                 organism = organism, 
                 chains = chains, 
                 db_file = db_file)
-    
+
+    if len(df) > 10000:
+        print(f"Manually calling tr.compute_distances() due to the matrix size: {sample_attr.shape}")
+        tr.compute_distances()
+
     #cell_df is the input after TCRrep receives it - should be identical to our input
     cell_df = getattr(tr, 'cell_df', None)
     if cell_df is None:
@@ -92,35 +96,12 @@ def getTcrDistances(csv_path,
 
     if debug:
         print(f"debug: clone_df CloneId order (first 5): {clone_df_ids[:5]}")
-    
-    #TODO: there seems to be an internal swap at n > 10,000 to returning pairwise distances as "rw"s instead 
-    #of "pw"s, which we may want to use? 
-    '''
-    When TCRrep.<clone_df> size 18779 > 10,000.
-        TCRrep.compute_distances() may be called explicitly by a user
-        with knowledge of system memory availability.
-        However, it's HIGHLY unlikely that you want to compute such
-        a large numpy array. INSTEAD, if you want all pairwise distance,
-        you will likely want to set an appropriate number of cpus with TCRrep.cpus = x,
-        and then generate a scipy.sparse csr matrix of distances with:
-        TCRrep.compute_sparse_rect_distances(radius=50, chunk_size=100), leaving df and df2 arguments blank.
-        When you do this the results will be stored as TCRrep.rw_beta instead of TCRrep.pw_beta.
-        This function is highly useful for comparing a smaller number of sequences against a bulk set
-        In such a case, you can specify df and df2 arguments to create a non-square matrix of distances.
-        See https://tcrdist3.readthedocs.io/en/latest/sparsity.html?highlight=sparse for more info.
-    '''
-    #TODO part two: for now, we'll just bypass the warning and compute the pairwise distances in a dense array.
-    #check that the distances are fully pairwise 'pw' and not 'rw's, error out otherwise
-    sample_attr = None
+
     for chain in chains:
         attr_name = f'pw_{chain}'
-        if hasattr(tr, attr_name):
-            sample_attr = getattr(tr, attr_name)
-            break
-    
-    if sample_attr is not None and sample_attr.shape[0] > 10000:
-       tr.compute_distances()
-    
+        if not hasattr(tr, attr_name):
+            raise ValueError(f'TCRrep output missing attribute: {attr_name}')
+
     #build the expected return dict dynamically based on available chains and distance matrices
     result = {}
     
