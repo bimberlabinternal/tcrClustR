@@ -54,7 +54,7 @@ def getTcrDistances(csv_path,
                 db_file = db_file)
 
     if len(df) > 10000:
-        print(f"Manually calling tr.compute_distances() due to the matrix size: {sample_attr.shape}")
+        print(f"Manually calling tr.compute_distances() due to the matrix size: {len(df)}")
         tr.compute_distances()
 
     #cell_df is the input after TCRrep receives it - should be identical to our input
