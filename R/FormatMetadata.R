@@ -96,13 +96,18 @@ utils::globalVariables(
     }
 
     metadata$IsValidForChain <- metadata[[colName]]
+    if ('RowNames_' %in% names(metadata)) {
+      print('Dropping pre-existing RowNames_ column')
+      metadata$RowNames_ <- NULL
+    }
 
     tcr_grouping_columns <- c(c(chain, paste0(chain, "_V"), paste0(chain, "_J")))
     metadata <- metadata |>
       tibble::rownames_to_column('RowNames_') |>
       dplyr::group_by(dplyr::across(dplyr::all_of(tcr_grouping_columns))) |>
       dplyr::mutate(`_CloneIdx_` = paste0(chain, '-', 'Clone-', dplyr::cur_group_id()), `_CloneSize_` = dplyr::n()) |>
-      dplyr::ungroup() %>%
+      dplyr::ungroup() |>
+      as.data.frame() |>
       tibble::column_to_rownames('RowNames_')
 
     metadata[['_CloneIdx_']][!metadata$IsValidForChain] <- NA
@@ -137,12 +142,17 @@ utils::globalVariables(
       }
 
       metadata$IsValidForChain <- metadata[[col1]] & metadata[[col2]]
+      if ('RowNames_' %in% names(metadata)) {
+        print('Dropping pre-existing RowNames_ column')
+        metadata$RowNames_ <- NULL
+      }
       tcr_grouping_columns <- c(chains[1], paste0(chains[1], "_V"), paste0(chains[1], "_J"), chains[2], paste0(chains[2], "_V"), paste0(chains[2], "_J"))
       metadata <- metadata |>
         tibble::rownames_to_column('RowNames_') |>
         dplyr::group_by(dplyr::across(dplyr::all_of(tcr_grouping_columns))) |>
         dplyr::mutate(`_CloneIdx_` = paste0(chainId, '-', 'Clone-', dplyr::cur_group_id()), `_CloneSize_` = dplyr::n()) |>
-        dplyr::ungroup() %>%
+        dplyr::ungroup() |>
+        as.data.frame() |>
         tibble::column_to_rownames('RowNames_')
 
       metadata[['_CloneIdx_']][!metadata$IsValidForChain] <- NA
