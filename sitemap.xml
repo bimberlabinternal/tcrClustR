@@ -5,6 +5,7 @@
 <url><loc>/articles/tcrClustR-workflow.html</loc></url>
 <url><loc>/authors.html</loc></url>
 <url><loc>/index.html</loc></url>
+<url><loc>/reference/ApplyClusteringResultsToSeurat.html</loc></url>
 <url><loc>/reference/CalculateTcrDistances.html</loc></url>
 <url><loc>/reference/ExpandDistancesToMatchSeuratObj.html</loc></url>
 <url><loc>/reference/GetDistanceMatrix.html</loc></url>
@@ -15,6 +16,7 @@
 <url><loc>/reference/SetupPythonEnvironment.html</loc></url>
 <url><loc>/reference/TCRDistanceHeatmaps.html</loc></url>
 <url><loc>/reference/TCRDistanceHistograms.html</loc></url>
+<url><loc>/reference/VisualizeTcrDistances.html</loc></url>
 <url><loc>/reference/dot-DianaClustering.html</loc></url>
 <url><loc>/reference/dot-FormatMetadata.html</loc></url>
 <url><loc>/reference/dot-TCRDistanceHeatmap.html</loc></url>
