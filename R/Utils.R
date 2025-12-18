@@ -65,7 +65,7 @@ GetDistanceMatrix <- function(seuratObj_TCR, chains, cdr3Only = FALSE) {
 
   key <- paste0(chains, '_', ifelse(cdr3Only, yes = 'cdr3', no = 'fl'))
   if (!'TCR_Distances' %in% names(seuratObj_TCR@misc)) {
-    stop('This seuratObj does not contain TCR_Distances in the misc slot. Only seurat objects created by ')
+    stop('This seuratObj does not contain TCR_Distances in the misc slot. Only seurat objects created by tcrClustR can be used')
   }
 
   if (!key %in% names(seuratObj_TCR@misc$TCR_Distances)) {
@@ -118,8 +118,7 @@ ExpandDistancesToMatchSeuratObj <- function(seuratObj, chains) {
     stop('The metadata cloneNames and matrix rownames did not match')
   }
 
-  # The idea here is to duplicate very clone for each time it appeared in one of the input rows (cells). We can leave the rows/features alone
-  # TODO: GW: what's the right way to represent cells that were not compared (such as those lacking a given chain)? NAs might get converted to 0s in a sparse matrix. Zero implies 0-distance, wouldnt it?
+  # The idea here is to duplicate every clone for each time it appeared in one of the input rows (cells). We can leave the rows/features alone
   new_mat <- NULL
   for (colName in cloneNames) {
     if (is.na(colName)) {
@@ -147,4 +146,137 @@ ExpandDistancesToMatchSeuratObj <- function(seuratObj, chains) {
   }
 
   return(Seurat::as.sparse(new_mat))
+}
+
+#' @title VisualizeTcrDistances
+#' @description This takes the seuratObject and prints several visualizations for each distance matrix and/or clustering
+#'
+#' @param seuratObj The seurat object
+#' @export
+VisualizeTcrDistances <- function(seuratObj) {
+  if (!'TCR_Distances' %in% names(seuratObj@misc)) {
+    stop('This seuratObj does not contain TCR_Distances in the misc slot. Only seurat objects created by ')
+  }
+
+  for (assayName in names(seuratObj@misc$TCR_Distances)) {
+    clusterIdxCol <- paste0(assayName, '_ClusterIdx')
+
+    distance_matrix <- Seurat::GetAssayData(seuratObj_TCR@misc$TCR_Distances[[assayName]], layer = 'counts')
+    dist_values <- distance_matrix[upper.tri(distance_matrix)]
+    graphics::hist(
+      dist_values,
+      breaks = 50,
+      main = paste0("Distribution of TCR Pairwise Distances: ", assayName),
+      xlab = "Distance",
+      ylab = "Frequency",
+      col = "steelblue",
+      border = "white"
+    )
+
+    distance_heatmap <- ComplexHeatmap::Heatmap(
+      as.matrix(distance_matrix),
+      name = "TCR Distance",
+      show_row_names = FALSE,
+      show_column_names = FALSE,
+      cluster_rows = TRUE,
+      cluster_columns = TRUE,
+      clustering_method_rows = "ward.D2",
+      clustering_method_columns = "ward.D2",
+      use_raster = TRUE,
+      show_heatmap_legend = TRUE,
+      column_title = paste0("Distance Matrix: ", assayName)
+    )
+
+    print(distance_heatmap)
+
+    if (length(names(seuratObj_TCR@reductions)) > 0) {
+      print(Seurat::DimPlot(
+        seuratObj_TCR,
+        reduction = "umap",
+        group.by = clusterIdxCol,
+        label = TRUE,
+        pt.size = 1
+      ))
+    }
+  }
+}
+
+#' @title ApplyClusteringResultsToSeurat
+#' @description This takes a seuratObject with TCR clustering results calculated, and then joins the TCR family IDs from this object to the target object, where this join is performed using the CDR3, V and J data.
+#'
+#' @param sourceSeuratObj The source seurat object, containing clustering results
+#' @param targetSeuratObj The target seurat object, where clustering results will be joined
+#' @export
+ApplyClusteringResultsToSeurat <- function(sourceSeuratObj, targetSeuratObj) {
+  if (!'TCR_Distances' %in% names(sourceSeuratObj@misc)) {
+    stop('The sourceSeuratObj does not contain TCR_Distances in the misc slot. Only seurat objects created by ')
+  }
+
+  chainSets <- c()
+  for (assayName in names(sourceSeuratObj@misc$TCR_Distances)) {
+    chains <- paste0(head(unlist(strsplit(assayName, split = '_')), -1), collapse = '_')
+    chainSets <- c(chainSets, chains)
+  }
+  chainSets <- sort(unique(chainSets))
+
+  for (chainSet in chainSets) {
+    print(paste0('Appending: ', chainSet))
+    clusterIdxCol_FL <- paste0(chainSet, '_fl_ClusterIdx')
+    clusterIdxCol_CDR3 <- paste0(chainSet, '_cdr3_ClusterIdx')
+    chains <- unlist(strsplit(chainSet, split = '_'))
+
+    tcrColumns <- c()
+    for (chain in chains) {
+      tcrColumns <- c(tcrColumns, chain)
+      tcrColumns <- c(tcrColumns, paste0(chain, '_V'))
+      tcrColumns <- c(tcrColumns, paste0(chain, '_J'))
+    }
+
+    expectedSourceCols <- c(tcrColumns, clusterIdxCol_FL, clusterIdxCol_CDR3)
+    if (any(!expectedSourceCols %in% names(sourceSeuratObj@meta.data))) {
+      missing <- expectedSourceCols[!expectedSourceCols %in% names(sourceSeuratObj@meta.data)]
+      stop(paste0('The following columns were missing from the source object: ', paste0(missing, collapse = ',')))
+    }
+
+    if (any(!tcrColumns %in% names(targetSeuratObj@meta.data))) {
+      missing <- tcrColumns[!tcrColumns %in% names(targetSeuratObj@meta.data)]
+      stop(paste0('The following columns were missing from the target object: ', paste0(missing, collapse = ',')))
+    }
+
+    if (clusterIdxCol_FL %in% names(targetSeuratObj@meta.data)) {
+      targetSeuratObj@meta.data[[clusterIdxCol_FL]] <- NULL
+    }
+
+    if (clusterIdxCol_CDR3 %in% names(targetSeuratObj@meta.data)) {
+      targetSeuratObj@meta.data[[clusterIdxCol_CDR3]] <- NULL
+    }
+
+    sourceData <- sourceSeuratObj@meta.data |>
+      dplyr::select(dplyr::all_of(expectedSourceCols)) |>
+      dplyr::filter(dplyr::if_any(
+        .cols = dplyr::all_of(c(clusterIdxCol_FL, clusterIdxCol_CDR3)),
+        .fns = ~ !is.na(.x)
+      )) |>
+      dplyr::group_by(dplyr::across(dplyr::all_of(tcrColumns))) |>
+      dplyr::summarize(dplyr::across(
+        .cols = dplyr::all_of(c(clusterIdxCol_FL, clusterIdxCol_CDR3)),
+        .fns = ~ paste0(sort(unique(.x)), collapse = ',')
+      ))
+
+    toMerge <- targetSeuratObj@meta.data |>
+      tibble::rownames_to_column('RowNames_') |>
+      dplyr::select(dplyr::all_of(c(tcrColumns, 'RowNames_'))) |>
+      dplyr::inner_join(sourceData, by = tcrColumns) |>
+      tibble::column_to_rownames('RowNames_') |>
+      dplyr::select(dplyr::all_of(c(clusterIdxCol_FL, clusterIdxCol_CDR3))) 
+
+    if (nrow(toMerge) == 0){
+      print(paste0('There were no matching rows, skipping: ', chainSet))
+      next
+    }
+
+    targetSeuratObj <- Seurat::AddMetaData(targetSeuratObj, metadata = toMerge)
+  }
+
+  return(targetSeuratObj)
 }

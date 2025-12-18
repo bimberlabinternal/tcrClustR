@@ -46,4 +46,10 @@ test_that("RunTcrClustering filters invalid clones correctly", {
   )
   expect_equal(length(unique(seuratObj_Filter$TRB_fl_ClusterIdx)), 2)
   expect_equal(length(unique(seuratObj_Filter$TRB_cdr3_ClusterIdx)), 2)
+
+  VisualizeTcrDistances(seuratObj_Filter)
+
+  seuratObj_Appended <- ApplyClusteringResultsToSeurat(sourceSeuratObj = seuratObj_Filter, targetSeuratObj = seuratObj)
+  expect_equal(length(unique(seuratObj_Appended$TRB_fl_ClusterIdx)), 2)
+  expect_equal(length(unique(seuratObj_Appended$TRB_cdr3_ClusterIdx)), 2)
 })
