@@ -100,13 +100,8 @@ print("TCR clustering completed successfully!")
 ```{r}
 
 # Visualize
-DimPlot(
-  seuratObj_TCR,
-  reduction = "umap",
-  group.by = 'TRB_fl_ClusterIdx',
-  label = TRUE,
-  pt.size = 1
-)
+VisualizeTcrDistances(seuratObj_TCR)
+
 ```
 
 ## Visualize TCR Distance Matrices
