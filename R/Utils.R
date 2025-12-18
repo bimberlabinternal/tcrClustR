@@ -161,7 +161,7 @@ VisualizeTcrDistances <- function(seuratObj) {
   for (assayName in names(seuratObj@misc$TCR_Distances)) {
     clusterIdxCol <- paste0(assayName, '_ClusterIdx')
 
-    distance_matrix <- Seurat::GetAssayData(seuratObj_TCR@misc$TCR_Distances[[assayName]], layer = 'counts')
+    distance_matrix <- Seurat::GetAssayData(seuratObj@misc$TCR_Distances[[assayName]], layer = 'counts')
     dist_values <- distance_matrix[upper.tri(distance_matrix)]
     graphics::hist(
       dist_values,
@@ -189,9 +189,9 @@ VisualizeTcrDistances <- function(seuratObj) {
 
     print(distance_heatmap)
 
-    if (length(names(seuratObj_TCR@reductions)) > 0) {
+    if (length(names(seuratObj@reductions)) > 0) {
       print(Seurat::DimPlot(
-        seuratObj_TCR,
+        seuratObj,
         reduction = "umap",
         group.by = clusterIdxCol,
         label = TRUE,
