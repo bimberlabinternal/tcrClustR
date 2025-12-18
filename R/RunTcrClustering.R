@@ -29,7 +29,7 @@ RunTcrClustering <- function(seuratObj_TCR = NULL,
     chainsToCluster <- c('TRA', 'TRB', 'TRG', 'TRD', .get_chain_field_prefix(c('TRA', 'TRB')), .get_chain_field_prefix(c('TRG', 'TRD')))
   }
 
-  assayNames <- paste0(chainsToCluster, c("_fl", "_cdr3"))
+  assayNames <- sort(c(paste0(chainsToCluster, "_fl"), paste0(chainsToCluster, "_cdr3")))
   assayNames <- intersect(assayNames, names(seuratObj_TCR@misc$TCR_Distances))
   if (length(assayNames) == 0)
     stop("No assays found to cluster. Provide valid assay names or a seuratObj_TCR with assays.")

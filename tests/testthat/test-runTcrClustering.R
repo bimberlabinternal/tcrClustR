@@ -34,7 +34,8 @@ test_that("RunTcrClustering filters invalid clones correctly", {
     clusterSizeThreshold = 1,
     verbose = FALSE
   )
-  expect_equal(length(unique(seuratObj_NoFilter$TRB_ClusterIdx)), 3)
+  expect_equal(length(unique(seuratObj_NoFilter$TRB_fl_ClusterIdx)), 3)
+  expect_equal(length(unique(seuratObj_NoFilter$TRB_cdr3_ClusterIdx)), 3)
   expect_equal(max(seuratObj_NoFilter$TRB_CloneSize), 1)
   
   seuratObj_Filter <- RunTcrClustering(
@@ -43,5 +44,6 @@ test_that("RunTcrClustering filters invalid clones correctly", {
     clusterSizeThreshold = 5,
     verbose = FALSE
   )
-  expect_equal(length(unique(seuratObj_Filter$TRB_ClusterIdx)), 2)
+  expect_equal(length(unique(seuratObj_Filter$TRB_fl_ClusterIdx)), 2)
+  expect_equal(length(unique(seuratObj_Filter$TRB_cdr3_ClusterIdx)), 2)
 })
