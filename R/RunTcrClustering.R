@@ -70,7 +70,7 @@ RunTcrClustering <- function(seuratObj_TCR = NULL,
     # Now store back into the seurat object, top-level and assay-level:
     chainId <- paste0(head(unlist(strsplit(assayName, split = '_')), -1), collapse = '_')
     cloneIdxCol <- paste0(chainId, '_CloneIdx')
-    clusterIdxCol <- paste0(chainId, '_ClusterIdx')
+    clusterIdxCol <- paste0(assayName, '_ClusterIdx')
     toAdd <- data.frame(CloneIdx = names(filtered_assignments), ClusterIdx = unname(filtered_assignments))
     names(toAdd) <- c(cloneIdxCol, clusterIdxCol)
 
@@ -122,16 +122,16 @@ RunTcrClustering <- function(seuratObj_TCR = NULL,
 
     seuratObj_TCR@misc$TCR_Distances[[assayName]] <- Seurat::AddMetaData(ad, toAddAssay)
     rm(toAddAssay)
-  }
 
-  if (length(names(seuratObj_TCR@reductions)) > 0) {
-    print(Seurat::DimPlot(
-      seuratObj_TCR,
-      reduction = "umap",
-      group.by = 'TRB_ClusterIdx',
-      label = TRUE,
-      pt.size = 1
-    ))
+    if (length(names(seuratObj_TCR@reductions)) > 0) {
+      print(Seurat::DimPlot(
+        seuratObj_TCR,
+        reduction = "umap",
+        group.by = clusterIdxCol,
+        label = TRUE,
+        pt.size = 1
+      ))
+    }
   }
 
   return(seuratObj_TCR)
