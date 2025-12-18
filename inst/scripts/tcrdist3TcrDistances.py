@@ -47,11 +47,18 @@ def getTcrDistances(csv_path,
         print(f"debug: Original CloneId order (first 5): {original_clone_ids[:5]}")
         print(f"debug: Input dataframe length: {len(df)}")
 
+    # If the input data is too large, TCRrep will give a warning.
+    compute_distances = True
+    if len(df) > 10000:
+        compute_distances = False
+
     print("info: Computing distances for chains: ", chains)
     tr = TCRrep(cell_df = df, 
                 organism = organism, 
                 chains = chains, 
-                db_file = db_file)
+                db_file = db_file,
+                compute_distances = compute_distances
+    )
 
     if len(df) > 10000:
         print(f"Manually calling tr.compute_distances() due to the matrix size: {len(df)}")
