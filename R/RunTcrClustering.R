@@ -124,6 +124,16 @@ RunTcrClustering <- function(seuratObj_TCR = NULL,
     rm(toAddAssay)
   }
 
+  if (length(names(seuratObj_TCR@reductions)) > 0) {
+    print(Seurat::DimPlot(
+      seuratObj_TCR,
+      reduction = "umap",
+      group.by = 'TRB_ClusterIdx',
+      label = TRUE,
+      pt.size = 1
+    ))
+  }
+
   return(seuratObj_TCR)
 }
 
