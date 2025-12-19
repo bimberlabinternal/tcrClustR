@@ -105,6 +105,11 @@ utils::globalVariables(
       stop('There were duplicate metadata rownames')
     }
 
+    if (any(duplicated(colnames(metadata)))) {
+      dupes <- colnames(metadata)[duplicated(colnames(metadata))]
+      stop(paste0('There were duplicate metadata colnames: ', paste0(dupes, collapse = ',')))
+    }
+
     tcr_grouping_columns <- c(c(chain, paste0(chain, "_V"), paste0(chain, "_J")))
     metadata <- metadata |>
       tibble::rownames_to_column('RowNames_') |>
@@ -153,6 +158,11 @@ utils::globalVariables(
 
       if (any(duplicated(rownames(metadata)))) {
         stop('There were duplicate metadata rownames')
+      }
+
+      if (any(duplicated(colnames(metadata)))) {
+        dupes <- colnames(metadata)[duplicated(colnames(metadata))]
+        stop(paste0('There were duplicate metadata colnames: ', paste0(dupes, collapse = ',')))
       }
 
       tcr_grouping_columns <- c(chains[1], paste0(chains[1], "_V"), paste0(chains[1], "_J"), chains[2], paste0(chains[2], "_V"), paste0(chains[2], "_J"))
