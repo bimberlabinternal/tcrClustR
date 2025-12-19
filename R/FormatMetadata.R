@@ -101,6 +101,16 @@ utils::globalVariables(
       metadata$RowNames_ <- NULL
     }
 
+    if (paste0(chain, '_CloneIdx') %in% names(metadata)) {
+      print(paste0('Dropping pre-existing col: ', chain, '_CloneIdx'))
+      metadata[[paste0(chain, '_CloneIdx')]] <- NULL
+    }
+
+    if (paste0(chain, '_CloneSize') %in% names(metadata)) {
+      print(paste0('Dropping pre-existing col: ', chain, '_CloneSize'))
+      metadata[[paste0(chain, '_CloneSize')]] <- NULL
+    }
+
     if (any(duplicated(rownames(metadata)))) {
       stop('There were duplicate metadata rownames')
     }
@@ -148,6 +158,16 @@ utils::globalVariables(
       col2 <- paste0(chains[2], '_ValidForClustering')
       if (!col2 %in% names(metadata)) {
         stop(paste0('Missing column: ', col2))
+      }
+
+      if (paste0(chain, '_CloneIdx') %in% names(metadata)) {
+        print(paste0('Dropping pre-existing col: ', chain, '_CloneIdx'))
+        metadata[[paste0(chain, '_CloneIdx')]] <- NULL
+      }
+
+      if (paste0(chain, '_CloneSize') %in% names(metadata)) {
+        print(paste0('Dropping pre-existing col: ', chain, '_CloneSize'))
+        metadata[[paste0(chain, '_CloneSize')]] <- NULL
       }
 
       metadata$IsValidForChain <- metadata[[col1]] & metadata[[col2]]
