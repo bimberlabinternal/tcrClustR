@@ -101,6 +101,10 @@ utils::globalVariables(
       metadata$RowNames_ <- NULL
     }
 
+    if (any(duplicated(rownames(metadata)))) {
+      stop('There were duplicate metadata rownames')
+    }
+
     tcr_grouping_columns <- c(c(chain, paste0(chain, "_V"), paste0(chain, "_J")))
     metadata <- metadata |>
       tibble::rownames_to_column('RowNames_') |>
@@ -146,6 +150,11 @@ utils::globalVariables(
         print('Dropping pre-existing RowNames_ column')
         metadata$RowNames_ <- NULL
       }
+
+      if (any(duplicated(rownames(metadata)))) {
+        stop('There were duplicate metadata rownames')
+      }
+
       tcr_grouping_columns <- c(chains[1], paste0(chains[1], "_V"), paste0(chains[1], "_J"), chains[2], paste0(chains[2], "_V"), paste0(chains[2], "_J"))
       metadata <- metadata |>
         tibble::rownames_to_column('RowNames_') |>
