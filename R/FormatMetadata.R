@@ -160,14 +160,17 @@ utils::globalVariables(
         stop(paste0('Missing column: ', col2))
       }
 
-      if (paste0(chain, '_CloneIdx') %in% names(metadata)) {
-        print(paste0('Dropping pre-existing col: ', chain, '_CloneIdx'))
-        metadata[[paste0(chain, '_CloneIdx')]] <- NULL
+      # NOTE: Seurat doesnt handle hypthens in column names well, so substitute:
+      chainIdForColNames <- gsub(chainId, pattern = '-', replacement = '_')
+
+      if (paste0(chainIdForColNames, '_CloneIdx') %in% names(metadata)) {
+        print(paste0('Dropping pre-existing col: ', chainIdForColNames, '_CloneIdx'))
+        metadata[[paste0(chainIdForColNames, '_CloneIdx')]] <- NULL
       }
 
-      if (paste0(chain, '_CloneSize') %in% names(metadata)) {
-        print(paste0('Dropping pre-existing col: ', chain, '_CloneSize'))
-        metadata[[paste0(chain, '_CloneSize')]] <- NULL
+      if (paste0(chainIdForColNames, '_CloneSize') %in% names(metadata)) {
+        print(paste0('Dropping pre-existing col: ', chainIdForColNames, '_CloneSize'))
+        metadata[[paste0(chainIdForColNames, '_CloneSize')]] <- NULL
       }
 
       metadata$IsValidForChain <- metadata[[col1]] & metadata[[col2]]
@@ -195,9 +198,6 @@ utils::globalVariables(
         tibble::column_to_rownames('RowNames_')
 
       metadata[['_CloneIdx_']][!metadata$IsValidForChain] <- NA
-
-      # NOTE: Seurat doesnt handle hypthens in column names well, so substitute:
-      chainIdForColNames <- gsub(chainId, pattern = '-', replacement = '_')
       names(metadata)[names(metadata) == '_CloneIdx_'] <- paste0(chainIdForColNames, '_CloneIdx')
       names(metadata)[names(metadata) == '_CloneSize_'] <- paste0(chainIdForColNames, '_CloneSize')
       metadata$IsValidForChain <- NULL
