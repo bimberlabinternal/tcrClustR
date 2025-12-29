@@ -29,7 +29,7 @@ seuratObj_TCR <- CalculateTcrDistances(
 )
 
 #Step 2: cluster and save results to the seurat object's metadata:
-results <- RunTcrClustering(
+seuratObj_TCR <- RunTcrClustering(
   seuratObj_TCR = seuratObj_TCR
 )
 
