@@ -201,7 +201,7 @@ VisualizeTcrDistances <- function(seuratObj,
         pt.size = 1
       )
       #optionally remove legend
-      if (!showLegendDimpDimplotLegend) {
+      if (!showDimplotLegend) {
         dimplot <- dimplot + Seurat::NoLegend()
       }
       print(dimplot)
