@@ -4,10 +4,12 @@
 \alias{VisualizeTcrDistances}
 \title{VisualizeTcrDistances}
 \usage{
-VisualizeTcrDistances(seuratObj)
+VisualizeTcrDistances(seuratObj, showDimplotLegend = FALSE)
 }
 \arguments{
 \item{seuratObj}{The seurat object}
+
+\item{showDimplotLegend}{Boolean controlling whether to show the legend on the DimPlot}
 }
 \description{
 This takes the seuratObject and prints several visualizations for each distance matrix and/or clustering

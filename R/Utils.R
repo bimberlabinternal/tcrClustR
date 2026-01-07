@@ -152,8 +152,10 @@ ExpandDistancesToMatchSeuratObj <- function(seuratObj, chains) {
 #' @description This takes the seuratObject and prints several visualizations for each distance matrix and/or clustering
 #'
 #' @param seuratObj The seurat object
+#' @param showDimplotLegend Boolean controlling whether to show the legend on the DimPlot
 #' @export
-VisualizeTcrDistances <- function(seuratObj) {
+VisualizeTcrDistances <- function(seuratObj,
+                                  showDimplotLegend = FALSE) {
   if (!'TCR_Distances' %in% names(seuratObj@misc)) {
     stop('This seuratObj does not contain TCR_Distances in the misc slot. Only seurat objects created by ')
   }
@@ -163,6 +165,7 @@ VisualizeTcrDistances <- function(seuratObj) {
 
     distance_matrix <- Seurat::GetAssayData(seuratObj@misc$TCR_Distances[[assayName]], layer = 'counts')
     dist_values <- distance_matrix[upper.tri(distance_matrix)]
+    #histogram of distances
     graphics::hist(
       dist_values,
       breaks = 50,
@@ -172,7 +175,7 @@ VisualizeTcrDistances <- function(seuratObj) {
       col = "steelblue",
       border = "white"
     )
-
+    #complex heatmap of distances
     distance_heatmap <- ComplexHeatmap::Heatmap(
       as.matrix(distance_matrix),
       name = "TCR Distance",
@@ -188,15 +191,20 @@ VisualizeTcrDistances <- function(seuratObj) {
     )
 
     print(distance_heatmap)
-
+    #dimplot
     if (length(names(seuratObj@reductions)) > 0) {
-      print(Seurat::DimPlot(
+      dimplot <- Seurat::DimPlot(
         seuratObj,
         reduction = "umap",
         group.by = clusterIdxCol,
         label = TRUE,
         pt.size = 1
-      ))
+      )
+      #optionally remove legend
+      if (!showLegendDimpDimplotLegend) {
+        dimplot <- dimplot + Seurat::NoLegend()
+      }
+      print(dimplot)
     }
   }
 }
@@ -268,7 +276,7 @@ ApplyClusteringResultsToSeurat <- function(sourceSeuratObj, targetSeuratObj) {
       dplyr::select(dplyr::all_of(c(tcrColumns, 'RowNames_'))) |>
       dplyr::inner_join(sourceData, by = tcrColumns) |>
       tibble::column_to_rownames('RowNames_') |>
-      dplyr::select(dplyr::all_of(c(clusterIdxCol_FL, clusterIdxCol_CDR3))) 
+      dplyr::select(dplyr::all_of(c(clusterIdxCol_FL, clusterIdxCol_CDR3)))
 
     if (nrow(toMerge) == 0){
       print(paste0('There were no matching rows, skipping: ', chainSet))
