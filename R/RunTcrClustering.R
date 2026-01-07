@@ -41,7 +41,7 @@ RunTcrClustering <- function(seuratObj_TCR = NULL,
     if (is.null(dist_matrix)) {
       stop(paste0('Expected the distance matrix to be stored under seuratObj_TCR@misc$TCR_Distances$', assayName))
     }
-    
+
     # check if matrix is too small or empty
     if (nrow(dist_matrix) < 2 || ncol(dist_matrix) < 2) {
       warning("Skipping assay ", assayName, ": distance matrix too small (", nrow(dist_matrix), "x", ncol(dist_matrix), ")")
@@ -130,7 +130,8 @@ RunTcrClustering <- function(seuratObj_TCR = NULL,
         group.by = clusterIdxCol,
         label = TRUE,
         pt.size = 1
-      ))
+      )) +
+        Seurat::NoLegend()
     }
   }
 
