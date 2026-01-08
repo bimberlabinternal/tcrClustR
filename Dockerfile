@@ -105,14 +105,17 @@ RUN apt-get update && \
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Install R dependencies
+# TODO: when the latest seurat is pushed to CRAN we can drop the remotes install
 RUN apt-get update && apt-get install -y r-base r-base-dev && \
     if [ "${GH_PAT}" != 'NOT_SET' ]; then \
         echo 'Setting GH_PAT'; \
         export GITHUB_PAT="${GH_PAT}"; \
     fi && \
-    Rscript -e "install.packages(c('remotes', 'devtools', 'BiocManager', 'pryr', 'rmdformats', 'knitr', 'logger', 'Matrix', 'kernlab', 'tidyverse', 'leidenbase', 'igraph', 'FNN'), lib='/usr/local/lib/R/site-library', dependencies=TRUE, ask = FALSE, upgrade = 'always')" && \
+    Rscript -e "install.packages(c('remotes', 'devtools', 'BiocManager', 'pryr', 'rmdformats', 'knitr', 'logger', 'Matrix', 'kernlab', 'tidyverse', 'leidenbase', 'igraph', 'FNN', 'plyr'), lib='/usr/local/lib/R/site-library', dependencies=TRUE, ask = FALSE)" && \
     echo "local({options(repos = BiocManager::repositories())})" >> ~/.Rprofile && \
     Rscript -e "BiocManager::install('ComplexHeatmap', ask = FALSE, update = TRUE)" && \
+    Rscript -e "remotes::install_github('kevinsblake/NatParksPalettes', upgrade='never')" && \
+    Rscript -e "remotes::install_github('satijalab/seurat', upgrade='never')" && \
     Rscript -e "install.packages(c('clusterCrit', 'dbscan', 'cluster', 'arrow', 'RColorBrewer', 'patchwork'), lib='/usr/local/lib/R/site-library', dependencies=TRUE, ask = FALSE)" && \
     rm -rf /var/lib/apt/lists/* /tmp/downloaded_packages/ /tmp/*.rds
 
