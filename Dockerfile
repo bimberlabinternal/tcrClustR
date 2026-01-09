@@ -67,6 +67,9 @@ RUN if [ "$SKIP_BASE_DEPS" = "false" ]; then \
         libcairo2-dev \
         libgpg-error-dev \
         libgmp-dev \
+        libprotobuf-dev \
+        protobuf-compiler \
+        libnode-dev \
         ca-certificates \
         && rm -rf /var/lib/apt/lists/*; \
     else \
