@@ -1,6 +1,6 @@
 Package: tcrClustR
 Title: Define TCR "Families" via similarity metrics
-Version: 0.0.0.9000
+Version: 0.0.0.9002
 Authors@R: 
     person("GW", "McElfresh", ,"mcelfreg@ohsu.edu", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-1948-7571"))
@@ -36,7 +36,8 @@ Imports:
     dbscan,
     tibble
 Remotes:
-    kevinsblake/NatParksPalettes
+    kevinsblake/NatParksPalettes, 
+    satijalab/seurat
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 Suggests: 
