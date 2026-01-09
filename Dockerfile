@@ -153,9 +153,6 @@ WORKDIR /tcrClustR
 # upgrade = 'never' is specified because the dependencies install/upgrading is already handled in the deps stage
 RUN cd /tcrClustR && \
     R CMD build . && \
-    Rscript -e "BiocManager::install(ask = F, upgrade = 'never');" && \
-    Rscript -e "install.packages('devtools', dependencies=TRUE, lib='/usr/local/lib/R/site-library'); \
-    devtools::install_deps(pkg = '.', dependencies = TRUE, upgrade = 'never');" && \
     R CMD INSTALL --build *.tar.gz && \
     rm -Rf /tmp/downloaded_packages/ /tmp/*.rds
 
