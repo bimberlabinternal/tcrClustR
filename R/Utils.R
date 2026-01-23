@@ -100,7 +100,7 @@ ExpandDistancesToMatchSeuratObj <- function(seuratObj, chains) {
   if (length(chains) > 1) {
     chains <- .get_chain_field_prefix(chains)
   }
-  cloneFieldName <- paste0(chains, '-ClonexIdx')
+  cloneFieldName <- paste0(chains, '_CloneIdx')
   if (!cloneFieldName %in% names(seuratObj@meta.data)) {
     stop(paste0('Missing field: ', cloneFieldName, ', fields present: ', paste0(sort(names(seuratObj@meta.data)), collapse = ',')))
   }
