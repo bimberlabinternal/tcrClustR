@@ -34,7 +34,12 @@ Imports:
     cluster,
     NatParksPalettes,
     dbscan,
-    tibble
+    tibble,
+    scales,
+    transport,
+    gamlss2,
+    dirichletprocess, 
+    egg
 Remotes:
     kevinsblake/NatParksPalettes, 
     satijalab/seurat
@@ -52,6 +57,7 @@ Collate:
     'RunTcrdist3.R'
     'CalculateTcrDistances.R'
     'Clustering.R'
+    'DirichletDistances.R'
     'RunTcrClustering.R'
     'Visualization.R'
     'utils-pipe.R'
