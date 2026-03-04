@@ -473,7 +473,7 @@ PlotMixingProportions <- function(dpResult, verbose = FALSE) {
       limits = c(0, 1)
     ) +
     ggplot2::labs(
-      title = paste0(" Mixing Proportions: ", dpResult$assayName),
+      title = paste0("Mixing Proportions: ", dpResult$assayName),
       subtitle = paste0("Split by: ", dpResult$splitField),
       x = "Cluster Index",
       y = "Proportional Cluster Assignment"
