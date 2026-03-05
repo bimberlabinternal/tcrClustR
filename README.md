@@ -8,9 +8,7 @@ Full documentation: https://bimberlabinternal.github.io/tcrClustR/
 * [Quick Start](#quick-start)
 * [Overview](#overview)
 * [Installation](#installation)
-* [Usage Examples](#usage-examples)
-* [Workflows](#workflows)
-* [Output Schemas](#output-file-formats)
+* [Dirichlet Process Analysis](#dirichlet-process-analysis)
 * [Known Issues](#issues)
 * [Development Guidelines](#developers)
 
@@ -21,29 +19,26 @@ The fastest way to cluster TCR data:
 ```r
 library(tcrClustR)
 
-#Step 1: compute TCR distance matrices (stored as Seurat assays)
-seuratObj_TCR <- CalculateTcrDistances(
+# Step 1: compute TCR distance matrices (stored in seuratObj@misc$TCR_Distances)
+seuratObj <- CalculateTcrDistances(
   inputData = seuratObj,
   chains = c("TRA", "TRB"),
-  minimumCloneSize = 2
+  minimumCloneSize = 2,
+  calculateChainPairs = TRUE
 )
 
-#Step 2: cluster and save results to the seurat object's metadata:
-seuratObj_TCR <- RunTcrClustering(
-  seuratObj_TCR = seuratObj_TCR
+# Step 2: cluster TCRs via DIANA and store results in metadata
+seuratObj <- RunTcrClustering(
+  seuratObj_TCR = seuratObj,
+  dianaHeight = 20,
+  clusterSizeThreshold = 1
 )
 
-# Cluster results are stored in the metadata 
-DimPlot(
-  seuratObj_TCR,
-  reduction = "umap",
-  group.by = 'TRB_fl_ClusterIdx',
-  label = TRUE
-)
+# Cluster assignments live in metadata columns like TRB_fl_ClusterIdx
+DimPlot(seuratObj, reduction = "umap", group.by = "TRB_fl_ClusterIdx", label = TRUE)
 
-# And the pairwise distances are stored as well:
-distance_mat <- GetDistanceMatrix(seuratObj_TCR, chains = 'TRA')
-
+# Retrieve a raw distance matrix
+distance_mat <- GetDistanceMatrix(seuratObj, chains = "TRA")
 ```
 
 ## Overview
@@ -55,14 +50,17 @@ T-cell receptor (TCR) clustering groups TCR sequences based on similarity metric
 ### Workflow
 
 1. **Format & Validate**: Clean TCR metadata, filter low-quality clones
-2. **Compute Distances**: Calculate pairwise TCR distances using tcrdist3 (BLOSUM62 matrix)
-3. **Cluster**: Apply hierarchical (DIANA) clustering
-4. **Visualize**: Create heatmaps and plots to explore clustering results
+2. **Compute Distances**: Calculate pairwise TCR distances via tcrdist3 (BLOSUM62 matrix)
+3. **Cluster**: Apply DIANA hierarchical clustering
+4. **Analyse & Tune**: Use Dirichlet process mixture models to discover natural modes in the distance distribution and guide `dianaHeight` selection
+5. **Visualize**: Heatmaps, histograms, cluster-mean error bars, and mixing-proportion charts
 
 ### Key Features
 
-- **Flexible clustering**: DIANA (hierarchical) or Leiden (network-based) algorithms
-- **Single & paired chain analysis**: TRA, TRB, or combined TRA+TRB distances
+- **DIANA clustering**: Divisive hierarchical clustering with a tuneable height cutoff
+- **Dirichlet process analysis**: Non-parametric Gaussian mixture modelling of pairwise distances to identify natural cluster modes and inform `dianaHeight`
+- **Single & paired chain analysis**: TRA, TRB, TRG, TRD, or combined TRA+TRB distances
+- **Quantile-stratified downsampling**: Preserves rare modes in the tails of distance distributions
 - **Automatic data filtering**: Remove NA and concatenated values (optional)
 
 ## Installation
@@ -117,7 +115,7 @@ If you prefer manual installation:
 ```bash
 # install individual packages
 pip install pandas numpy scikit-learn rpy2
-pip install git+https://github.com/bimberlabinternal/tcrdist3.git0.3
+pip install git+https://github.com/bimberlabinternal/tcrdist3.git@0.3
 
 #optional: install from requirements.txt in this repo
 pip install -r requirements.txt
@@ -161,6 +159,88 @@ GetExampleMarkdown(dest = 'tcrClustR_workflow.Rmd')
 browseVignettes("tcrClustR")
 ```
 
+## Dirichlet Process Analysis
+
+`DirichletClusterAnalysis()` fits a non-parametric Gaussian Dirichlet process mixture to within-group pairwise TCR distances. The discovered cluster means (mu) and spreads (sigma) reveal the natural modes of the distance distribution, which you can use to select an informed `dianaHeight` cutoff for `RunTcrClustering()`.
+
+### Basic Usage
+
+```r
+# Fit DP mixture models per group
+dp <- DirichletClusterAnalysis(
+  seuratObj   = seuratObj,
+  assayName   = "TRA_fl",
+  splitField  = "Population",
+  maxSamples  = 1000,
+  nIterations = 500
+)
+
+# Two diagnostic plots (combine with patchwork)
+library(patchwork)
+(PlotClusterMeans(dp) + Seurat::NoLegend()) +
+  PlotMixingProportions(dp) +
+  plot_layout(guides = "collect")
+
+# Inspect the cluster parameter table
+glimpse(dp$cluster_summary)
+#Rows: 11
+#Columns: 6
+#$ Cluster          <int> 1, 2, 3, 4, 5, 6, 1, 2,…
+#$ Mu               <dbl> 135.98787492, 31.812791…
+#$ Sigma            <dbl> 4.9843801, 3.4540618, 1…
+#$ MixingProportion <dbl> 0.79400000, 0.17100000,…
+#$ PointsPerCluster <int> 794, 171, 31, 1, 2, 1, …
+#$ Group            <chr> "MR1-5-OP-RU-Tet", "MR1…
+```
+
+### Quantile-Stratified Downsampling
+
+TCR distance distributions often have small, rare modes in the tails that would be missed by uniform random sampling. `DirichletClusterAnalysis()` uses quantile-stratified (n-tile) downsampling by default: distances are divided into `nBins` equal-frequency bins and up to `samplesPerBin` values are drawn from each, preserving the full distributional shape. Because the Dirichlet Proces fitting can be computationally taxing, `maxSamples` downsamples the quantile-stratified population if `nBins` * `samplesPerBin` > `maxSamples`.
+
+Increase `nBins` and `samplesPerBin` (and `maxSamples`) to improve resolution of rare modes:
+
+```r
+dp <- DirichletClusterAnalysis(
+  seuratObj     = seuratObj,
+  assayName     = "TRA_fl",
+  splitField    = "Population",
+  maxSamples    = 1000,
+  nIterations   = 500,
+  nBins         = 20,
+  samplesPerBin = 150
+)
+```
+
+### Output
+
+`DirichletClusterAnalysis()` returns a `tcrDirichletResult` list containing:
+
+| Field | Description |
+|---|---|
+| `cluster_summary` | Tidy data.frame: one row per group × cluster with `Mu`, `Sigma`, `MixingProportion`, `PointsPerCluster`, `Group` |
+| `models` | Named list of raw `dirichletprocess` model objects for downstream inspection |
+| `assayName` | The distance assay that was analysed |
+| `splitField` | The metadata column used for grouping |
+
+### Companion Plots
+
+- **`PlotClusterMeans(dp)`** — Error-bar plot of mu ± sigma per cluster, dodged by group. The y-axis corresponds directly to TCR distance and can be compared against `dianaHeight`.
+- **`PlotMixingProportions(dp)`** — Dodged bar chart of cluster mixing weights. Clusters with high weight and low mu identify well-supported clonotype families.
+
+### Helper: ExtractGroupDistanceVectors
+
+If you need the raw per-group distance vectors without fitting a DP model (e.g., for your own downstream analysis):
+
+```r
+vecs <- ExtractGroupDistanceVectors(
+  seuratObj = seuratObj,
+  assayName = "TRB_cdr3",
+  splitField = "Tissue"
+)
+# Returns a named list of numeric vectors, one per group
+hist(vecs[["Spleen"]], breaks = 50)
+```
+
 ## <a name="issues">Known Issues</a>
 
 - Memory: tcrdist3 switches to sparse matrices for n > 10,000 clones
@@ -201,7 +281,6 @@ devtools::check()
 4. Run `devtools::check()` (0 errors/warnings/notes)
 5. Submit a pull request
 
-See [copilot-instructions.md](.github/copilot-instructions.md) for detailed development patterns.
 
 ## Citation
 
@@ -213,7 +292,7 @@ If you use tcrClustR in your research, please cite:
 
 ## License
 
-This project is licensed under the MIT License - see [LICENSE.md](LICENSE.md) for details.
+This project is licensed under the GPL (>= 3) License — see [LICENSE.md](LICENSE.md) for details.
 
 ## Acknowledgments
 

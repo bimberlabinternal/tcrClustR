@@ -36,8 +36,6 @@ Imports:
     dbscan,
     tibble,
     scales,
-    transport,
-    gamlss2,
     dirichletprocess, 
     egg
 Remotes:
