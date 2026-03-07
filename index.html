@@ -32,7 +32,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="index.html">tcrClustR</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.0.0.9002</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.0.0.9003</span>
       </span>
     </div>
 
@@ -78,9 +78,7 @@
 <li><a href="#quick-start">Quick Start</a></li>
 <li><a href="#overview">Overview</a></li>
 <li><a href="#installation">Installation</a></li>
-<li><a href="#usage-examples">Usage Examples</a></li>
-<li><a href="#workflows">Workflows</a></li>
-<li><a href="#output-file-formats">Output Schemas</a></li>
+<li><a href="#dirichlet-process-analysis">Dirichlet Process Analysis</a></li>
 <li><a href="#issues">Known Issues</a></li>
 <li><a href="#developers">Development Guidelines</a></li>
 </ul>
@@ -92,28 +90,26 @@
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">tcrClustR</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co">#Step 1: compute TCR distance matrices (stored as Seurat assays)</span></span>
-<span><span class="va">seuratObj_TCR</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/CalculateTcrDistances.html">CalculateTcrDistances</a></span><span class="op">(</span></span>
+<span><span class="co"># Step 1: compute TCR distance matrices (stored in seuratObj@misc$TCR_Distances)</span></span>
+<span><span class="va">seuratObj</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/CalculateTcrDistances.html">CalculateTcrDistances</a></span><span class="op">(</span></span>
 <span>  inputData <span class="op">=</span> <span class="va">seuratObj</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"TRA"</span>, <span class="st">"TRB"</span><span class="op">)</span>,</span>
-<span>  minimumCloneSize <span class="op">=</span> <span class="fl">2</span></span>
+<span>  minimumCloneSize <span class="op">=</span> <span class="fl">2</span>,</span>
+<span>  calculateChainPairs <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="co">#Step 2: cluster and save results to the seurat object's metadata:</span></span>
-<span><span class="va">seuratObj_TCR</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/RunTcrClustering.html">RunTcrClustering</a></span><span class="op">(</span></span>
-<span>  seuratObj_TCR <span class="op">=</span> <span class="va">seuratObj_TCR</span></span>
+<span><span class="co"># Step 2: cluster TCRs via DIANA and store results in metadata</span></span>
+<span><span class="va">seuratObj</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/RunTcrClustering.html">RunTcrClustering</a></span><span class="op">(</span></span>
+<span>  seuratObj_TCR <span class="op">=</span> <span class="va">seuratObj</span>,</span>
+<span>  dianaHeight <span class="op">=</span> <span class="fl">20</span>,</span>
+<span>  clusterSizeThreshold <span class="op">=</span> <span class="fl">1</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># Cluster results are stored in the metadata </span></span>
-<span><span class="fu">DimPlot</span><span class="op">(</span></span>
-<span>  <span class="va">seuratObj_TCR</span>,</span>
-<span>  reduction <span class="op">=</span> <span class="st">"umap"</span>,</span>
-<span>  group.by <span class="op">=</span> <span class="st">'TRB_fl_ClusterIdx'</span>,</span>
-<span>  label <span class="op">=</span> <span class="cn">TRUE</span></span>
-<span><span class="op">)</span></span>
+<span><span class="co"># Cluster assignments live in metadata columns like TRB_fl_ClusterIdx</span></span>
+<span><span class="fu">DimPlot</span><span class="op">(</span><span class="va">seuratObj</span>, reduction <span class="op">=</span> <span class="st">"umap"</span>, group.by <span class="op">=</span> <span class="st">"TRB_fl_ClusterIdx"</span>, label <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># And the pairwise distances are stored as well:</span></span>
-<span><span class="va">distance_mat</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/GetDistanceMatrix.html">GetDistanceMatrix</a></span><span class="op">(</span><span class="va">seuratObj_TCR</span>, chains <span class="op">=</span> <span class="st">'TRA'</span><span class="op">)</span></span></code></pre></div>
+<span><span class="co"># Retrieve a raw distance matrix</span></span>
+<span><span class="va">distance_mat</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/GetDistanceMatrix.html">GetDistanceMatrix</a></span><span class="op">(</span><span class="va">seuratObj</span>, chains <span class="op">=</span> <span class="st">"TRA"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="overview">Overview<a class="anchor" aria-label="anchor" href="#overview"></a>
@@ -130,11 +126,13 @@
 <li>
 <strong>Format &amp; Validate</strong>: Clean TCR metadata, filter low-quality clones</li>
 <li>
-<strong>Compute Distances</strong>: Calculate pairwise TCR distances using tcrdist3 (BLOSUM62 matrix)</li>
+<strong>Compute Distances</strong>: Calculate pairwise TCR distances via tcrdist3 (BLOSUM62 matrix)</li>
 <li>
-<strong>Cluster</strong>: Apply hierarchical (DIANA) clustering</li>
+<strong>Cluster</strong>: Apply DIANA hierarchical clustering</li>
 <li>
-<strong>Visualize</strong>: Create heatmaps and plots to explore clustering results</li>
+<strong>Analyse &amp; Tune</strong>: Use Dirichlet process mixture models to discover natural modes in the distance distribution and guide <code>dianaHeight</code> selection</li>
+<li>
+<strong>Visualize</strong>: Heatmaps, histograms, cluster-mean error bars, and mixing-proportion charts</li>
 </ol>
 </div>
 <div class="section level3">
@@ -142,9 +140,14 @@
 </h3>
 <ul>
 <li>
-<strong>Flexible clustering</strong>: DIANA (hierarchical) or Leiden (network-based) algorithms</li>
+<strong>DIANA clustering</strong>: Divisive hierarchical clustering with a tuneable height cutoff</li>
 <li>
-<strong>Single &amp; paired chain analysis</strong>: TRA, TRB, or combined TRA+TRB distances</li>
+<strong>Dirichlet process analysis</strong>: Non-parametric Gaussian mixture modelling of pairwise distances to identify natural cluster modes and inform <code>dianaHeight</code>
+</li>
+<li>
+<strong>Single &amp; paired chain analysis</strong>: TRA, TRB, TRG, TRD, or combined TRA+TRB distances</li>
+<li>
+<strong>Quantile-stratified downsampling</strong>: Preserves rare modes in the tails of distance distributions</li>
 <li>
 <strong>Automatic data filtering</strong>: Remove NA and concatenated values (optional)</li>
 </ul>
@@ -195,7 +198,7 @@
 <p>If you prefer manual installation:</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="co"># install individual packages</span></span>
 <span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a><span class="ex">pip</span> install pandas numpy scikit-learn rpy2</span>
-<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/bimberlabinternal/tcrdist3.git0.3</span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/bimberlabinternal/tcrdist3.git@0.3</span>
 <span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a></span>
 <span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a><span class="co">#optional: install from requirements.txt in this repo</span></span>
 <span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a><span class="ex">pip</span> install <span class="at">-r</span> requirements.txt</span></code></pre></div>
@@ -241,6 +244,114 @@
 </div>
 </div>
 <div class="section level2">
+<h2 id="dirichlet-process-analysis">Dirichlet Process Analysis<a class="anchor" aria-label="anchor" href="#dirichlet-process-analysis"></a>
+</h2>
+<p><code><a href="reference/DirichletClusterAnalysis.html">DirichletClusterAnalysis()</a></code> fits a non-parametric Gaussian Dirichlet process mixture to within-group pairwise TCR distances. The discovered cluster means (mu) and spreads (sigma) reveal the natural modes of the distance distribution, which you can use to select an informed <code>dianaHeight</code> cutoff for <code><a href="reference/RunTcrClustering.html">RunTcrClustering()</a></code>.</p>
+<div class="section level3">
+<h3 id="basic-usage">Basic Usage<a class="anchor" aria-label="anchor" href="#basic-usage"></a>
+</h3>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Fit DP mixture models per group</span></span>
+<span><span class="va">dp</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/DirichletClusterAnalysis.html">DirichletClusterAnalysis</a></span><span class="op">(</span></span>
+<span>  seuratObj   <span class="op">=</span> <span class="va">seuratObj</span>,</span>
+<span>  assayName   <span class="op">=</span> <span class="st">"TRA_fl"</span>,</span>
+<span>  splitField  <span class="op">=</span> <span class="st">"Population"</span>,</span>
+<span>  maxSamples  <span class="op">=</span> <span class="fl">1000</span>,</span>
+<span>  nIterations <span class="op">=</span> <span class="fl">500</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Two diagnostic plots (combine with patchwork)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://patchwork.data-imaginist.com" class="external-link">patchwork</a></span><span class="op">)</span></span>
+<span><span class="op">(</span><span class="fu"><a href="reference/PlotClusterMeans.html">PlotClusterMeans</a></span><span class="op">(</span><span class="va">dp</span><span class="op">)</span> <span class="op">+</span> <span class="fu">Seurat</span><span class="fu">::</span><span class="fu"><a href="https://satijalab.org/seurat/reference/SeuratTheme.html" class="external-link">NoLegend</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="reference/PlotMixingProportions.html">PlotMixingProportions</a></span><span class="op">(</span><span class="va">dp</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://patchwork.data-imaginist.com/reference/plot_layout.html" class="external-link">plot_layout</a></span><span class="op">(</span>guides <span class="op">=</span> <span class="st">"collect"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Inspect the cluster parameter table</span></span>
+<span><span class="fu">glimpse</span><span class="op">(</span><span class="va">dp</span><span class="op">$</span><span class="va">cluster_summary</span><span class="op">)</span></span>
+<span><span class="co">#Rows: 11</span></span>
+<span><span class="co">#Columns: 6</span></span>
+<span><span class="co">#$ Cluster          &lt;int&gt; 1, 2, 3, 4, 5, 6, 1, 2,…</span></span>
+<span><span class="co">#$ Mu               &lt;dbl&gt; 135.98787492, 31.812791…</span></span>
+<span><span class="co">#$ Sigma            &lt;dbl&gt; 4.9843801, 3.4540618, 1…</span></span>
+<span><span class="co">#$ MixingProportion &lt;dbl&gt; 0.79400000, 0.17100000,…</span></span>
+<span><span class="co">#$ PointsPerCluster &lt;int&gt; 794, 171, 31, 1, 2, 1, …</span></span>
+<span><span class="co">#$ Group            &lt;chr&gt; "MR1-5-OP-RU-Tet", "MR1…</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="quantile-stratified-downsampling">Quantile-Stratified Downsampling<a class="anchor" aria-label="anchor" href="#quantile-stratified-downsampling"></a>
+</h3>
+<p>TCR distance distributions often have small, rare modes in the tails that would be missed by uniform random sampling. <code><a href="reference/DirichletClusterAnalysis.html">DirichletClusterAnalysis()</a></code> uses quantile-stratified (n-tile) downsampling by default: distances are divided into <code>nBins</code> equal-frequency bins and up to <code>samplesPerBin</code> values are drawn from each, preserving the full distributional shape. Because the Dirichlet Proces fitting can be computationally taxing, <code>maxSamples</code> downsamples the quantile-stratified population if <code>nBins</code> * <code>samplesPerBin</code> &gt; <code>maxSamples</code>.</p>
+<p>Increase <code>nBins</code> and <code>samplesPerBin</code> (and <code>maxSamples</code>) to improve resolution of rare modes:</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">dp</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/DirichletClusterAnalysis.html">DirichletClusterAnalysis</a></span><span class="op">(</span></span>
+<span>  seuratObj     <span class="op">=</span> <span class="va">seuratObj</span>,</span>
+<span>  assayName     <span class="op">=</span> <span class="st">"TRA_fl"</span>,</span>
+<span>  splitField    <span class="op">=</span> <span class="st">"Population"</span>,</span>
+<span>  maxSamples    <span class="op">=</span> <span class="fl">1000</span>,</span>
+<span>  nIterations   <span class="op">=</span> <span class="fl">500</span>,</span>
+<span>  nBins         <span class="op">=</span> <span class="fl">20</span>,</span>
+<span>  samplesPerBin <span class="op">=</span> <span class="fl">150</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="output">Output<a class="anchor" aria-label="anchor" href="#output"></a>
+</h3>
+<p><code><a href="reference/DirichletClusterAnalysis.html">DirichletClusterAnalysis()</a></code> returns a <code>tcrDirichletResult</code> list containing:</p>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr>
+<th>Field</th>
+<th>Description</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><code>cluster_summary</code></td>
+<td>Tidy data.frame: one row per group × cluster with <code>Mu</code>, <code>Sigma</code>, <code>MixingProportion</code>, <code>PointsPerCluster</code>, <code>Group</code>
+</td>
+</tr>
+<tr>
+<td><code>models</code></td>
+<td>Named list of raw <code>dirichletprocess</code> model objects for downstream inspection</td>
+</tr>
+<tr>
+<td><code>assayName</code></td>
+<td>The distance assay that was analysed</td>
+</tr>
+<tr>
+<td><code>splitField</code></td>
+<td>The metadata column used for grouping</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section level3">
+<h3 id="companion-plots">Companion Plots<a class="anchor" aria-label="anchor" href="#companion-plots"></a>
+</h3>
+<ul>
+<li>
+<strong><code>PlotClusterMeans(dp)</code></strong> — Error-bar plot of mu ± sigma per cluster, dodged by group. The y-axis corresponds directly to TCR distance and can be compared against <code>dianaHeight</code>.</li>
+<li>
+<strong><code>PlotMixingProportions(dp)</code></strong> — Dodged bar chart of cluster mixing weights. Clusters with high weight and low mu identify well-supported clonotype families.</li>
+</ul>
+</div>
+<div class="section level3">
+<h3 id="helper-extractgroupdistancevectors">Helper: ExtractGroupDistanceVectors<a class="anchor" aria-label="anchor" href="#helper-extractgroupdistancevectors"></a>
+</h3>
+<p>If you need the raw per-group distance vectors without fitting a DP model (e.g., for your own downstream analysis):</p>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">vecs</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/ExtractGroupDistanceVectors.html">ExtractGroupDistanceVectors</a></span><span class="op">(</span></span>
+<span>  seuratObj <span class="op">=</span> <span class="va">seuratObj</span>,</span>
+<span>  assayName <span class="op">=</span> <span class="st">"TRB_cdr3"</span>,</span>
+<span>  splitField <span class="op">=</span> <span class="st">"Tissue"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co"># Returns a named list of numeric vectors, one per group</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/hist.html" class="external-link">hist</a></span><span class="op">(</span><span class="va">vecs</span><span class="op">[[</span><span class="st">"Spleen"</span><span class="op">]</span><span class="op">]</span>, breaks <span class="op">=</span> <span class="fl">50</span><span class="op">)</span></span></code></pre></div>
+</div>
+</div>
+<div class="section level2">
 <h2 id="known-issues">
 <a name="issues">Known Issues</a><a class="anchor" aria-label="anchor" href="#known-issues"></a>
 </h2>
@@ -258,7 +369,7 @@
 <div class="section level3">
 <h3 id="running-tests">Running Tests<a class="anchor" aria-label="anchor" href="#running-tests"></a>
 </h3>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Run all tests</span></span>
 <span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://devtools.r-lib.org/reference/test.html" class="external-link">test</a></span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
@@ -268,7 +379,7 @@
 <div class="section level3">
 <h3 id="building-documentation">Building Documentation<a class="anchor" aria-label="anchor" href="#building-documentation"></a>
 </h3>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Update documentation</span></span>
 <span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://devtools.r-lib.org/reference/document.html" class="external-link">document</a></span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
@@ -288,7 +399,6 @@
 <li>Run <code><a href="https://devtools.r-lib.org/reference/check.html" class="external-link">devtools::check()</a></code> (0 errors/warnings/notes)</li>
 <li>Submit a pull request</li>
 </ol>
-<p>See <a href="copilot-instructions.html">copilot-instructions.md</a> for detailed development patterns.</p>
 </div>
 </div>
 <div class="section level2">
@@ -300,7 +410,7 @@
 <div class="section level2">
 <h2 id="license">License<a class="anchor" aria-label="anchor" href="#license"></a>
 </h2>
-<p>This project is licensed under the MIT License - see <a href="LICENSE.html">LICENSE.md</a> for details.</p>
+<p>This project is licensed under the GPL (&gt;= 3) License — see <a href="LICENSE.html">LICENSE.md</a> for details.</p>
 </div>
 <div class="section level2">
 <h2 id="acknowledgments">Acknowledgments<a class="anchor" aria-label="anchor" href="#acknowledgments"></a>
