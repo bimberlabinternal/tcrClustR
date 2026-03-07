@@ -114,7 +114,7 @@ RUN apt-get update && apt-get install -y r-base r-base-dev && \
         echo 'Setting GH_PAT'; \
         export GITHUB_PAT="${GH_PAT}"; \
     fi && \
-    Rscript -e "install.packages(c('remotes', 'devtools', 'BiocManager', 'pryr', 'rmdformats', 'knitr', 'logger', 'Matrix', 'kernlab', 'tidyverse', 'leidenbase', 'igraph', 'FNN', 'plyr'), lib='/usr/local/lib/R/site-library', dependencies=TRUE, ask = FALSE)" && \
+    Rscript -e "install.packages(c('remotes', 'devtools', 'BiocManager', 'pryr', 'rmdformats', 'knitr', 'logger', 'Matrix', 'kernlab', 'tidyverse', 'leidenbase', 'igraph', 'FNN', 'plyr', 'dirichletprocess', 'egg'), lib='/usr/local/lib/R/site-library', dependencies=TRUE, ask = FALSE)" && \
     echo "local({options(repos = BiocManager::repositories())})" >> ~/.Rprofile && \
     Rscript -e "BiocManager::install('ComplexHeatmap', ask = FALSE, update = TRUE)" && \
     Rscript -e "remotes::install_github('kevinsblake/NatParksPalettes', upgrade='never')" && \
