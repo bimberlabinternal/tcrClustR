@@ -393,7 +393,7 @@ TCRDistanceHistograms <- function(
 #' stored in a tcrClustR Seurat object. Each node represents a unique clone; edges connect
 #' pairs of clones whose pairwise distance is at or below \code{distanceThreshold}.
 #' Clone metadata from the Seurat object is attached to each node, enabling downstream
-#' visualisation with \code{\link{TCRDistanceNetwork}} or custom igraph analyses.
+#' visualization with \code{\link{TCRDistanceNetwork}} or custom igraph analyses.
 #'
 #' @param seuratObj_TCR A Seurat object produced by \code{\link{CalculateTcrDistances}},
 #'   containing distance assays in \code{@misc$TCR_Distances}.
