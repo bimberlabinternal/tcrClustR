@@ -19,6 +19,8 @@ Imports:
     plyr,
     leidenbase,
     igraph,
+    ggraph,
+    tidygraph,
     kernlab,
     FNN,
     Matrix,
