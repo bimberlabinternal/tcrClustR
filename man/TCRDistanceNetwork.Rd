@@ -72,13 +72,26 @@ peripheral ring outside the connected component.}
 \item{verbose}{Logical. Print progress messages. Default is \code{FALSE}.}
 }
 \value{
-A named list with two elements:
+A named list with three elements:
 \describe{
 \item{\code{plot}}{A \code{ggplot}/\code{ggraph} object that can be further
 customised with standard ggplot2 layers.}
 \item{\code{layout}}{The \code{create_layout} data frame used to position nodes,
 containing x/y coordinates and all node attributes. Useful for reusing the same
 node positions across multiple plots or for direct inspection.}
+\item{\code{edges}}{A data frame with one row per retained edge (after threshold
+filtering and, when \code{showIsolated = FALSE}, after isolated-node removal).
+Edge attributes: \code{distance} (raw tcrdist score), \code{weight}
+(\code{1 / (distance + 1)} for \code{edgeType = "continuous"}, \code{1} for
+\code{"binary"}), and \code{component} (integer connected-component ID). The
+column \code{norm_weight} (weight scaled 0--1) is present only for
+\code{edgeType = "continuous"}. All node metadata columns are then attached
+twice — once prefixed \code{from_} and once prefixed \code{to_} — covering
+\code{from_clone}/\code{to_clone} (clone name), \code{from_community}/
+\code{to_community} (community label), and every Seurat metadata column
+present at the time of the call. Use \code{component} to subset to
+non-isolated subgraphs and the paired metadata columns to condition distance
+or connectivity models on any sample-level or cell-level variable.}
 }
 }
 \description{
@@ -95,6 +108,7 @@ result <- TCRDistanceNetwork(seuratObj_TCR, chains = "TRB", distanceThreshold = 
                              colorBy = "outcome")
 result$plot
 head(result$layout[, c("x", "y", "name")])
+subset(result$edges, component == 1)
 
 # Use DIANA communities (requires RunTcrClustering first)
 seuratObj_TCR <- RunTcrClustering(seuratObj_TCR, chainsToCluster = "TRB")

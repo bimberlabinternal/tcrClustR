@@ -119,7 +119,7 @@ RUN apt-get update && apt-get install -y r-base r-base-dev && \
     Rscript -e "BiocManager::install('ComplexHeatmap', ask = FALSE, update = TRUE)" && \
     Rscript -e "remotes::install_github('kevinsblake/NatParksPalettes', upgrade='never')" && \
     Rscript -e "remotes::install_github('satijalab/seurat', upgrade='never')" && \
-    Rscript -e "install.packages(c('clusterCrit', 'dbscan', 'cluster', 'arrow', 'RColorBrewer', 'patchwork', 'dirichletprocess', 'egg', 'ggraph', 'tidygraph'), lib='/usr/local/lib/R/site-library', dependencies=TRUE, ask = FALSE)" && \
+    Rscript -e "install.packages(c('clusterCrit', 'dbscan', 'cluster', 'arrow', 'RColorBrewer', 'patchwork', 'dirichletprocess', 'egg', 'ggraph', 'tidygraph', 'lme4', 'sandwich', 'lmtest'), lib='/usr/local/lib/R/site-library', dependencies=TRUE, ask = FALSE)" && \
     rm -rf /var/lib/apt/lists/* /tmp/downloaded_packages/ /tmp/*.rds
 
 # ============================================================================

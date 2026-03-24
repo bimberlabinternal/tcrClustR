@@ -531,13 +531,26 @@ BuildTCRDistanceGraph <- function(
 #'   \code{NULL}.
 #' @param verbose Logical. Print progress messages. Default is \code{FALSE}.
 #'
-#' @return A named list with two elements:
+#' @return A named list with three elements:
 #'   \describe{
 #'     \item{\code{plot}}{A \code{ggplot}/\code{ggraph} object that can be further
 #'       customised with standard ggplot2 layers.}
 #'     \item{\code{layout}}{The \code{create_layout} data frame used to position nodes,
 #'       containing x/y coordinates and all node attributes. Useful for reusing the same
 #'       node positions across multiple plots or for direct inspection.}
+#'     \item{\code{edges}}{A data frame with one row per retained edge (after threshold
+#'       filtering and, when \code{showIsolated = FALSE}, after isolated-node removal).
+#'       Edge attributes: \code{distance} (raw tcrdist score), \code{weight}
+#'       (\code{1 / (distance + 1)} for \code{edgeType = "continuous"}, \code{1} for
+#'       \code{"binary"}), and \code{component} (integer connected-component ID). The
+#'       column \code{norm_weight} (weight scaled 0--1) is present only for
+#'       \code{edgeType = "continuous"}. All node metadata columns are then attached
+#'       twice — once prefixed \code{from_} and once prefixed \code{to_} — covering
+#'       \code{from_clone}/\code{to_clone} (clone name), \code{from_community}/
+#'       \code{to_community} (community label), and every Seurat metadata column
+#'       present at the time of the call. Use \code{component} to subset to
+#'       non-isolated subgraphs and the paired metadata columns to condition distance
+#'       or connectivity models on any sample-level or cell-level variable.}
 #'   }
 #'
 #' @seealso \code{\link{BuildTCRDistanceGraph}}, \code{\link{RunTcrClustering}}
@@ -545,7 +558,7 @@ BuildTCRDistanceGraph <- function(
 #'   create_layout theme_graph scale_edge_width_continuous scale_edge_alpha_continuous
 #' @importFrom tidygraph activate as_tbl_graph
 #' @importFrom igraph cluster_louvain membership degree E V delete_vertices
-#'   ecount vcount induced_subgraph layout_with_fr
+#'   ecount vcount induced_subgraph layout_with_fr components
 #' @importFrom rlang .data
 #' @export
 #' @examples
@@ -555,6 +568,7 @@ BuildTCRDistanceGraph <- function(
 #'                              colorBy = "outcome")
 #' result$plot
 #' head(result$layout[, c("x", "y", "name")])
+#' subset(result$edges, component == 1)
 #'
 #' # Use DIANA communities (requires RunTcrClustering first)
 #' seuratObj_TCR <- RunTcrClustering(seuratObj_TCR, chainsToCluster = "TRB")
@@ -813,7 +827,39 @@ TCRDistanceNetwork <- function(
       legend.position = "right"
     )
 
-  return(list(plot = p, layout = layout_obj))
+  # build edge table: edge weights + full node metadata for both endpoints
+  edge_data  <- as.data.frame(tidygraph::activate(tcrGraph, edges))
+  node_data  <- as.data.frame(tidygraph::activate(tcrGraph, nodes))
+  comps      <- igraph::components(tidygraph::as.igraph(tcrGraph))
+
+  # normalise internal column names before attaching to edges
+  names(node_data)[names(node_data) == "name"]       <- "clone"
+  names(node_data)[names(node_data) == ".community"] <- "community"
+
+  from_meta        <- node_data
+  to_meta          <- node_data
+  names(from_meta) <- paste0("from_", names(from_meta))
+  names(to_meta)   <- paste0("to_",   names(to_meta))
+
+  edge_cols <- setdiff(names(edge_data), c("from", "to"))
+  if (nrow(edge_data) > 0L) {
+    edge_data <- cbind(
+      edge_data[edge_cols],
+      component = as.integer(comps$membership)[edge_data$from],
+      from_meta[edge_data$from, , drop = FALSE],
+      to_meta  [edge_data$to,   , drop = FALSE]
+    )
+    rownames(edge_data) <- NULL
+  } else {
+    edge_data <- cbind(
+      edge_data[edge_cols],
+      component = integer(0L),
+      from_meta[integer(0L), , drop = FALSE],
+      to_meta  [integer(0L), , drop = FALSE]
+    )
+  }
+
+  return(list(plot = p, layout = layout_obj, edges = edge_data))
 }
 
 #' @title Get Example Markdown
