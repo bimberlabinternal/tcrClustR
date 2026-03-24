@@ -121,6 +121,8 @@ test_that("TCRDistanceNetwork returns a ggplot for threshold + binary edges", {
   expect_s3_class(result$plot, "ggplot")
   expect_true(is.data.frame(result$layout))
   expect_true(all(c("x", "y") %in% colnames(result$layout)))
+  expect_true(is.data.frame(result$edges))
+  expect_true(all(c("distance", "weight", "from_clone", "to_clone", "component") %in% colnames(result$edges)))
 })
 
 test_that("TCRDistanceNetwork returns a ggplot for continuous edges and colorByCommunity", {
@@ -141,6 +143,8 @@ test_that("TCRDistanceNetwork returns a ggplot for continuous edges and colorByC
   )
   expect_s3_class(result$plot, "ggplot")
   expect_true(is.data.frame(result$layout))
+  expect_true(is.data.frame(result$edges))
+  expect_true(all(c("distance", "weight", "norm_weight", "from_clone", "to_clone", "component") %in% colnames(result$edges)))
 })
 
 test_that("TCRDistanceNetwork works with communityMethod = 'DIANA'", {
@@ -166,6 +170,8 @@ test_that("TCRDistanceNetwork works with communityMethod = 'DIANA'", {
   )
   expect_s3_class(result$plot, "ggplot")
   expect_true(is.data.frame(result$layout))
+  expect_true(is.data.frame(result$edges))
+  expect_true(all(c("from_clone", "to_clone", "component") %in% colnames(result$edges)))
 })
 
 test_that("TCRDistanceNetwork works with showIsolated = TRUE", {
@@ -187,6 +193,9 @@ test_that("TCRDistanceNetwork works with showIsolated = TRUE", {
   )
   expect_s3_class(result$plot, "ggplot")
   expect_true(is.data.frame(result$layout))
+  expect_true(is.data.frame(result$edges))
+  # all expected columns present even when there are zero edges
+  expect_true(all(c("distance", "weight", "from_clone", "to_clone", "component") %in% colnames(result$edges)))
 })
 
 test_that("TCRDistanceNetwork accepts a custom colorPalette passthrough", {
@@ -207,6 +216,8 @@ test_that("TCRDistanceNetwork accepts a custom colorPalette passthrough", {
   )
   expect_s3_class(result$plot, "ggplot")
   expect_true(is.data.frame(result$layout))
+  expect_true(is.data.frame(result$edges))
+  expect_true(all(c("distance", "weight", "from_clone", "to_clone", "component") %in% colnames(result$edges)))
 })
 
 test_that("TCRDistanceNetwork validates arguments", {

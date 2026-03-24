@@ -21,6 +21,9 @@ Imports:
     igraph,
     ggraph,
     tidygraph,
+    lme4,
+    sandwich,
+    lmtest,
     kernlab,
     FNN,
     Matrix,
@@ -58,7 +61,8 @@ Collate:
     'CalculateTcrDistances.R'
     'Clustering.R'
     'DirichletDistances.R'
-    'RunTcrClustering.R'
     'Visualization.R'
+    'NetworkModels.R'
+    'RunTcrClustering.R'
     'utils-pipe.R'
     'zzz.R'
