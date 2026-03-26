@@ -1,0 +1,259 @@
+---
+title: "Network Models: Modeling Pairwise TCR Relationships"
+author: "GW McElfresh"
+date: "`r Sys.Date()`"
+output: 
+  rmdformats::readthedown:
+    toc_depth: 5
+vignette: >
+  %\VignetteIndexEntry{Network Models: Modeling Pairwise TCR Relationships}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 10,
+  fig.height = 6
+)
+```
+
+## Overview
+
+`ModelTCRDyads()` fits two generalized linear models over all unique clone pairs
+(dyads) derived from a TCR distance matrix and returns marginal estimates
+describing pairwise relationships between levels of a grouping variable
+(e.g. treatment arm or phenotype).
+
+- **Connectivity model** (binomial): predicts the probability that two clones
+  are connected for each dyad type. When `communityMethod = "DIANA"`,
+  DIANA clustering is run internally at `distanceThreshold` (used as the
+  dendrogram cut height). When `communityMethod = "threshold"`, a pair is
+  connected if its distance is ≤ `distanceThreshold`.
+- **Distance model** (Poisson): predicts the mean tcrdist distance among
+  connected pairs for each dyad type.
+
+By default (`estimand = "effects"`), marginal effects are estimated via
+`avg_comparisons()`, returning pairwise contrasts between `pair_type` levels.
+Setting `estimand = "means"` returns marginal means (predicted values per
+level) via `avg_predictions()` instead.
+
+Dyad types are represented by `pair_type`, an unordered factor whose levels are
+lexicographically sorted group-pair labels (e.g. `"Controller:Controller"`,
+`"Controller:Progressor"`). Because the relationship is symmetric
+(`G1:G2 == G2:G1`), each unique pairing has exactly one level.
+
+## Setup
+
+```{r libraries, message=FALSE, warning=FALSE}
+library(tcrClustR)
+library(Seurat)
+```
+
+## Load example data
+
+```{r loadData}
+data_path <- system.file("extdata", "small_RIRA.rds", package = "tcrClustR")
+seuratObj <- readRDS(data_path)
+```
+
+## Create Experimental Metadata
+
+```{r}
+#drop clones with unresolved subject Ids
+seuratObj <- subset(seuratObj, subset = !is.na(SubjectId))
+
+#assign subjects to phenotypes (this is just an example, real datasets should have this already)
+protectedSubjects <- sample(unique(seuratObj$SubjectId), 
+                            size = floor(length(unique(seuratObj$SubjectId)) / 2),
+                            replace = FALSE)
+seuratObj$Phenotype <- ifelse(seuratObj$SubjectId %in% protectedSubjects, "Protected", "NotProtected")
+```
+
+
+## Compute distances
+
+`ModelTCRDyads()` requires distance matrices from `CalculateTcrDistances()`.
+No prior call to `RunTcrClustering()` is needed — when
+`communityMethod = "DIANA"` (the default), DIANA clustering is run internally.
+
+```{r computeDistances}
+seuratObj_TCR <- CalculateTcrDistances(
+  inputData        = seuratObj,
+  chains           = "TRB",
+  minimumCloneSize = 2
+)
+```
+
+
+
+
+## Fit dyad models
+
+### DIANA community method (default)
+
+The DIANA path runs divisive hierarchical clustering internally on the
+distance matrix, using `distanceThreshold` as the dendrogram cut height
+(analogous to `dianaHeight` in `RunTcrClustering()`). Two clones are
+"connected" if they belong to the same DIANA cluster.
+
+**NOTE**: The distance threshold used in this vignette is too permissive to be biologically reasonable — it is set high to ensure we have enough connections in this small example dataset. Real datasets will likely require a more stringent threshold (e.g. 20-50 for TRB CDR3 amino acid distances) and may require tuning to find a good balance between connectivity and sparsity.
+
+```{r modelDiana}
+result_diana <- ModelTCRDyads(
+  seuratObj_TCR        = seuratObj_TCR,
+  chains               = "TRB",
+  groupColumn          = "Phenotype",
+  estimand = 'effects', 
+  distanceThreshold    = 100,
+  communityMethod      = "DIANA",
+  clusterSizeThreshold = 2,
+  subjectIdCol         = "SubjectId",
+  verbose              = TRUE
+)
+```
+
+### Threshold community method
+
+The threshold path treats `distanceThreshold` as a raw distance cutoff — a
+pair is connected if its tcrdist distance is ≤ the threshold. Louvain
+community detection is used for community annotation.
+
+```{r modelThreshold}
+result_threshold <- ModelTCRDyads(
+  seuratObj_TCR     = seuratObj_TCR,
+  chains            = "TRB",
+  groupColumn       = "Phenotype",
+  distanceThreshold = 100,
+  communityMethod   = "threshold",
+  subjectIdCol      = "SubjectId"
+)
+```
+
+## Interpret results
+
+`ModelTCRDyads()` returns a list with four elements:
+
+- `connectivity` — marginal estimates for the connectivity model
+- `distance` — marginal estimates for the distance model
+- `models` — the fitted model objects and data
+- `unpaired_summary` — per-clone connection partner summary
+
+### Connectivity estimates
+
+```{r connectivity}
+print(result_diana$connectivity)
+```
+
+### Distance estimates
+
+```{r distance}
+print(result_diana$distance)
+```
+
+### Unpaired summary
+
+A per-clone table showing which groups each clone connects to:
+
+```{r unpaired}
+head(result_diana$unpaired_summary)
+```
+
+
+### Plot model estimates
+
+`PlotDyadEstimates()` generates a forest plot directly from the
+`ModelTCRDyads()` output. It detects whether the result contains marginal
+effects or marginal means and adjusts the plot accordingly. When plotting
+connectivity, axis labels are tailored to emphasize that the estimates
+represent probabilities.
+
+```{r plotConnectivity}
+PlotDyadEstimates(result_diana, which = "connectivity")
+```
+
+```{r plotDistance}
+PlotDyadEstimates(result_diana, 
+                  which = "distance", 
+                  )
+```
+
+### Unpaired clone rates
+
+Before subsetting to connected pairs for the distance model,
+`ModelTCRDyads()` computes the per-group probability that a clone is
+**unpaired** (i.e., has no connections to any other clone). These rates are
+stored in `result$unpaired_rates` with exact binomial 95% confidence
+intervals.
+
+```{r unpairedRates}
+print(result_diana$unpaired_rates)
+```
+
+Setting `showUnpaired = TRUE` in `PlotDyadEstimates()` adds a second facet
+to the connectivity plot showing these unpaired probabilities alongside the
+model-based connectivity estimates:
+
+```{r plotUnpaired}
+PlotDyadEstimates(result_diana, which = "connectivity", showUnpaired = TRUE)
+```
+
+This faceted view helps interpret the connectivity model in context:
+a group may show high connectivity _probability_ among its pairs while still
+having a large fraction of completely unpaired clones.
+
+For full control over the plot, the underlying data frames
+(`result_diana$connectivity`, `result_diana$distance`) can be used
+with `ggplot2` directly.
+
+
+## Approach: mixed vs clustered
+
+By default `approach = "mixed"` fits a GLMM with crossed random intercepts for
+the subject at each endpoint (`(1|from_SubjectId) + (1|to_SubjectId)`). If the
+random-effects structure is too complex for the data, `approach = "clustered"`
+fits a plain GLM instead and uses cluster-robust standard errors (clustered on
+a sorted subject-pair identifier) via `marginaleffects`.
+
+```{r clustered}
+result_clustered <- ModelTCRDyads(
+  seuratObj_TCR     = seuratObj_TCR,
+  chains            = "TRB",
+  groupColumn       = "Phenotype",
+  distanceThreshold = 100,
+  approach          = "clustered",
+  communityMethod   = "threshold",
+  subjectIdCol      = "SubjectId"
+)
+
+print(result_clustered$connectivity)
+```
+
+## Estimand: effects vs means
+
+By default (`estimand = "effects"`), `ModelTCRDyads()` returns pairwise
+contrasts between `pair_type` levels via `avg_comparisons()`. To instead
+obtain predicted values (marginal means) for each level, set
+`estimand = "means"`:
+
+```{r means}
+result_means <- ModelTCRDyads(
+  seuratObj_TCR     = seuratObj_TCR,
+  chains            = "TRB",
+  groupColumn       = "Phenotype",
+  distanceThreshold = 100,
+  estimand          = "means",
+  communityMethod   = "threshold",
+  subjectIdCol      = "SubjectId"
+)
+
+PlotDyadEstimates(result_means, which = "connectivity")
+```
+
+## Session info
+
+```{r sessionInfo}
+sessionInfo()
+```
