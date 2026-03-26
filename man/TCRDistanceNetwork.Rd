@@ -10,6 +10,7 @@ TCRDistanceNetwork(
   cdr3Only = FALSE,
   communityMethod = "DIANA",
   distanceThreshold = 50,
+  communityDistanceThreshold = NULL,
   edgeType = "binary",
   colorBy = NULL,
   colorByCommunity = FALSE,
@@ -36,8 +37,16 @@ containing distance assays in \code{@misc$TCR_Distances}.}
 \code{"DIANA"} reads pre-computed DIANA cluster assignments from
 \code{RunTcrClustering}. Default \code{"threshold"}.}
 
-\item{distanceThreshold}{Numeric. Maximum pairwise distance for drawing an edge.
-Default is \code{50}.}
+\item{distanceThreshold}{Numeric. Maximum pairwise distance for drawing an edge
+(controls graph structure and the visible edge set only; does not affect community
+boundaries when \code{communityMethod = "DIANA"}). Default is \code{50}.}
+
+\item{communityDistanceThreshold}{Numeric or \code{NULL}. When
+\code{communityMethod = "threshold"}, this defines the maximum pairwise distance
+used to build the graph on which Louvain community detection is run — analogous
+to the \code{dianaHeight} cut-off in \code{\link{RunTcrClustering}}. When
+\code{NULL} (default), \code{distanceThreshold} is reused for community detection
+as well. Ignored when \code{communityMethod = "DIANA"}.}
 
 \item{edgeType}{Character. \code{"binary"} draws uniform edges; \code{"continuous"}
 maps edge width and opacity to inverse distance. Default is \code{"binary"}.}

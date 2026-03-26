@@ -506,8 +506,15 @@ BuildTCRDistanceGraph <- function(
 #'   \code{"threshold"} runs Louvain community detection on the thresholded graph;
 #'   \code{"DIANA"} reads pre-computed DIANA cluster assignments from
 #'   \code{RunTcrClustering}. Default \code{"threshold"}.
-#' @param distanceThreshold Numeric. Maximum pairwise distance for drawing an edge.
-#'   Default is \code{50}.
+#' @param distanceThreshold Numeric. Maximum pairwise distance for drawing an edge
+#'   (controls graph structure and the visible edge set only; does not affect community
+#'   boundaries when \code{communityMethod = "DIANA"}). Default is \code{50}.
+#' @param communityDistanceThreshold Numeric or \code{NULL}. When
+#'   \code{communityMethod = "threshold"}, this defines the maximum pairwise distance
+#'   used to build the graph on which Louvain community detection is run — analogous
+#'   to the \code{dianaHeight} cut-off in \code{\link{RunTcrClustering}}. When
+#'   \code{NULL} (default), \code{distanceThreshold} is reused for community detection
+#'   as well. Ignored when \code{communityMethod = "DIANA"}.
 #' @param edgeType Character. \code{"binary"} draws uniform edges; \code{"continuous"}
 #'   maps edge width and opacity to inverse distance. Default is \code{"binary"}.
 #' @param colorBy Character or \code{NULL}. Metadata column name used for node fill
@@ -579,10 +586,11 @@ BuildTCRDistanceGraph <- function(
 TCRDistanceNetwork <- function(
     seuratObj_TCR,
     chains,
-    cdr3Only          = FALSE,
-    communityMethod   = "DIANA",
-    distanceThreshold = 50,
-    edgeType          = "binary",
+    cdr3Only                    = FALSE,
+    communityMethod             = "DIANA",
+    distanceThreshold           = 50,
+    communityDistanceThreshold  = NULL,
+    edgeType                    = "binary",
     colorBy           = NULL,
     colorByCommunity  = FALSE,
     colorPalette      = NULL,
@@ -637,12 +645,26 @@ TCRDistanceNetwork <- function(
   n_nodes <- igraph::vcount(g_full)
 
   if (communityMethod == "threshold") {
-    if (igraph::ecount(g_full) == 0L) {
-      if (verbose) message("No edges found within distanceThreshold; community set to NA for all nodes.")
+    community_dist <- if (is.null(communityDistanceThreshold)) distanceThreshold else communityDistanceThreshold
+    # build a separate community graph when the two thresholds differ
+    g_community <- if (community_dist == distanceThreshold) {
+      g_full
+    } else {
+      tidygraph::as.igraph(BuildTCRDistanceGraph(
+        seuratObj_TCR     = seuratObj_TCR,
+        chains            = chains,
+        cdr3Only          = cdr3Only,
+        distanceThreshold = community_dist,
+        edgeType          = "binary",
+        verbose           = FALSE
+      ))
+    }
+    if (igraph::ecount(g_community) == 0L) {
+      if (verbose) message("No edges within communityDistanceThreshold; community set to NA for all nodes.")
       community_vec <- rep(NA_character_, n_nodes)
     } else {
       set.seed(42L)
-      comms         <- igraph::cluster_louvain(g_full, weights = igraph::E(g_full)$weight)
+      comms         <- igraph::cluster_louvain(g_community, weights = igraph::E(g_community)$weight)
       community_vec <- as.character(igraph::membership(comms))
     }
   } else {
@@ -736,11 +758,21 @@ TCRDistanceNetwork <- function(
   if (is.null(title)) {
     title <- paste0("TCR Distance Network: ", assayName)
   }
-  subtitle <- paste0(
-    "Threshold: ", distanceThreshold,
-    "  |  Edge type: ", edgeType,
-    "  |  Community: ", communityMethod
-  )
+  if (communityMethod == "threshold" && !is.null(communityDistanceThreshold) &&
+      communityDistanceThreshold != distanceThreshold) {
+    subtitle <- paste0(
+      "Edge threshold: ", distanceThreshold,
+      "  |  Community threshold: ", communityDistanceThreshold,
+      "  |  Edge type: ", edgeType,
+      "  |  Community: ", communityMethod
+    )
+  } else {
+    subtitle <- paste0(
+      "Threshold: ", distanceThreshold,
+      "  |  Edge type: ", edgeType,
+      "  |  Community: ", communityMethod
+    )
+  }
 
   p <- ggraph::ggraph(layout_obj)
 
