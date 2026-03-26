@@ -1,120 +1,263 @@
 #' @include Visualization.R
 NULL
 
-#' @title Model TCR Clone Connection Probability
+# ---------------------------------------------------------------------------
+# internal: fit a GLM or GLMM on dyad-level data
+# ---------------------------------------------------------------------------
+.FitDyadModel <- function(data, response, family, predictor_term,
+                          approach, from_subj, to_subj, verbose = FALSE) {
+  if (approach == "clustered") {
+    data$Dyad_ID <- paste0(
+      pmin(data[[from_subj]], data[[to_subj]]), "__",
+      pmax(data[[from_subj]], data[[to_subj]])
+    )
+    fml_str <- paste0(response, " ~ ", predictor_term)
+    if (verbose) message("Fitting GLM (clustered SEs): ", fml_str)
+    fit <- stats::glm(stats::as.formula(fml_str), data = data, family = family)
+  } else {
+    rand_term <- paste0("(1|", from_subj, ") + (1|", to_subj, ")")
+    fml_str   <- paste0(response, " ~ ", predictor_term, " + ", rand_term)
+    if (verbose) message("Fitting GLMM: ", fml_str)
+    fit <- lme4::glmer(stats::as.formula(fml_str), data = data, family = family)
+  }
+  list(model = fit, data = data)
+}
+
+# ---------------------------------------------------------------------------
+# internal: marginal estimates via marginaleffects
+# ---------------------------------------------------------------------------
+.EstimateMarginalEffects <- function(fit_result, predictor_term,
+                                     approach, estimand = "effects",
+                                     from_var = NULL, to_var = NULL) {
+  vcov_arg <- if (approach == "clustered") ~Dyad_ID else NULL
+
+  if (predictor_term == "pair_type") {
+    if (estimand == "effects") {
+      me <- marginaleffects::avg_comparisons(
+        fit_result$model,
+        variables = "pair_type",
+        vcov      = vcov_arg,
+        newdata   = fit_result$data
+      )
+    } else {
+      me <- marginaleffects::avg_predictions(
+        fit_result$model,
+        by       = "pair_type",
+        vcov     = vcov_arg,
+        newdata  = fit_result$data
+      )
+    }
+  } else {
+    me <- marginaleffects::avg_slopes(
+      fit_result$model,
+      variables = c(from_var, to_var),
+      vcov      = vcov_arg,
+      newdata   = fit_result$data
+    )
+  }
+  as.data.frame(me)
+}
+
+# ---------------------------------------------------------------------------
+# internal: build the unpaired per-clone connection summary
+# ---------------------------------------------------------------------------
+.BuildUnpairedSummary <- function(dyad_df, from_var, to_var, groupColumn) {
+  clone_groups <- unique(dyad_df[, c("from_clone", from_var), drop = FALSE])
+  names(clone_groups) <- c("clone", groupColumn)
+  connected_dyads <- dyad_df[dyad_df$connected == 1L, , drop = FALSE]
+  if (nrow(connected_dyads) > 0L) {
+    from_partners <- connected_dyads[, c("from_clone", to_var), drop = FALSE]
+    to_partners   <- connected_dyads[, c("to_clone",   from_var), drop = FALSE]
+    names(from_partners) <- c("clone", "partner_group")
+    names(to_partners)   <- c("clone", "partner_group")
+    all_partners <- rbind(from_partners, to_partners)
+    all_partners <- all_partners[!is.na(all_partners$partner_group), , drop = FALSE]
+    partner_summary <- do.call(rbind, lapply(
+      split(all_partners, all_partners$clone),
+      function(x) data.frame(
+        clone          = x$clone[[1L]],
+        partner_groups = paste(sort(unique(x$partner_group)), collapse = ","),
+        stringsAsFactors = FALSE
+      )
+    ))
+    out <- merge(clone_groups, partner_summary, by = "clone", all.x = TRUE)
+  } else {
+    out <- clone_groups
+    out$partner_groups <- NA_character_
+  }
+  out$is_connected <- !is.na(out$partner_groups)
+  out <- out[, c("clone", groupColumn, "is_connected", "partner_groups"), drop = FALSE]
+  rownames(out) <- NULL
+  out
+}
+
+# ---------------------------------------------------------------------------
+# internal: compute per-group unpaired clone rates with binomial CIs
+# ---------------------------------------------------------------------------
+.ComputeUnpairedRates <- function(unpaired_summary, groupColumn) {
+  groups <- split(unpaired_summary, unpaired_summary[[groupColumn]])
+  do.call(rbind, lapply(names(groups), function(g) {
+    df <- groups[[g]]
+    n <- nrow(df)
+    n_unpaired <- sum(!df$is_connected)
+    bt <- stats::binom.test(n_unpaired, n)
+    data.frame(
+      group      = g,
+      estimate   = as.numeric(bt$estimate),
+      conf.low   = bt$conf.int[1L],
+      conf.high  = bt$conf.int[2L],
+      n_clones   = n,
+      n_unpaired = n_unpaired,
+      stringsAsFactors = FALSE,
+      row.names  = NULL
+    )
+  }))
+}
+
+#' @title Model Pairwise TCR Dyad Relationships
 #'
-#' @description Fits a regression over all unique clone pairs derived from the
-#'   TCR distance matrix. The binary response indicates whether a pair is
-#'   connected (distance \eqn{\leq} \code{distanceThreshold}). For categorical
-#'   \code{metadataVar}, a \code{same_<var>} indicator (1 if both endpoints
-#'   share the same value) is used as the fixed effect; for numeric variables,
+#' @description Fits two models over all unique clone pairs derived from a TCR
+#'   distance matrix and returns marginal estimates for the pairwise
+#'   relationship between levels of \code{groupColumn}.
+#'
+#'   **Connectivity model** (binomial): the response is whether a pair is
+#'   connected. When \code{communityMethod = "DIANA"}, DIANA clustering is
+#'   run internally on the distance matrix at \code{distanceThreshold}
+#'   (used as the dendrogram cut height), and two clones are connected if
+#'   they belong to the same cluster. When
+#'   \code{communityMethod = "threshold"}, a clone pair is connected if its
+#'   tcrdist distance is \eqn{\leq} \code{distanceThreshold}.
+#'
+#'   **Distance model** (Poisson): the response is the raw tcrdist distance
+#'   among connected pairs.
+#'
+#'   When \code{estimand = "effects"} (default), marginal effects are
+#'   estimated via \code{\link[marginaleffects]{avg_comparisons}}, giving
+#'   pairwise contrasts between \code{pair_type} levels. When
+#'   \code{estimand = "means"}, marginal means are estimated via
+#'   \code{\link[marginaleffects]{avg_predictions}}, giving predicted values
+#'   for each \code{pair_type} level.
+#'
+#'   For categorical \code{groupColumn}, an unordered dyad-type factor
+#'   \code{pair_type} is constructed from the lexicographically sorted
+#'   combination of the two endpoint group labels, e.g. \code{"G1:G1"},
+#'   \code{"G1:G2"}. Because dyads are symmetric (\code{G1:G2 == G2:G1}),
+#'   each unique pairing receives one level. For numeric \code{groupColumn},
 #'   \code{from_<var>} and \code{to_<var>} enter as separate additive fixed
 #'   effects.
 #'
-#'   When \code{approach = "mixed"} (default), crossed random intercepts are
-#'   included for the subject owning each endpoint via
-#'   \code{\link[lme4]{glmer}} —
-#'   \code{(1|from_<subjectIdCol>) + (1|to_<subjectIdCol>)}. When
-#'   \code{approach = "clustered"}, a plain binomial \code{\link[stats]{glm}}
-#'   is fitted and cluster-robust standard errors (clustered on subject-pair
-#'   \code{Dyad_ID}) are computed via \code{\link[sandwich]{vcovCL}}; this
-#'   avoids convergence issues at the cost of assuming independence across
-#'   subject pairs.
-#'
-#'   When \code{communityMethod = "DIANA"} (default), each dyad is additionally
-#'   annotated with \code{diana_community} (the DIANA cluster label for
-#'   \code{from_clone} and \code{to_clone} encoded as \code{same_diana_community})
-#'   so models can condition on whether two clones belong to the same pre-computed
-#'   cluster. When \code{communityMethod = "threshold"}, a Louvain community over
-#'   the thresholded graph is used instead.
+#'   When \code{approach = "mixed"} (default), crossed random intercepts
+#'   for the subject owning each endpoint are included via
+#'   \code{\link[lme4]{glmer}}. When \code{approach = "clustered"}, a plain
+#'   GLM is fitted and cluster-robust standard errors (clustered on a sorted
+#'   subject-pair identifier \code{Dyad_ID}) are computed via
+#'   \code{marginaleffects}.
 #'
 #' @param seuratObj_TCR A Seurat object with TCR distance matrices stored in
 #'   \code{@misc$TCR_Distances} (output of \code{CalculateTcrDistances}).
 #' @param chains Character vector of chain(s), e.g. \code{"TRB"} or
-#'   \code{c("TRA","TRB")}. Must match the chains used in
-#'   \code{CalculateTcrDistances}.
-#' @param metadataVar Character. Seurat metadata column to test as the fixed
-#'   effect, e.g. \code{"outcome"} or \code{"age"}.
-#' @param distanceThreshold Numeric. Distance cutoff that defines connectivity;
-#'   should match the value used in \code{TCRDistanceNetwork}.
+#'   \code{c("TRA","TRB")}.
+#' @param groupColumn Character. Seurat metadata column defining the groups
+#'   to compare, e.g. a treatment arm (\code{"Treatment"}) or phenotype
+#'   (\code{"Phenotype"}).
+#' @param distanceThreshold Numeric. Interpretation depends on
+#'   \code{communityMethod}. For \code{"DIANA"}: the dendrogram cut height
+#'   passed to \code{.DianaClustering} (analogous to \code{dianaHeight}
+#'   in \code{RunTcrClustering}). For \code{"threshold"}: the maximum
+#'   pairwise distance at which two clones are considered connected.
+#' @param communityDistanceThreshold Numeric or \code{NULL}. When
+#'   \code{communityMethod = "threshold"}, the maximum pairwise distance used
+#'   to build the Louvain community graph. When \code{NULL} (default),
+#'   \code{distanceThreshold} is reused. Ignored when
+#'   \code{communityMethod = "DIANA"}.
 #' @param cdr3Only Logical. Use CDR3-only distances. Default \code{FALSE}.
-#' @param communityMethod Character. \code{"DIANA"} (default) reads
-#'   pre-computed DIANA cluster assignments from \code{RunTcrClustering} and
-#'   annotates dyads with \code{from_diana_community}, \code{to_diana_community},
-#'   and \code{same_diana_community}. \code{"threshold"} derives communities via
-#'   Louvain detection on the thresholded graph instead.
-#' @param approach Character. \code{"mixed"} (default) fits a binomial GLMM
-#'   via \code{\link[lme4]{glmer}} with crossed random intercepts for subject
-#'   at each dyad endpoint. \code{"clustered"} fits a plain binomial
-#'   \code{\link[stats]{glm}} and applies cluster-robust standard errors
-#'   (clustered on \code{Dyad_ID}, a sorted subject-pair identifier) via
-#'   \code{\link[sandwich]{vcovCL}}; use this when the mixed model fails to
-#'   converge.
+#' @param estimand Character. \code{"effects"} (default) estimates marginal
+#'   effects via \code{\link[marginaleffects]{avg_comparisons}}, returning
+#'   pairwise contrasts between \code{pair_type} levels. \code{"means"}
+#'   estimates marginal means via
+#'   \code{\link[marginaleffects]{avg_predictions}}, returning predicted
+#'   values for each level.
+#' @param communityMethod Character. \code{"DIANA"} (default) runs DIANA
+#'   hierarchical clustering internally at \code{distanceThreshold} and
+#'   defines connectivity by cluster co-membership. \code{"threshold"}
+#'   defines connectivity via a raw distance cutoff and derives Louvain
+#'   communities for annotation.
+#' @param clusterSizeThreshold Integer. Minimum number of clones in a DIANA
+#'   cluster for it to be retained; smaller clusters are treated as
+#'   unclustered. Only used when \code{communityMethod = "DIANA"}.
+#'   Default \code{2}.
+#' @param referenceLevel Character or \code{NULL}. For categorical
+#'   \code{groupColumn}, the \code{pair_type} level to use as the baseline.
+#'   When \code{NULL}, R's default factor ordering is used.
+#' @param approach Character. \code{"mixed"} (default) fits GLMMs with
+#'   crossed random intercepts for subject at each endpoint.
+#'   \code{"clustered"} fits plain GLMs with cluster-robust standard errors
+#'   via \code{marginaleffects}.
 #' @param subjectIdCol Character. Metadata column containing subject IDs.
-#'   Used for random intercepts (\code{approach = "mixed"}) or as the basis
-#'   for \code{Dyad_ID} clustering (\code{approach = "clustered"}).
 #'   Default \code{"SubjectId"}.
 #' @param verbose Logical. Emit progress messages. Default \code{FALSE}.
 #'
 #' @return A named list:
 #'   \describe{
-#'     \item{\code{model}}{The fitted \code{glmerMod} (mixed) or \code{glm}
-#'       (clustered) object.}
-#'     \item{\code{data}}{The full dyad data frame (one row per unique clone
-#'       pair) used for fitting. Columns include \code{distance},
-#'       \code{connected} (0/1), \code{from_<metadataVar>},
-#'       \code{to_<metadataVar>}, \code{same_<metadataVar>} (categorical
-#'       only), and all \code{from_}/\code{to_}-prefixed Seurat metadata
-#'       columns. When \code{approach = "clustered"}, a \code{Dyad_ID} column
-#'       is also added.}
-#'     \item{\code{coeftest}}{For \code{approach = "clustered"}, the
-#'       \code{\link[lmtest]{coeftest}} result with cluster-robust standard
-#'       errors. \code{NULL} when \code{approach = "mixed"}.}
+#'     \item{\code{connectivity}}{A data frame of marginal estimates for the
+#'       connectivity model. When \code{estimand = "effects"}, contains
+#'       pairwise contrasts between \code{pair_type} levels. When
+#'       \code{estimand = "means"}, contains predicted probabilities per
+#'       level.}
+#'     \item{\code{distance}}{A data frame of marginal estimates for the
+#'       distance model.}
+#'     \item{\code{models}}{A list with elements \code{connectivity} and
+#'       \code{distance}, each containing \code{model} (the fitted model
+#'       object) and \code{data} (the data frame used for fitting).}
+#'     \item{\code{unpaired_summary}}{For categorical \code{groupColumn}, a
+#'       data frame with one row per clone giving connectivity partner
+#'       information. \code{NULL} for numeric predictors.}
+#'     \item{\code{unpaired_rates}}{For categorical \code{groupColumn}, a
+#'       data frame with one row per group level giving the proportion of
+#'       clones that have no connections, with exact binomial 95\% confidence
+#'       intervals. Columns: \code{group}, \code{estimate}, \code{conf.low},
+#'       \code{conf.high}, \code{n_clones}, \code{n_unpaired}.
+#'       \code{NULL} for numeric predictors.}
 #'   }
 #'
-#' @note The dyad table contains \eqn{N(N-1)/2} rows where \eqn{N} is the
-#'   number of unique clones; this can be memory-intensive for large datasets.
-#'   Mixed models may not converge with few subjects or highly imbalanced data;
-#'   use \code{approach = "clustered"} as a fallback.
-#'
-#' @seealso \code{\link{TCRDistanceNetwork}}, \code{\link{ModelTCREdgeDistances}}
+#' @seealso \code{\link{CalculateTcrDistances}}, \code{\link{TCRDistanceNetwork}}
 #' @importFrom lme4 glmer
-#' @importFrom stats as.formula setNames glm
-#' @importFrom igraph cluster_louvain membership V ecount vcount
-#' @importFrom sandwich vcovCL
-#' @importFrom lmtest coeftest
+#' @importFrom stats as.formula setNames glm relevel binom.test
+#' @importFrom igraph cluster_louvain membership V ecount vcount components
+#' @importFrom tidygraph activate
+#' @importFrom marginaleffects avg_predictions avg_comparisons avg_slopes
 #' @export
-ModelTCRConnectivity <- function(
+ModelTCRDyads <- function(
     seuratObj_TCR,
     chains,
-    metadataVar,
+    groupColumn,
     distanceThreshold,
-    cdr3Only        = FALSE,
-    approach        = "mixed",
-    communityMethod = "DIANA",
-    subjectIdCol    = "SubjectId",
-    verbose         = FALSE
+    communityDistanceThreshold  = NULL,
+    cdr3Only                    = FALSE,
+    estimand                    = "effects",
+    approach                    = "mixed",
+    communityMethod             = "DIANA",
+    clusterSizeThreshold        = 2,
+    referenceLevel              = NULL,
+    subjectIdCol                = "SubjectId",
+    verbose                     = FALSE
 ) {
+  if (!estimand %in% c("effects", "means")) {
+    stop("estimand must be 'effects' or 'means', got: ", estimand)
+  }
   if (!approach %in% c("mixed", "clustered")) {
     stop("approach must be 'mixed' or 'clustered', got: ", approach)
   }
   if (!communityMethod %in% c("DIANA", "threshold")) {
     stop("communityMethod must be 'DIANA' or 'threshold', got: ", communityMethod)
   }
+
+  # resolve column names
   chainPrefix <- if (length(chains) > 1L) .get_chain_field_prefix(chains) else chains
-  assayName   <- paste0(chainPrefix, "_", ifelse(cdr3Only, "cdr3", "fl"))
-  dist_m      <- as.matrix(GetDistanceMatrix(seuratObj_TCR, chains, cdr3Only = cdr3Only))
   cloneIdxCol <- paste0(chainPrefix, "_CloneIdx")
+  dist_m      <- as.matrix(GetDistanceMatrix(seuratObj_TCR, chains, cdr3Only = cdr3Only))
 
-  if (communityMethod == "DIANA") {
-    clusterIdxCol <- paste0(assayName, "_ClusterIdx")
-    if (!clusterIdxCol %in% colnames(seuratObj_TCR@meta.data)) {
-      stop("communityMethod = 'DIANA' requires pre-computed cluster assignments. ",
-           "Column '", clusterIdxCol, "' not found. Run RunTcrClustering() first.")
-    }
-  }
-
-  # all unique clone pairs (upper triangle)
+  # build full dyad table (upper triangle)
   idx     <- which(upper.tri(dist_m), arr.ind = TRUE)
   dyad_df <- data.frame(
     from_clone = rownames(dist_m)[idx[, 1L]],
@@ -122,12 +265,6 @@ ModelTCRConnectivity <- function(
     distance   = dist_m[idx],
     stringsAsFactors = FALSE
   )
-  dyad_df$connected <- as.integer(dyad_df$distance <= distanceThreshold)
-
-  if (verbose) {
-    message("Total dyads: ", nrow(dyad_df),
-            " | connected: ", sum(dyad_df$connected))
-  }
 
   # join Seurat metadata for both endpoints
   if (cloneIdxCol %in% colnames(seuratObj_TCR@meta.data)) {
@@ -139,332 +276,375 @@ ModelTCRConnectivity <- function(
     names(to_meta)   <- paste0("to_",   names(to_meta))
     from_key         <- paste0("from_", cloneIdxCol)
     to_key           <- paste0("to_",   cloneIdxCol)
-    dyad_df          <- dplyr::left_join(
+    dyad_df <- dplyr::left_join(
       dyad_df, from_meta,
       by = stats::setNames(from_key, "from_clone")
     )
-    dyad_df          <- dplyr::left_join(
+    dyad_df <- dplyr::left_join(
       dyad_df, to_meta,
       by = stats::setNames(to_key, "to_clone")
     )
   }
 
-  # annotate community membership
+  # drop dyads where either endpoint lacks metadata for model columns
+  from_var  <- paste0("from_", groupColumn)
+  to_var    <- paste0("to_",   groupColumn)
+  from_subj <- paste0("from_", subjectIdCol)
+  to_subj   <- paste0("to_",   subjectIdCol)
+  required_cols <- c(from_var, to_var, from_subj, to_subj)
+  present_cols  <- intersect(required_cols, names(dyad_df))
+  if (length(present_cols) > 0L) {
+    complete <- stats::complete.cases(dyad_df[, present_cols, drop = FALSE])
+    n_drop   <- sum(!complete)
+    if (n_drop > 0L) {
+      if (verbose) {
+        message("Dropping ", n_drop, " dyads (out of ", nrow(dyad_df),
+                ") where endpoint metadata is NA for ", groupColumn,
+                " or ", subjectIdCol)
+      }
+      dyad_df <- dyad_df[complete, , drop = FALSE]
+    }
+  }
+
+  # define connectivity and annotate community membership
   if (communityMethod == "DIANA") {
-    from_clust <- paste0("from_", clusterIdxCol)
-    to_clust   <- paste0("to_",   clusterIdxCol)
-    # treat cluster 0 (noise) as NA
-    dyad_df[[from_clust]][!is.na(dyad_df[[from_clust]]) & dyad_df[[from_clust]] == "0"] <- NA_character_
-    dyad_df[[to_clust]][!is.na(dyad_df[[to_clust]])   & dyad_df[[to_clust]]   == "0"] <- NA_character_
-    dyad_df$from_diana_community <- dyad_df[[from_clust]]
-    dyad_df$to_diana_community   <- dyad_df[[to_clust]]
+    # run DIANA clustering internally using distanceThreshold as cut height
+    diana_result <- .DianaClustering(dist_m, cutHeight = distanceThreshold, verbose = verbose)
+    cluster_vec  <- .ThresholdClustersBySize(diana_result$clustering,
+                                             minClusterSize = clusterSizeThreshold,
+                                             verbose = verbose)
+    if (all(cluster_vec == 0L)) {
+      stop("No DIANA clusters formed at distanceThreshold = ", distanceThreshold,
+           " with clusterSizeThreshold = ", clusterSizeThreshold,
+           ". Try increasing distanceThreshold or lowering clusterSizeThreshold.")
+    }
+    # map cluster assignments onto dyad endpoints
+    dyad_df$from_diana_community <- as.character(cluster_vec[dyad_df$from_clone])
+    dyad_df$to_diana_community   <- as.character(cluster_vec[dyad_df$to_clone])
+    # treat cluster 0 (unclustered) as NA
+    dyad_df$from_diana_community[dyad_df$from_diana_community == "0"] <- NA_character_
+    dyad_df$to_diana_community[dyad_df$to_diana_community == "0"]     <- NA_character_
     dyad_df$same_diana_community <- as.integer(
       !is.na(dyad_df$from_diana_community) & !is.na(dyad_df$to_diana_community) &
         dyad_df$from_diana_community == dyad_df$to_diana_community
     )
+    # connectivity = same DIANA cluster
+    dyad_df$connected <- dyad_df$same_diana_community
+    dyad_df$connected[is.na(dyad_df$connected)] <- 0L
   } else {
-    # threshold community via Louvain on thresholded graph
+    dyad_df$connected <- as.integer(dyad_df$distance <= distanceThreshold)
+    community_dist <- if (is.null(communityDistanceThreshold)) distanceThreshold else communityDistanceThreshold
     tg <- BuildTCRDistanceGraph(
       seuratObj_TCR, chains = chains, cdr3Only = cdr3Only,
-      distanceThreshold = distanceThreshold, edgeType = "binary", verbose = FALSE
+      distanceThreshold = community_dist, edgeType = "binary", verbose = FALSE
     )
-    g_full <- tidygraph::as.igraph(tg)
-    if (igraph::ecount(g_full) > 0L) {
+    g_comm <- tidygraph::as.igraph(tg)
+    if (igraph::ecount(g_comm) > 0L) {
       set.seed(42L)
-      comms        <- igraph::cluster_louvain(g_full)
-      comm_vec     <- stats::setNames(as.character(igraph::membership(comms)),
-                                      igraph::V(g_full)$name)
+      comms    <- igraph::cluster_louvain(g_comm)
+      comm_vec <- stats::setNames(as.character(igraph::membership(comms)),
+                                  igraph::V(g_comm)$name)
     } else {
-      comm_vec <- stats::setNames(rep(NA_character_, igraph::vcount(g_full)),
-                                  igraph::V(g_full)$name)
+      comm_vec <- stats::setNames(rep(NA_character_, igraph::vcount(g_comm)),
+                                  igraph::V(g_comm)$name)
     }
-    dyad_df$from_community      <- comm_vec[dyad_df$from_clone]
-    dyad_df$to_community        <- comm_vec[dyad_df$to_clone]
-    dyad_df$same_community      <- as.integer(
+    dyad_df$from_community <- comm_vec[dyad_df$from_clone]
+    dyad_df$to_community   <- comm_vec[dyad_df$to_clone]
+    dyad_df$same_community <- as.integer(
       !is.na(dyad_df$from_community) & !is.na(dyad_df$to_community) &
         dyad_df$from_community == dyad_df$to_community
     )
+    if (sum(dyad_df$connected) == 0L) {
+      stop("No connected pairs at distanceThreshold = ", distanceThreshold,
+           ". No clones are within this distance. Try increasing distanceThreshold.")
+    }
   }
 
-  from_var <- paste0("from_", metadataVar)
-  to_var   <- paste0("to_",   metadataVar)
+  if (verbose) {
+    message("Total dyads: ", nrow(dyad_df),
+            " | connected: ", sum(dyad_df$connected))
+  }
+
+  # construct predictor term
   if (!from_var %in% names(dyad_df)) {
-    stop("metadataVar '", metadataVar, "' not found in Seurat metadata")
+    stop("groupColumn '", groupColumn, "' not found in Seurat metadata")
   }
 
-  # fixed-effect term: same-group indicator for categorical, raw values for numeric
   if (is.numeric(dyad_df[[from_var]])) {
-    predictor_term <- paste(from_var, to_var, sep = " + ")
+    predictor_term   <- paste(from_var, to_var, sep = " + ")
+    unpaired_summary <- NULL
   } else {
-    same_col            <- paste0("same_", metadataVar)
-    dyad_df[[same_col]] <- as.integer(
-      !is.na(dyad_df[[from_var]]) & !is.na(dyad_df[[to_var]]) &
-        dyad_df[[from_var]] == dyad_df[[to_var]]
+    g_from <- as.character(dyad_df[[from_var]])
+    g_to   <- as.character(dyad_df[[to_var]])
+    pair_labels <- ifelse(
+      is.na(g_from) | is.na(g_to),
+      NA_character_,
+      paste(pmin(g_from, g_to), pmax(g_from, g_to), sep = ":")
     )
-    predictor_term <- same_col
+    all_levels <- sort(unique(pair_labels[!is.na(pair_labels)]))
+    dyad_df$pair_type <- factor(pair_labels, levels = all_levels)
+    if (!is.null(referenceLevel)) {
+      if (!referenceLevel %in% all_levels) {
+        stop("referenceLevel '", referenceLevel, "' is not a valid pair_type level. ",
+             "Available levels: ", paste(all_levels, collapse = ", "))
+      }
+      dyad_df$pair_type <- stats::relevel(dyad_df$pair_type, ref = referenceLevel)
+    }
+    predictor_term   <- "pair_type"
+    unpaired_summary <- .BuildUnpairedSummary(dyad_df, from_var, to_var, groupColumn)
   }
 
-  # subject columns (used for random intercepts or Dyad_ID clustering)
-  from_subj <- paste0("from_", subjectIdCol)
-  to_subj   <- paste0("to_",   subjectIdCol)
+  # compute per-group unpaired rates
+  unpaired_rates <- if (!is.null(unpaired_summary)) {
+    .ComputeUnpairedRates(unpaired_summary, groupColumn)
+  } else {
+    NULL
+  }
+
+  # validate subject column
   if (!from_subj %in% names(dyad_df)) {
     stop("subjectIdCol '", subjectIdCol, "' not found in Seurat metadata; ",
-         "ensure the column is present before fitting connectivity models.")
+         "ensure the column is present before fitting models.")
   }
 
-  if (approach == "mixed") {
-    rand_term <- paste0("(1|", from_subj, ") + (1|", to_subj, ")")
-    fml_str   <- paste0("connected ~ ", predictor_term, " + ", rand_term)
-    if (verbose) message("Fitting mixed model: ", fml_str)
-    fit      <- lme4::glmer(stats::as.formula(fml_str), data = dyad_df, family = "binomial")
-    coef_out <- NULL
-  } else {
-    # sorted subject-pair identifier — groups all clone dyads between the same two subjects
-    dyad_df$Dyad_ID <- paste0(
-      pmin(dyad_df[[from_subj]], dyad_df[[to_subj]]), "__",
-      pmax(dyad_df[[from_subj]], dyad_df[[to_subj]])
-    )
-    fml_str <- paste0("connected ~ ", predictor_term)
-    if (verbose) message("Fitting with clustered SEs: ", fml_str)
-    fit      <- stats::glm(stats::as.formula(fml_str), data = dyad_df, family = "binomial")
-    vcov_cl  <- sandwich::vcovCL(fit, cluster = dyad_df$Dyad_ID)
-    coef_out <- lmtest::coeftest(fit, vcov = vcov_cl)
-  }
+  # --- connectivity model (binomial, all dyad pairs) ---
+  if (verbose) message("Fitting connectivity model...")
+  conn_fit <- .FitDyadModel(
+    data           = dyad_df,
+    response       = "connected",
+    family         = "binomial",
+    predictor_term = predictor_term,
+    approach       = approach,
+    from_subj      = from_subj,
+    to_subj        = to_subj,
+    verbose        = verbose
+  )
 
-  list(model = fit, data = dyad_df, coeftest = coef_out)
-}
-
-
-#' @title Model Distances Within TCR Network Components
-#'
-#' @description Fits a Poisson regression over connected clone pairs in the TCR
-#'   distance network. The integer response is the raw tcrdist distance. For
-#'   categorical \code{metadataVar}, a \code{same_<var>} indicator is derived;
-#'   for numeric variables, \code{from_<var>} and \code{to_<var>} enter as
-#'   separate additive fixed effects.
-#'
-#'   When \code{approach = "mixed"} (default), crossed random intercepts are
-#'   included for the subject owning each endpoint via
-#'   \code{\link[lme4]{glmer}} —
-#'   \code{(1|from_<subjectIdCol>) + (1|to_<subjectIdCol>)}. When
-#'   \code{approach = "clustered"}, a plain Poisson \code{\link[stats]{glm}}
-#'   is fitted and cluster-robust standard errors (clustered on subject-pair
-#'   \code{Dyad_ID}) are computed via \code{\link[sandwich]{vcovCL}}.
-#'
-#'   The primary path builds the edge table directly from \code{seuratObj_TCR},
-#'   \code{chains}, and \code{distanceThreshold}. When
-#'   \code{communityMethod = "DIANA"} (default), only edges where both endpoints
-#'   share the same DIANA cluster are retained before fitting, ensuring the
-#'   distance model is conditioned on membership in the same pre-computed cluster.
-#'   \code{communityMethod = "threshold"} retains all thresholded edges regardless
-#'   of community. Supplying a pre-computed \code{edges} data frame skips graph
-#'   construction entirely as a time-saving backup.
-#'
-#' @param seuratObj_TCR A Seurat object with TCR distance matrices stored in
-#'   \code{@misc$TCR_Distances} (output of \code{CalculateTcrDistances}).
-#'   Required unless \code{edges} is supplied.
-#' @param chains Character vector of chain(s), e.g. \code{"TRB"} or
-#'   \code{c("TRA","TRB")}. Required unless \code{edges} is supplied.
-#' @param metadataVar Character. Name of the metadata variable to test as a
-#'   fixed effect, e.g. \code{"outcome"}.
-#' @param distanceThreshold Numeric. Maximum pairwise distance for an edge.
-#'   Required unless \code{edges} is supplied.
-#' @param cdr3Only Logical. Use CDR3-only distances. Default \code{FALSE}.
-#'   Ignored when \code{edges} is supplied.
-#' @param communityMethod Character. \code{"DIANA"} (default) filters the edge
-#'   table to retain only intra-cluster edges (both endpoints sharing the same
-#'   DIANA cluster from \code{RunTcrClustering}). \code{"threshold"} retains all
-#'   thresholded edges. Ignored when \code{edges} is supplied.
-#' @param edges Data frame or \code{NULL}. When non-\code{NULL}, use this
-#'   pre-computed edge table (e.g. \code{result$edges} from
-#'   \code{TCRDistanceNetwork}) instead of building from scratch. All of
-#'   \code{seuratObj_TCR}, \code{chains}, \code{distanceThreshold}, and
-#'   \code{cdr3Only} are then ignored.
-#' @param components Integer vector or \code{NULL}. When supplied, only edges
-#'   whose \code{component} value is in this vector are retained before fitting.
-#'   Default \code{NULL} retains all edges.
-#' @param approach Character. \code{"mixed"} (default) fits a Poisson GLMM
-#'   via \code{\link[lme4]{glmer}} with crossed random intercepts for subject
-#'   at each edge endpoint. \code{"clustered"} fits a plain Poisson
-#'   \code{\link[stats]{glm}} and applies cluster-robust standard errors
-#'   (clustered on \code{Dyad_ID}, a sorted subject-pair identifier) via
-#'   \code{\link[sandwich]{vcovCL}}; use this when the mixed model fails to
-#'   converge.
-#' @param subjectIdCol Character. Subject ID column name without the
-#'   \code{from_}/\code{to_} prefix. Used for random intercepts
-#'   (\code{approach = "mixed"}) or as the basis for \code{Dyad_ID} clustering
-#'   (\code{approach = "clustered"}). Default \code{"SubjectId"}.
-#' @param verbose Logical. Emit progress messages. Default \code{FALSE}.
-#'
-#' @return A named list:
-#'   \describe{
-#'     \item{\code{model}}{The fitted \code{glmerMod} (mixed) or \code{glm}
-#'       (clustered) object.}
-#'     \item{\code{data}}{The edge data frame used for fitting (after optional
-#'       component filtering and predictor construction). When
-#'       \code{approach = "clustered"}, a \code{Dyad_ID} column is also added.}
-#'     \item{\code{coeftest}}{For \code{approach = "clustered"}, the
-#'       \code{\link[lmtest]{coeftest}} result with cluster-robust standard
-#'       errors. \code{NULL} when \code{approach = "mixed"}.}
-#'   }
-#'
-#' @note Mixed models may not converge with very few edges or subjects. Use the
-#'   \code{components} argument to constrain the analysis to specific connected
-#'   subgraphs, or use \code{approach = "clustered"} to avoid convergence issues.
-#'
-#' @seealso \code{\link{TCRDistanceNetwork}}, \code{\link{ModelTCRConnectivity}}
-#' @importFrom lme4 glmer
-#' @importFrom stats as.formula glm
-#' @importFrom igraph components
-#' @importFrom tidygraph activate
-#' @importFrom sandwich vcovCL
-#' @importFrom lmtest coeftest
-#' @export
-ModelTCREdgeDistances <- function(
-    seuratObj_TCR     = NULL,
-    chains            = NULL,
-    metadataVar,
-    distanceThreshold = NULL,
-    cdr3Only          = FALSE,
-    approach          = "mixed",
-    communityMethod   = "DIANA",
-    edges             = NULL,
-    components        = NULL,
-    subjectIdCol      = "SubjectId",
-    verbose           = FALSE
-) {
-  if (!approach %in% c("mixed", "clustered")) {
-    stop("approach must be 'mixed' or 'clustered', got: ", approach)
-  }
-  if (!communityMethod %in% c("DIANA", "threshold")) {
-    stop("communityMethod must be 'DIANA' or 'threshold', got: ", communityMethod)
-  }
-  has_primary <- !is.null(seuratObj_TCR) && !is.null(chains) && !is.null(distanceThreshold)
-  has_backup  <- !is.null(edges)
-
-  if (!has_primary && !has_backup) {
-    stop("Provide 'seuratObj_TCR', 'chains', and 'distanceThreshold' (primary path) ",
-         "or a pre-computed 'edges' data frame from TCRDistanceNetwork() (backup path).")
-  }
-
-  # primary path: build edge table from scratch via BuildTCRDistanceGraph
-  if (is.null(edges)) {
-    chainPrefix <- if (length(chains) > 1L) .get_chain_field_prefix(chains) else chains
-    assayName   <- paste0(chainPrefix, "_", ifelse(cdr3Only, "cdr3", "fl"))
-
-    if (communityMethod == "DIANA") {
-      clusterIdxCol <- paste0(assayName, "_ClusterIdx")
-      if (!clusterIdxCol %in% colnames(seuratObj_TCR@meta.data)) {
-        stop("communityMethod = 'DIANA' requires pre-computed cluster assignments. ",
-             "Column '", clusterIdxCol, "' not found. Run RunTcrClustering() first.")
-      }
-    }
-
-    tcrGraph  <- BuildTCRDistanceGraph(
-      seuratObj_TCR,
-      chains            = chains,
-      cdr3Only          = cdr3Only,
-      distanceThreshold = distanceThreshold,
-      edgeType          = "binary",
-      verbose           = verbose
-    )
-    edge_data <- as.data.frame(tidygraph::activate(tcrGraph, edges))
-    node_data <- as.data.frame(tidygraph::activate(tcrGraph, nodes))
-    comps     <- igraph::components(tidygraph::as.igraph(tcrGraph))
-
-    names(node_data)[names(node_data) == "name"] <- "clone"
-    from_meta        <- node_data
-    to_meta          <- node_data
-    names(from_meta) <- paste0("from_", names(from_meta))
-    names(to_meta)   <- paste0("to_",   names(to_meta))
-
-    edge_cols <- setdiff(names(edge_data), c("from", "to"))
-    if (nrow(edge_data) > 0L) {
-      edges <- cbind(
-        edge_data[edge_cols],
-        component = as.integer(comps$membership)[edge_data$from],
-        from_meta[edge_data$from, , drop = FALSE],
-        to_meta  [edge_data$to,   , drop = FALSE]
-      )
-      rownames(edges) <- NULL
-    } else {
-      edges <- cbind(
-        edge_data[edge_cols],
-        component = integer(0L),
-        from_meta[integer(0L), , drop = FALSE],
-        to_meta  [integer(0L), , drop = FALSE]
-      )
-    }
-
-    # DIANA: retain only intra-cluster edges
-    if (communityMethod == "DIANA" && nrow(edges) > 0L) {
-      from_clust <- paste0("from_", clusterIdxCol)
-      to_clust   <- paste0("to_",   clusterIdxCol)
-      edges[[from_clust]][!is.na(edges[[from_clust]]) & edges[[from_clust]] == "0"] <- NA_character_
-      edges[[to_clust]][!is.na(edges[[to_clust]])   & edges[[to_clust]]   == "0"] <- NA_character_
-      same_cluster <- !is.na(edges[[from_clust]]) & !is.na(edges[[to_clust]]) &
-        edges[[from_clust]] == edges[[to_clust]]
-      edges <- edges[same_cluster, , drop = FALSE]
-      if (verbose) message("DIANA intra-cluster edges retained: ", nrow(edges))
-    }
-  }
-
-  # optional component filtering (applies to both paths)
-  if (!is.null(components)) {
-    edges <- edges[!is.na(edges$component) & edges$component %in% components, , drop = FALSE]
-  }
+  # --- build edge subset for distance model ---
+  # for DIANA, connected already means intra-cluster so no extra filtering needed
+  edges <- dyad_df[dyad_df$connected == 1L, , drop = FALSE]
 
   if (nrow(edges) == 0L) {
-    stop("No edges remain after component filtering.")
+    stop("No connected edges remain for the distance model. ",
+         "Try increasing distanceThreshold, lowering clusterSizeThreshold, ",
+         "or changing communityMethod.")
   }
 
-  if (verbose) message("Edges used for modelling: ", nrow(edges))
-
-  from_var <- paste0("from_", metadataVar)
-  to_var   <- paste0("to_",   metadataVar)
-  if (!from_var %in% names(edges)) {
-    stop("metadataVar '", metadataVar, "' not found in edges; ",
-         "ensure it was a metadata column when building the network.")
+  # propagate pair_type levels (including referenceLevel) to the edge subset
+  if ("pair_type" %in% names(edges)) {
+    edges$pair_type <- factor(edges$pair_type, levels = levels(dyad_df$pair_type))
   }
 
-  # fixed-effect term
-  if (is.numeric(edges[[from_var]])) {
-    predictor_term <- paste(from_var, to_var, sep = " + ")
-  } else {
-    same_col          <- paste0("same_", metadataVar)
-    edges[[same_col]] <- as.integer(
-      !is.na(edges[[from_var]]) & !is.na(edges[[to_var]]) &
-        edges[[from_var]] == edges[[to_var]]
-    )
-    predictor_term <- same_col
-  }
-
-  # subject columns (used for random intercepts or Dyad_ID clustering)
-  from_subj <- paste0("from_", subjectIdCol)
-  to_subj   <- paste0("to_",   subjectIdCol)
-  if (!from_subj %in% names(edges)) {
-    stop("subjectIdCol '", subjectIdCol, "' not found in edges; ",
-         "ensure it was a metadata column when building the network.")
-  }
-
-  if (approach == "mixed") {
-    rand_term <- paste0("(1|", from_subj, ") + (1|", to_subj, ")")
-    fml_str   <- paste0("distance ~ ", predictor_term, " + ", rand_term)
-    if (verbose) message("Fitting mixed model: ", fml_str)
-    fit      <- lme4::glmer(stats::as.formula(fml_str), data = edges, family = "poisson")
-    coef_out <- NULL
-  } else {
-    # sorted subject-pair identifier — groups all clone dyads between the same two subjects
+  # propagate Dyad_ID if already computed by the connectivity model
+  if (approach == "clustered" && !"Dyad_ID" %in% names(edges)) {
     edges$Dyad_ID <- paste0(
       pmin(edges[[from_subj]], edges[[to_subj]]), "__",
       pmax(edges[[from_subj]], edges[[to_subj]])
     )
-    fml_str <- paste0("distance ~ ", predictor_term)
-    if (verbose) message("Fitting with clustered SEs: ", fml_str)
-    fit      <- stats::glm(stats::as.formula(fml_str), data = edges, family = "poisson")
-    vcov_cl  <- sandwich::vcovCL(fit, cluster = edges$Dyad_ID)
-    coef_out <- lmtest::coeftest(fit, vcov = vcov_cl)
   }
 
-  list(model = fit, data = edges, coeftest = coef_out)
+  if (verbose) message("Fitting distance model on ", nrow(edges), " edges...")
+  dist_fit <- .FitDyadModel(
+    data           = edges,
+    response       = "distance",
+    family         = "poisson",
+    predictor_term = predictor_term,
+    approach       = approach,
+    from_subj      = from_subj,
+    to_subj        = to_subj,
+    verbose        = verbose
+  )
+
+  # --- marginal estimates ---
+  conn_me <- .EstimateMarginalEffects(
+    conn_fit, predictor_term, approach,
+    estimand = estimand, from_var = from_var, to_var = to_var
+  )
+  dist_me <- .EstimateMarginalEffects(
+    dist_fit, predictor_term, approach,
+    estimand = estimand, from_var = from_var, to_var = to_var
+  )
+
+  list(
+    connectivity     = conn_me,
+    distance         = dist_me,
+    models           = list(
+      connectivity = conn_fit,
+      distance     = dist_fit
+    ),
+    unpaired_summary = unpaired_summary,
+    unpaired_rates   = unpaired_rates
+  )
+}
+
+#' @title Forest Plot of TCR Dyad Model Estimates
+#'
+#' @description Generates a forest plot from the output of
+#'   \code{\link{ModelTCRDyads}}. The function detects whether the result
+#'   contains marginal effects (\code{estimand = "effects"}, columns from
+#'   \code{\link[marginaleffects]{avg_comparisons}}) or marginal means
+#'   (\code{estimand = "means"}, columns from
+#'   \code{\link[marginaleffects]{avg_predictions}}) and adjusts the plot
+#'   accordingly.
+#'
+#'   For marginal effects, contrast labels appear on the y-axis with a dashed
+#'   reference line at zero. For marginal means, \code{pair_type} levels
+#'   appear on the y-axis with no reference line.
+#'
+#'   When \code{which = "connectivity"}, axis labels are tailored to
+#'   emphasize that the estimates represent probabilities. When
+#'   \code{showUnpaired = TRUE} (and \code{which = "connectivity"}), a
+#'   second facet is added showing the empirical probability that a clone
+#'   in each group has no connections, with exact binomial 95\% confidence
+#'   intervals computed from the full dyad table prior to subsetting to
+#'   connected pairs.
+#'
+#' @param result The list returned by \code{\link{ModelTCRDyads}}.
+#' @param which Character. Which model to plot: \code{"connectivity"}
+#'   (default) or \code{"distance"}.
+#' @param showUnpaired Logical. When \code{TRUE} and
+#'   \code{which = "connectivity"}, adds a facet showing the per-group
+#'   probability that a clone is unpaired (has no connections). Requires
+#'   a categorical \code{groupColumn} in \code{ModelTCRDyads()}.
+#'   Default \code{FALSE}.
+#' @param title Character or \code{NULL}. Plot title. When \code{NULL}
+#'   (default), an informative title is generated automatically.
+#'
+#' @return A \code{ggplot} object.
+#'
+#' @seealso \code{\link{ModelTCRDyads}}
+#' @importFrom ggplot2 ggplot aes geom_pointrange geom_vline labs theme_bw ggtitle facet_wrap
+#' @export
+PlotDyadEstimates <- function(result, which = "connectivity",
+                              showUnpaired = FALSE, title = NULL) {
+  if (!which %in% c("connectivity", "distance")) {
+    stop("'which' must be 'connectivity' or 'distance', got: ", which)
+  }
+  df <- result[[which]]
+  if (is.null(df) || !is.data.frame(df) || nrow(df) == 0L) {
+    stop("No estimates found in result$", which,
+         ". Ensure ModelTCRDyads() ran successfully.")
+  }
+
+  is_effects <- "contrast" %in% colnames(df)
+  is_conn    <- which == "connectivity"
+
+  if (is_effects) {
+    y_var  <- "contrast"
+    x_lab  <- if (is_conn) "Difference in Connectivity Probability" else "Difference Estimate"
+    y_lab  <- "Contrast"
+    auto_title <- paste0(
+      tools::toTitleCase(which), ": Pairwise Contrasts"
+    )
+    auto_sub <- if (is_conn) {
+      "Estimated difference in probability (95% CI)"
+    } else {
+      "Estimated difference (95% CI)"
+    }
+  } else {
+    y_var  <- "pair_type"
+    x_lab  <- if (is_conn) "Predicted Connectivity Probability" else "Predicted Value"
+    y_lab  <- "Pair Type"
+    auto_title <- paste0(
+      tools::toTitleCase(which), ": Marginal Means"
+    )
+    auto_sub <- if (is_conn) {
+      "Predicted probability (95% CI)"
+    } else {
+      "Predicted value (95% CI)"
+    }
+  }
+
+  if (!y_var %in% colnames(df)) {
+    stop("Expected column '", y_var, "' not found in result$", which)
+  }
+
+  plot_title <- if (!is.null(title)) title else auto_title
+
+  # determine whether to include the unpaired facet
+  include_unpaired <- showUnpaired && is_conn &&
+    !is.null(result$unpaired_rates) && nrow(result$unpaired_rates) > 0L
+
+  if (showUnpaired && !is_conn) {
+    warning("showUnpaired is ignored when which = 'distance'")
+  }
+  if (showUnpaired && is_conn && is.null(result$unpaired_rates)) {
+    warning("No unpaired_rates found in result; was groupColumn numeric? ",
+            "showUnpaired requires a categorical groupColumn.")
+  }
+
+  if (include_unpaired) {
+    conn_panel <- data.frame(
+      label     = as.character(df[[y_var]]),
+      estimate  = df[["estimate"]],
+      conf.low  = df[["conf.low"]],
+      conf.high = df[["conf.high"]],
+      panel     = "Connectivity Probability",
+      stringsAsFactors = FALSE
+    )
+    unpaired_panel <- data.frame(
+      label     = result$unpaired_rates$group,
+      estimate  = result$unpaired_rates$estimate,
+      conf.low  = result$unpaired_rates$conf.low,
+      conf.high = result$unpaired_rates$conf.high,
+      panel     = "Probability Unpaired",
+      stringsAsFactors = FALSE
+    )
+    combined <- rbind(conn_panel, unpaired_panel)
+    combined$panel <- factor(combined$panel,
+                             levels = c("Connectivity Probability",
+                                        "Probability Unpaired"))
+
+    p <- ggplot2::ggplot(combined, ggplot2::aes(
+      x    = .data[["estimate"]],
+      y    = stats::reorder(.data[["label"]], .data[["estimate"]]),
+      xmin = .data[["conf.low"]],
+      xmax = .data[["conf.high"]]
+    )) +
+      ggplot2::geom_pointrange(size = 0.5) +
+      ggplot2::facet_wrap(~ panel, scales = "free") +
+      ggplot2::labs(
+        title    = plot_title,
+        subtitle = auto_sub,
+        x        = "Probability",
+        y        = NULL
+      ) +
+      ggplot2::theme_bw()
+
+    if (is_effects) {
+      ref_df <- data.frame(
+        panel      = factor("Connectivity Probability",
+                            levels = levels(combined$panel)),
+        xintercept = 0
+      )
+      p <- p + ggplot2::geom_vline(
+        data = ref_df,
+        ggplot2::aes(xintercept = .data[["xintercept"]]),
+        linetype = "dashed", color = "firebrick"
+      )
+    }
+  } else {
+    p <- ggplot2::ggplot(df, ggplot2::aes(
+      x    = .data[["estimate"]],
+      y    = stats::reorder(.data[[y_var]], .data[["estimate"]]),
+      xmin = .data[["conf.low"]],
+      xmax = .data[["conf.high"]]
+    )) +
+      ggplot2::geom_pointrange(size = 0.5) +
+      ggplot2::labs(
+        title    = plot_title,
+        subtitle = auto_sub,
+        x        = x_lab,
+        y        = y_lab
+      ) +
+      ggplot2::theme_bw()
+
+    if (is_effects) {
+      p <- p + ggplot2::geom_vline(
+        xintercept = 0, linetype = "dashed", color = "firebrick"
+      )
+    }
+  }
+
+  p
 }

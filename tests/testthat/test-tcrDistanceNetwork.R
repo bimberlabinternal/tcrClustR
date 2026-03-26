@@ -198,6 +198,30 @@ test_that("TCRDistanceNetwork works with showIsolated = TRUE", {
   expect_true(all(c("distance", "weight", "from_clone", "to_clone", "component") %in% colnames(result$edges)))
 })
 
+test_that("TCRDistanceNetwork communityDistanceThreshold uses a separate community threshold", {
+  seuratObj_TCR <- CalculateTcrDistances(
+    .make_network_test_seurat(),
+    chains           = "TRB",
+    minimumCloneSize = 1L,
+    verbose          = FALSE
+  )
+
+  # wide edge threshold, but restrict Louvain community graph to very tight distances
+  result <- TCRDistanceNetwork(
+    seuratObj_TCR,
+    chains                     = "TRB",
+    distanceThreshold          = 200,
+    communityDistanceThreshold = 10,
+    communityMethod            = "threshold",
+    edgeType                   = "binary",
+    colorByCommunity           = TRUE
+  )
+  expect_s3_class(result$plot, "ggplot")
+  expect_true(is.data.frame(result$layout))
+  # community column must be present on every node
+  expect_true(".community" %in% colnames(result$layout))
+})
+
 test_that("TCRDistanceNetwork accepts a custom colorPalette passthrough", {
   seuratObj_TCR <- CalculateTcrDistances(
     .make_network_test_seurat(),
