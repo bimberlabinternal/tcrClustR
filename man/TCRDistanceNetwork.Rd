@@ -20,7 +20,8 @@ TCRDistanceNetwork(
   layout = "fr",
   showIsolated = FALSE,
   title = NULL,
-  verbose = FALSE
+  verbose = FALSE,
+  lineColor = "grey70"
 )
 }
 \arguments{
@@ -79,6 +80,8 @@ peripheral ring outside the connected component.}
 \code{NULL}.}
 
 \item{verbose}{Logical. Print progress messages. Default is \code{FALSE}.}
+
+\item{lineColor}{Character. This color will be used for connecting lines.}
 }
 \value{
 A named list with three elements:

@@ -537,6 +537,7 @@ BuildTCRDistanceGraph <- function(
 #' @param title Character or \code{NULL}. Plot title; auto-generated from assay name when
 #'   \code{NULL}.
 #' @param verbose Logical. Print progress messages. Default is \code{FALSE}.
+#' @param lineColor Character. This color will be used for connecting lines.
 #'
 #' @return A named list with three elements:
 #'   \describe{
@@ -599,7 +600,8 @@ TCRDistanceNetwork <- function(
     layout            = "fr",
     showIsolated      = FALSE,
     title             = NULL,
-    verbose           = FALSE
+    verbose           = FALSE,
+    lineColor         = "grey70"
 ) {
   # validate arguments
   if (!communityMethod %in% c("threshold", "DIANA")) {
@@ -778,12 +780,12 @@ TCRDistanceNetwork <- function(
 
   # edges
   if (edgeType == "binary") {
-    p <- p + ggraph::geom_edge_link(colour = "grey70", alpha = 0.5)
+    p <- p + ggraph::geom_edge_link(colour = lineColor, alpha = 0.75)
   } else {
     p <- p +
       ggraph::geom_edge_link(
         ggplot2::aes(width = norm_weight, alpha = norm_weight),
-        colour  = "grey60",
+        colour  = lineColor,
         lineend = "round"
       ) +
       ggraph::scale_edge_width_continuous(

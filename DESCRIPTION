@@ -46,7 +46,6 @@ Remotes:
     kevinsblake/NatParksPalettes, 
     satijalab/seurat
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.3
 Suggests: 
     testthat (>= 3.0.0),
     knitr,
@@ -65,3 +64,4 @@ Collate:
     'RunTcrClustering.R'
     'utils-pipe.R'
     'zzz.R'
+Config/roxygen2/version: 8.1.0

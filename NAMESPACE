@@ -21,59 +21,77 @@ export(TCRDistanceHistograms)
 export(TCRDistanceNetwork)
 export(VisualizeTcrDistances)
 import(Matrix)
-importFrom(ComplexHeatmap,Heatmap)
-importFrom(ComplexHeatmap,HeatmapAnnotation)
-importFrom(ComplexHeatmap,draw)
-importFrom(ComplexHeatmap,rowAnnotation)
-importFrom(dirichletprocess,DirichletProcessGaussian)
-importFrom(dirichletprocess,Fit)
-importFrom(ggplot2,aes)
-importFrom(ggplot2,facet_wrap)
-importFrom(ggplot2,geom_col)
-importFrom(ggplot2,geom_errorbar)
-importFrom(ggplot2,geom_point)
-importFrom(ggplot2,geom_pointrange)
-importFrom(ggplot2,geom_vline)
-importFrom(ggplot2,ggplot)
-importFrom(ggplot2,ggtitle)
-importFrom(ggplot2,labs)
-importFrom(ggplot2,position_dodge2)
-importFrom(ggplot2,position_jitterdodge)
-importFrom(ggplot2,scale_x_continuous)
-importFrom(ggplot2,scale_y_continuous)
-importFrom(ggplot2,theme_bw)
-importFrom(ggraph,create_layout)
-importFrom(ggraph,geom_edge_link)
-importFrom(ggraph,geom_node_point)
-importFrom(ggraph,geom_node_text)
-importFrom(ggraph,ggraph)
-importFrom(ggraph,scale_edge_alpha_continuous)
-importFrom(ggraph,scale_edge_width_continuous)
-importFrom(ggraph,theme_graph)
-importFrom(igraph,E)
-importFrom(igraph,V)
-importFrom(igraph,cluster_louvain)
-importFrom(igraph,components)
-importFrom(igraph,degree)
-importFrom(igraph,delete_vertices)
-importFrom(igraph,ecount)
-importFrom(igraph,induced_subgraph)
-importFrom(igraph,layout_with_fr)
-importFrom(igraph,membership)
-importFrom(igraph,vcount)
+importFrom(ComplexHeatmap,
+  Heatmap,
+  HeatmapAnnotation,
+  draw,
+  rowAnnotation
+)
+importFrom(dirichletprocess,
+  DirichletProcessGaussian,
+  Fit
+)
+importFrom(ggplot2,
+  aes,
+  facet_wrap,
+  geom_col,
+  geom_errorbar,
+  geom_point,
+  geom_pointrange,
+  geom_vline,
+  ggplot,
+  ggtitle,
+  labs,
+  position_dodge2,
+  position_jitterdodge,
+  scale_x_continuous,
+  scale_y_continuous,
+  theme_bw
+)
+importFrom(ggraph,
+  create_layout,
+  geom_edge_link,
+  geom_node_point,
+  geom_node_text,
+  ggraph,
+  scale_edge_alpha_continuous,
+  scale_edge_width_continuous,
+  theme_graph
+)
+importFrom(igraph,
+  E,
+  V,
+  cluster_louvain,
+  components,
+  degree,
+  delete_vertices,
+  ecount,
+  induced_subgraph,
+  layout_with_fr,
+  membership,
+  vcount
+)
 importFrom(lme4,glmer)
 importFrom(magrittr,"%>%")
-importFrom(marginaleffects,avg_comparisons)
-importFrom(marginaleffects,avg_predictions)
-importFrom(marginaleffects,avg_slopes)
-importFrom(methods,as)
-importFrom(methods,is)
+importFrom(marginaleffects,
+  avg_comparisons,
+  avg_predictions,
+  avg_slopes
+)
+importFrom(methods,
+  as,
+  is
+)
 importFrom(rlang,.data)
-importFrom(stats,as.formula)
-importFrom(stats,binom.test)
-importFrom(stats,glm)
-importFrom(stats,relevel)
-importFrom(stats,setNames)
-importFrom(tidygraph,activate)
-importFrom(tidygraph,as_tbl_graph)
-importFrom(tidygraph,tbl_graph)
+importFrom(stats,
+  as.formula,
+  binom.test,
+  glm,
+  relevel,
+  setNames
+)
+importFrom(tidygraph,
+  activate,
+  as_tbl_graph,
+  tbl_graph
+)
