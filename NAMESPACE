@@ -2,39 +2,96 @@
 
 export("%>%")
 export(ApplyClusteringResultsToSeurat)
+export(BuildTCRDistanceGraph)
 export(CalculateTcrDistances)
 export(DirichletClusterAnalysis)
 export(ExpandDistancesToMatchSeuratObj)
 export(ExtractGroupDistanceVectors)
 export(GetDistanceMatrix)
 export(GetExampleMarkdown)
+export(ModelTCRDyads)
 export(PlotClusterMeans)
+export(PlotDyadEstimates)
 export(PlotMixingProportions)
 export(RunTcrClustering)
 export(SetPythonExecutable)
 export(SetupPythonEnvironment)
 export(TCRDistanceHeatmaps)
 export(TCRDistanceHistograms)
+export(TCRDistanceNetwork)
 export(VisualizeTcrDistances)
 import(Matrix)
-importFrom(ComplexHeatmap,Heatmap)
-importFrom(ComplexHeatmap,HeatmapAnnotation)
-importFrom(ComplexHeatmap,draw)
-importFrom(ComplexHeatmap,rowAnnotation)
-importFrom(dirichletprocess,DirichletProcessGaussian)
-importFrom(dirichletprocess,Fit)
-importFrom(ggplot2,aes)
-importFrom(ggplot2,geom_col)
-importFrom(ggplot2,geom_errorbar)
-importFrom(ggplot2,geom_point)
-importFrom(ggplot2,ggplot)
-importFrom(ggplot2,labs)
-importFrom(ggplot2,position_dodge2)
-importFrom(ggplot2,position_jitterdodge)
-importFrom(ggplot2,scale_x_continuous)
-importFrom(ggplot2,scale_y_continuous)
-importFrom(ggplot2,theme_bw)
+importFrom(ComplexHeatmap,
+  Heatmap,
+  HeatmapAnnotation,
+  draw,
+  rowAnnotation
+)
+importFrom(dirichletprocess,
+  DirichletProcessGaussian,
+  Fit
+)
+importFrom(ggplot2,
+  aes,
+  facet_wrap,
+  geom_col,
+  geom_errorbar,
+  geom_point,
+  geom_pointrange,
+  geom_vline,
+  ggplot,
+  ggtitle,
+  labs,
+  position_dodge2,
+  position_jitterdodge,
+  scale_x_continuous,
+  scale_y_continuous,
+  theme_bw
+)
+importFrom(ggraph,
+  create_layout,
+  geom_edge_link,
+  geom_node_point,
+  geom_node_text,
+  ggraph,
+  scale_edge_alpha_continuous,
+  scale_edge_width_continuous,
+  theme_graph
+)
+importFrom(igraph,
+  E,
+  V,
+  cluster_louvain,
+  components,
+  degree,
+  delete_vertices,
+  ecount,
+  induced_subgraph,
+  layout_with_fr,
+  membership,
+  vcount
+)
+importFrom(lme4,glmer)
 importFrom(magrittr,"%>%")
-importFrom(methods,as)
-importFrom(methods,is)
-importFrom(stats,setNames)
+importFrom(marginaleffects,
+  avg_comparisons,
+  avg_predictions,
+  avg_slopes
+)
+importFrom(methods,
+  as,
+  is
+)
+importFrom(rlang,.data)
+importFrom(stats,
+  as.formula,
+  binom.test,
+  glm,
+  relevel,
+  setNames
+)
+importFrom(tidygraph,
+  activate,
+  as_tbl_graph,
+  tbl_graph
+)
